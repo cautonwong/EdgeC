@@ -103,6 +103,7 @@ static int fake_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, s
 static int fake_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
     fake_ctx_t* f = (fake_ctx_t*)ctx;
     (void)f;
+    (void)cap;
     if (oad == 0x50040200u) {
         static const uint8_t value[] = {0x12, 0x00, 0x28};
         memcpy(buf, value, sizeof(value));
@@ -249,7 +250,6 @@ static void test_data_denied_without_list_entry(void** state) {
     static const uint16_t ois[] = {0x5004};
     f.acl_len = build_acl(f.acl, ois, 1);
 
-    /* 未 CONNECT：预连接窗口也只允许列表内的 OAD。 */
     static const uint8_t get_denied[] = {0x05, 0x01, 0x02, 0x20, 0x00, 0x02, 0x00, 0x00};
     assert_int_equal(exchange(session, get_denied, sizeof(get_denied), &f, out), 0);
     static const uint8_t want_get[] = {0x85, 0x01, 0x02, 0x20, 0x00, 0x02, 0x00,

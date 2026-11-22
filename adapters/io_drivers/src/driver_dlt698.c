@@ -306,7 +306,7 @@ typedef struct {
 } dlt698_session_t;
 
 /* 对象列表结构（7.3.20 表182）：array { structure { OI, structure { attr[], method[] } } }，
- * 字段是 A-XDR Data；只接受本实现写入的那种形状，任何越界都判列表不可用。 */
+ * 字段是 A-XDR Data；越界即不可用。 */
 static int _acl_take(const uint8_t *buf, size_t len, size_t *off, uint8_t tag) {
     if (*off >= len || buf[*off] != tag) return -1;
     (*off)++;
@@ -450,9 +450,9 @@ static int _handle_connect(const dlt698_addr_t *sa, uint8_t piid, const uint8_t 
         } else if (version != 0x0010) {
             result = 5; /* 协议版本不匹配（表43） */
         } else if (mechanism != 0) {
-            result = 255; /* 仅支持公共连接 [0]；其余机制不假装成功 */
+            result = 255; /* 仅支持公共连接 [0] */
         } else if (!s || !_acl_load(s, src, src_ctx)) {
-            result = 255; /* 对象列表不可用时不授权 */
+            result = 255;
         } else {
             s->connected = true;
             s->client_addr = sa->len ? sa->addr[sa->len - 1] : 0;
@@ -630,6 +630,107 @@ static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8
     return dlt698_encode_get_record_response_end(&stream, out);
 }
 
+static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t choice,
+                               const uint8_t *payload, size_t payload_len,
+                               const edge_slave_source_ops_t *src, void *src_ctx, void *session,
+                               net_buf_t *out) {
+    /* [2] GetRequestNormalList：payload = count(1) | OAD(4)×n | 时间标签(1)。
+     * 标准 6.3.8.1.2 表66。逐项都要给结果：读不到的回 DAR，不能少返一项 ——
+     * 主站请求 2 个 OAD 只拿回 1 个读数还判通过，是最典型的假绿。 */
+    if (choice == DLT698_CHOICE_GET_NORMAL_LIST) {
+        if (payload_len < 2) return -1;
+        size_t n = payload[0];
+        if (n > DLT698_GET_LIST_MAX) return -1;
+        /* 长度必须精确匹配：多一字节少一字节都不能"凑着解"，
+         * 错位解出来的值是错的，而帧校验完全正常。 */
+        if (payload_len != 1 + 4 * n + 1) return -1;
+        dlt698_list_stream_t stream;
+        if (dlt698_encode_get_response_list_begin(&stream, sa, piid, n, out) != 0) return -1;
+        for (size_t k = 0; k < n; k++) {
+            const uint8_t *oad_bytes = payload + 1 + 4 * k;
+            uint32_t oad = _read_be32(oad_bytes);
+            if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
+                if (dlt698_encode_get_response_list_item_dar(out, oad, DLT698_DAR_DENIED) != 0)
+                    return -1;
+                continue;
+            }
+            size_t dlen = 0;
+            if (src && src->resolve_axdr) {
+                /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
+                 * 失败按产品给的失败原因映射 DAR，不截断。单缓冲逐项复用。 */
+                int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
+                if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+                    uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
+                    if (dlt698_encode_get_response_list_item_dar(out, oad, dar) != 0) return -1;
+                    continue;
+                }
+                if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
+                    return -1;
+                }
+                continue;
+            }
+            edge_point_value_t v;
+            memset(&v, 0, sizeof(v));
+            int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
+                                             : src->resolve(src_ctx, oad, NULL, 0, &v);
+            if (rc != 0) {
+                if (dlt698_encode_get_response_list_item_dar(out, oad,
+                                                             _dar_for_source_rc(rc)) != 0)
+                    return -1;
+                continue;
+            }
+            uint8_t scalar[8];
+            if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
+                if (dlt698_encode_get_response_list_item_dar(out, oad,
+                                                             DLT698_DAR_TYPE_MISMATCH) != 0)
+                    return -1;
+                continue;
+            }
+            if (dlt698_encode_get_response_list_item(out, oad, scalar, dlen) != 0) return -1;
+        }
+        return dlt698_encode_get_response_list_end(&stream, out);
+    }
+    /* [3] GetRequestRecord：payload = OAD(4) | RSD | RCSD | 时间标签（表67）。 */
+    if (choice == DLT698_CHOICE_GET_RECORD) {
+        return _handle_get_record(sa, piid, payload, payload_len, src, src_ctx, session, out);
+    }
+    /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */
+    if (choice != DLT698_CHOICE_GET_NORMAL) return -1;
+    if (payload_len < 4) return -1;
+    uint32_t oad = _read_be32(payload);
+    if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
+        dlt698_encode_get_response_dar(sa, piid, oad, DLT698_DAR_DENIED, out);
+        return 0;
+    }
+    if (src && src->resolve_axdr) {
+        size_t dlen = 0;
+        int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
+        if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
+            uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
+            dlt698_encode_get_response_dar(sa, piid, oad, dar, out);
+            return 0;
+        }
+        dlt698_encode_get_response(sa, piid, oad, s_axdr_buf, dlen, out);
+        return 0;
+    }
+    edge_point_value_t v;
+    memset(&v, 0, sizeof(v));
+    int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
+                                     : src->resolve(src_ctx, oad, NULL, 0, &v);
+    if (rc != 0) {
+        dlt698_encode_get_response_dar(sa, piid, oad, _dar_for_source_rc(rc), out);
+        return 0;
+    }
+    uint8_t data[8];
+    size_t dlen = 0;
+    if (_encode_axdr_value(&v, data, &dlen) != 0) {
+        dlt698_encode_get_response_dar(sa, piid, oad, DLT698_DAR_TYPE_MISMATCH, out);
+        return 0;
+    }
+    dlt698_encode_get_response(sa, piid, oad, data, dlen, out);
+    return 0;
+}
+
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
@@ -666,120 +767,16 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
      * 实测现象："值解出来对，但帧校验不过"。 */
     dlt698_addr_t sa = sa_rx;
 
-    /* Class 20：CONNECT/RELEASE 的 APDU 是 `服务 | PIID | 体 | 时标`，
-     * decode_frame_ex 会把首字节当 svc、次字节当 choice，因此这里用 choice 作 PIID，
-     * 并用 payload-1 还原 CONNECT 体。 */
     if (svc == 0x02) {
-        return _handle_connect(&sa, choice, payload - 1, payload_len + 1, src, src_ctx, session,
-                               out);
+        return _handle_connect(&sa, piid, payload, payload_len, src, src_ctx, session, out);
     }
     if (svc == 0x03) {
-        return _handle_release(&sa, choice, session, out);
+        return _handle_release(&sa, piid, session, out);
     }
 
     if (svc == DLT698_SVC_GET_REQ) {
-        /* [2] GetRequestNormalList：payload = count(1) | OAD(4)×n | 时间标签(1)。
-         * 标准 6.3.8.1.2 表66。逐项都要给结果：读不到的回 DAR，不能少返一项 ——
-         * 主站请求 2 个 OAD 只拿回 1 个读数还判通过，是最典型的假绿。 */
-        if (choice == DLT698_CHOICE_GET_NORMAL_LIST) {
-            if (payload_len < 2) return -1;
-            size_t n = payload[0];
-            if (n > DLT698_GET_LIST_MAX) return -1;
-            /* 长度必须精确匹配：多一字节少一字节都不能"凑着解"，
-             * 错位解出来的值是错的，而帧校验完全正常。 */
-            if (payload_len != 1 + 4 * n + 1) return -1;
-
-            dlt698_list_stream_t stream;
-            if (dlt698_encode_get_response_list_begin(&stream, &sa, piid, n, out) != 0) return -1;
-            for (size_t k = 0; k < n; k++) {
-                const uint8_t *oad_bytes = payload + 1 + 4 * k;
-                uint32_t oad = _read_be32(oad_bytes);
-                if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
-                    if (dlt698_encode_get_response_list_item_dar(out, oad, DLT698_DAR_DENIED) != 0)
-                        return -1;
-                    continue;
-                }
-                size_t dlen = 0;
-                if (src && src->resolve_axdr) {
-                    /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
-                     * 失败按产品给的失败原因映射 DAR，不截断。单缓冲逐项复用。 */
-                    int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
-                    if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
-                        uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
-                        if (dlt698_encode_get_response_list_item_dar(out, oad, dar) != 0) return -1;
-                        continue;
-                    }
-                    if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
-                        return -1;
-                    }
-                    continue;
-                }
-                edge_point_value_t v;
-                memset(&v, 0, sizeof(v));
-                int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
-                                                 : src->resolve(src_ctx, oad, NULL, 0, &v);
-                if (rc != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(out, oad,
-                                                                 _dar_for_source_rc(rc)) != 0)
-                        return -1;
-                    continue;
-                }
-                uint8_t scalar[8];
-                if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
-                    if (dlt698_encode_get_response_list_item_dar(out, oad,
-                                                                 DLT698_DAR_TYPE_MISMATCH) != 0)
-                        return -1;
-                    continue;
-                }
-                if (dlt698_encode_get_response_list_item(out, oad, scalar, dlen) != 0) return -1;
-            }
-            return dlt698_encode_get_response_list_end(&stream, out);
-        }
-
-        /* [3] GetRequestRecord：payload = OAD(4) | RSD | RCSD | 时间标签（表67）。 */
-        if (choice == DLT698_CHOICE_GET_RECORD) {
-            return _handle_get_record(&sa, piid, payload, payload_len, src, src_ctx, session, out);
-        }
-
-        /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */
-        if (choice != DLT698_CHOICE_GET_NORMAL) return -1;
-        if (payload_len < 4) return -1;
-
-        uint32_t oad = _read_be32(payload);
-        if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
-            dlt698_encode_get_response_dar(&sa, piid, oad, DLT698_DAR_DENIED, out);
-            return 0;
-        }
-        if (src && src->resolve_axdr) {
-            size_t dlen = 0;
-            int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
-            if (rc != 0 || dlen == 0 || dlen > sizeof(s_axdr_buf)) {
-                uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
-                dlt698_encode_get_response_dar(&sa, piid, oad, dar, out);
-                return 0;
-            }
-            dlt698_encode_get_response(&sa, piid, oad, s_axdr_buf, dlen, out);
-            return 0;
-        }
-
-        edge_point_value_t v;
-        memset(&v, 0, sizeof(v));
-        int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
-                                         : src->resolve(src_ctx, oad, NULL, 0, &v);
-        if (rc != 0) {
-            dlt698_encode_get_response_dar(&sa, piid, oad, _dar_for_source_rc(rc), out);
-            return 0;
-        }
-
-        uint8_t data[8];
-        size_t dlen = 0;
-        if (_encode_axdr_value(&v, data, &dlen) != 0) {
-            dlt698_encode_get_response_dar(&sa, piid, oad, DLT698_DAR_TYPE_MISMATCH, out);
-            return 0;
-        }
-
-        dlt698_encode_get_response(&sa, piid, oad, data, dlen, out);
-        return 0;
+        return _handle_get_request(&sa, piid, choice, payload, payload_len, src, src_ctx, session,
+                                   out);
     }
 
     if (svc == DLT698_SVC_SET_REQ) {

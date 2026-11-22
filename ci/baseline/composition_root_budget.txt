@@ -14,7 +14,8 @@
 # 2026-11-21: cmd/dcu/dcu_north_adapter.c 201 -> 203; D1-13 A-XDR 端口接线（include + ops 两行，编码体在 dcu_698_axdr.c）。
 # 2026-11-22: cmd/dcu/dcu_north_adapter.c 203 -> 190; D1-05 删掉适配器里的 OI 链，标量 resolve 复用 dcu_698_value_for_oad 的类型表。
 # 2026-11-22: cmd/dcu/dcu_north_adapter.c 190 -> 189; D1-06 ACTION 入口解 A.9 参数后转对象表分派（解码在 dcu_698_axdr.c）。
-cmd/dcu/dcu_north_adapter.c|189
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 189 -> 191; D1-17 接线 object_list 端口（include + ops 一行，列表在 dcu_698_appconn.c）。
+cmd/dcu/dcu_north_adapter.c|191
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|184

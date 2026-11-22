@@ -303,8 +303,6 @@ static bool contains(const uint8_t *hay, size_t hay_len, const uint8_t *needle, 
     return false;
 }
 
-/* D1-17 起，驱动按 Class 20 对象列表授权；本文件验的是取值编码，
- * 因此给一份覆盖这些 OAD 的测试 ACL，不改变被测路径。 */
 static const uint8_t k_test_acl[] = {
     0x01, 0x0D, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02,
     0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01,
@@ -347,6 +345,7 @@ static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, s
 static int test_exchange(void *priv, const uint8_t *frame, size_t frame_len,
                          const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
                          size_t *consumed) {
+    (void)src_ctx;
     edge_slave_source_ops_t wrapped = *src;
     wrapped.object_list = test_object_list;
     static uint8_t session[1024];

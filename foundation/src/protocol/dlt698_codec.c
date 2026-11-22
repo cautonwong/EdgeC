@@ -351,9 +351,12 @@ int dlt698_decode_frame_ex(struct net_buf_simple *in, dlt698_addr_t *sa, uint8_t
 
     uint8_t *apdu_start = in->data + hcs_at + 2;
     *svc = apdu_start[0];
-    if (choice) *choice = apdu_start[1];
-    *piid = apdu_start[2];
-    *payload_out = apdu_start + 3;
+    /* CONNECT-Request / RELEASE-Request 是 `服务 | PIID | 体`，没有 CHOICE
+     * （表59/表61）；其余客户端服务是 `服务 | CHOICE | PIID | 体`。 */
+    int with_choice = !(*svc == 0x02 || *svc == 0x03);
+    if (choice) *choice = with_choice ? apdu_start[1] : 0;
+    *piid = with_choice ? apdu_start[2] : apdu_start[1];
+    *payload_out = apdu_start + (with_choice ? 3 : 2);
     *payload_len = (size_t)(in->data + frame_len - 2 - (*payload_out));
 
     return 0;

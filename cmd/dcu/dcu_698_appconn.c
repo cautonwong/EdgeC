@@ -23,12 +23,13 @@ typedef struct {
     uint8_t n_methods;
 } acl_object_t;
 
-/* 与对象表/变量表实际提供的能力一致：列表里没有的 OAD 会被驱动回 DAR 3。 */
 static const acl_attr_t k_attrs_0010[] = {{2, 1}, {4, 1}};
 static const acl_attr_t k_attrs_0020[] = {{2, 1}};
 static const acl_attr_t k_attrs_2000[] = {{2, 1}};
 static const acl_attr_t k_attrs_2001[] = {{2, 1}};
 static const acl_attr_t k_attrs_2004[] = {{2, 1}};
+static const acl_attr_t k_attrs_200A[] = {{2, 1}};
+static const acl_attr_t k_attrs_200F[] = {{2, 1}};
 static const acl_attr_t k_attrs_5004[] = {{2, 1}};
 static const acl_attr_t k_attrs_6000[] = {{2, 1}};
 static const acl_attr_t k_attrs_6012[] = {{2, 1}};
@@ -44,6 +45,8 @@ static const acl_object_t k_objects[] = {
     {0x2000, k_attrs_2000, 1, NULL, 0},
     {0x2001, k_attrs_2001, 1, NULL, 0},
     {0x2004, k_attrs_2004, 1, NULL, 0},
+    {0x200A, k_attrs_200A, 1, NULL, 0},
+    {0x200F, k_attrs_200F, 1, NULL, 0},
     {0x3000, k_attrs_event, 8, NULL, 0},
     {0x3005, k_attrs_event, 8, NULL, 0},
     {0x5004, k_attrs_5004, 1, NULL, 0},

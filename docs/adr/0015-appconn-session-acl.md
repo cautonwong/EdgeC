@@ -16,10 +16,12 @@ Class 20 应用连接对象（7.3.20 表181/182/183）把"可访问对象 + 每�
 
 `edge_driver_t.ctx_size = sizeof(dlt698_session_t)`；`driver_manager` 已有 `DRIVER_PRIV_SIZE`（1024 B）定长存储并按会话清零。会话里只放：是否已连接、客户机地址、以及从对象列表解析出的 ACL。无动态内存；ACL 数组有上限，超出上限视为"对象列表不可用"，不截断。
 
-### 2. 对象列表经既有 `resolve_axdr` 端口取，不新增端口
+### 2. 对象列表经新增的 `object_list` 端口取
 
 驱动在 CONNECT 时（以及首次数据请求时的预连接窗口）调用
-`src->resolve_axdr(ctx, 0x44000200, buf, cap, &len)`，由产品的 Class 20 对象返回属性 2 的原始 A-XDR（表182 结构）。驱动用自己的 698 解析器把它转成定长 ACL。
+`src->object_list(ctx, 0x44000200, buf, cap, &len)`，由产品的 Class 20 对象返回属性 2 的原始 A-XDR（表182 结构）。驱动用自己的 698 解析器把它转成定长 ACL。
+
+不复用 `resolve_axdr`：那个回调非 NULL 会让普通 GET 固定走 A-XDR 路径，改变"有 A-XDR 走 A-XDR、否则回落标量"的既有判定；授权通道与取值通道必须分开。
 
 - 端口仍协议中立：`edge_slave_plane.h` 不出现 RSD、对象列表结构或 DAR；产品实现用 698 类型构造字节。
 - 对象列表是唯一事实来源；产品未实现该 OAD、回调为 NULL、或解析失败 → ACL 不可用，数据请求一律 DAR 3，**不静默放行**。

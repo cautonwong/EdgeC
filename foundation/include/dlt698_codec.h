@@ -145,7 +145,7 @@ typedef struct {
 /**
  * @brief 构造 CONNECT-Response（表60）。
  *
- * APDU：`82 | PIID-ACD | 厂商版本信息 | 协议版本 | 一致性块 | 帧尺寸 | 超时 | 结果 | 00 | 00`
+ * APDU：`82 | PIID-ACD | 厂商版本信息 | 协议版本 | 一致性块 | 帧尺寸 | 超时 | 结果 | 00 | 00 | 00 | 00`
  * 与附录 H.2 的响应同形；厂商信息取本实现的常量。
  */
 int dlt698_encode_connect_response(const dlt698_addr_t *sa, uint8_t piid,
