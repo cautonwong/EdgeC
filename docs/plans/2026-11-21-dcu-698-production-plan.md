@@ -782,7 +782,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
 | D1-05 | 已合并 | `dcu/D1-05-resolve-table` | `ac7b8dfe` | `docs/evidence/DCU-D1-05/` | 合并提交 `ac7b8dfe`；`dcu_698_value_for_oad` 成为 OAD→类型唯一来源；验收扩到 2000/2001/2004/6000/6012/5004 七例；顺带修 5004 计数回调的 ~900KB 越界（ctx 二次取址） |
 | D1-06 | 部分合并 | `dcu/D1-06-action` | `9a7fb7f9` | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；127–131 参数按表 A.9 解码，错形状回 DAR 7；129–131 因产品没有继电器 OAD→电表地址映射，诚实回 DAR 2（不假装执行）；127/128 无告警输出同回 2；继电器映射需产品拍板 |
-| D1-07 | 进行中 | `dcu/D1-07-record-storage` | `05e7176e` | `docs/evidence/DCU-D1-07/` | dcu-dev 执行中；5004 记录端口接 `dcu_storage_query_freeze`，OAD 元素索引选表，RSD/RCSD 解码，行按列编码 |
+| D1-07 | 已合并 | `dcu/D1-07-record-storage` | `2ee06750` | `docs/evidence/DCU-D1-07/` | 合并提交 `2ee06750`；5004 记录端口接存储，Selector1/2 与 RCSD 列编码，UTC 时间基；合并后 33/33、ASAN、守卫、验收通过（一次控制帧 flake，重跑通过） |
+| D1-18d | 进行中 | `dcu/D1-18d-control-security` | `2ee06750` | `docs/evidence/DCU-D1-18d/` | dcu-dev 执行中；8000 方法号、F100 假认证、F200 属性语义按标准诚实化 |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
