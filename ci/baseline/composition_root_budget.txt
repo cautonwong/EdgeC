@@ -17,7 +17,8 @@
 # 2026-11-22: cmd/dcu/dcu_north_adapter.c 189 -> 191; D1-17 接线 object_list 端口（include + ops 一行，列表在 dcu_698_appconn.c）。
 # 2026-11-22: cmd/dcu/dcu_north_adapter.c 191 -> 201; D1-07 接线 record 端口与记录上下文（实现与分页在 dcu_698_record.c）。
 # 2026-11-22: cmd/dcu/dcu_north_adapter.c 201 -> 203; D1-16 接线上报端口（include + ops 一行，队列在 dcu_698_report.c）。
-cmd/dcu/dcu_north_adapter.c|203
+# 2026-11-22: cmd/dcu/dcu_north_adapter.c 203 -> 204; D1-20a 增加 6012 分支，原始 A-XDR 交 dcu_698_accept_action_axdr 解码。
+cmd/dcu/dcu_north_adapter.c|204
 cmd/dcu/dcu_bus_adapter.c|43
 cmd/dcu/main.c|225
 cmd/edge_mcp_server/main.c|184

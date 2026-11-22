@@ -495,17 +495,11 @@ def _task_unit_param(task_id: int, unit: int, value: int, status: int = 1,
     )
 
 
-@case(id="D_00_00_02_000019", clause="free: 6012 ACTION 127 改周期 / 127 重下发 / 128 删除，A2 全程可回读", tags=["待接入"])
+@case(id="D_00_00_02_000019", clause="free: 6012 ACTION 127 改周期 / 127 重下发 / 128 删除，A2 全程可回读", tags=["北向"])
 @pytest.mark.contract
 def test_master_changes_task_config_via_action():
     add = dlt698.action_request(0x07, 0x6012, 127, param=_task_unit_param(7, 0, 60))
     res = dlt698.parse_action_response(_exchange(add).apdu)
-    if res.dar == 6:
-        pytest.skip(
-            "6012 ACTION 未接入北向：dcu_north_adapter.c 对非 6000/8000 的 ACTION 仍回 "
-            "NOT_FOUND（DAR 6），raw ACTION 分支由 D1-20a 接入；本分支 D2-03 的 6012 用例"
-            "由 tests/test_dcu_698_tasks.c 直接覆盖"
-        )
     assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
 
     units = {u["task_id"]: u for u in _read_task_units()}

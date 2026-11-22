@@ -1,0 +1,108 @@
+# DCU-D1-20a 门禁记录
+
+基线 `3d971fbb`（D2-03 已合入），分支 `dcu/D1-20a-action-route`，最终树一次提交。
+
+## 干净 Release 构建（build-final，全新目录）
+
+```
+$ cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release && cmake --build . -j$(nproc)
+exit=0
+$ grep -cEi "warning:|error:" build.log
+0
+$ python3 ci/scripts/check_build_warnings.py --log build-final/build.log --root .
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+```
+
+## 聚焦 ctest（build-final）
+
+```
+$ ctest -R '^test_dcu_698_axdr$|^test_dcu_698_tasks$' --output-on-failure
+100% tests passed, 0 tests failed out of 2
+[ RUN/OK ] test_action_6012_method127_valid_body_dar0
+[ RUN/OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+tests: 32 test(s) run.  [ PASSED ] 32 test(s).
+```
+
+## 全量 ctest（同一最终代码）
+
+```
+$ ctest --output-on-failure
+100% tests passed, 0 tests failed out of 340
+Total Test time (real) = 200.33 sec
+```
+
+说明：`test_datahub_shm_legacy`（SIGPIPE）本轮未失败，无需隔离复跑。
+
+## ASAN + UBSAN（Debug 构建，受影响目标）
+
+```
+$ cmake .. -GNinja -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -DENABLE_UBSAN=ON
+$ cmake --build . --target test_dcu_698_axdr test_dcu_698_tasks
+$ ASAN_OPTIONS=detect_leaks=1 UBSAN_OPTIONS=print_stacktrace=1 \
+    ctest -R '^test_dcu_698_axdr$|^test_dcu_698_tasks$' --output-on-failure
+100% tests passed, 0 tests failed out of 2
+```
+
+直接跑 `./tests/test_dcu_698_axdr`（ASAN/UBSAN）同样 32/32，含
+`test_action_6012_method127_truncated_body_dar7_no_state_change`，无 ASAN/UBSAN 报告。
+
+## 架构与边界守卫
+
+```
+$ python3 ci/scripts/check_composition_root_budget.py --root .
+✅ [COMPOSITION_ROOT_BUDGET] clean. 16 root(s).          # dcu_north_adapter.c 203 -> 204 已登记
+$ python3 ci/scripts/check_plane_isolation.py --root .
+✅ [PLANE_ISOLATION_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ python3 ci/scripts/check_component_boundary.py --root .
+✅ [COMPONENT_BOUNDARY_GUARD] clean. Baseline owners: none
+$ python3 ci/scripts/check_no_dynamic_memory.py --root .
+✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ python3 ci/scripts/check_stack_usage.py --root .
+✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ python3 ci/scripts/check_caller_allocated_storage.py --root .
+✅ [CALLER_ALLOCATED_STORAGE_GUARD] ... verified cleanly.
+$ python3 ci/scripts/check_public_structs.py --root .
+✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+$ python3 ci/scripts/check_resource_discipline.py --root .
+✅ [RESOURCE_DISCIPLINE] clean: getenv_calls=0, heap_calls=176, thread_creations=0
+$ python3 ci/scripts/check_test_registration.py --root .
+✅ [TEST_REGISTRATION_GUARD] every test file is registered or exempt.
+$ python3 ci/scripts/check_strncpy_bounds.py --root .
+✅ [STRNCPY_BOUNDS_GUARD] No violations.
+$ python3 ci/scripts/check_alloc_null.py --root .
+✅ [ALLOC_NULL_GUARD] No violations.
+$ python3 ci/scripts/check_net_buf_alloc_timeout.py --root .
+[NET_BUF_TIMEOUT] clean.
+$ python3 ci/scripts/check_iems_control_slave.py --root .
+✅ [IEMS_CONTROL_SLAVE] control writes carry a resolved slave id
+$ python3 ci/scripts/check_protocol_selection.py --root .
+✅ [PROTOCOL_SELECTION] protocol comes from inventory.protocol (argv[3])
+```
+
+## 验收（`./test.sh --omnis dcu`，DCU_BIN 指向 build-final 产物）
+
+```
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+门禁: 全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+```
+
+明细：dcu_acceptance 3 passed；dcu_northbound 19 passed / 0 skipped /
+3 deselected（tag:北向）。`D_00_00_02_000019` 由 `待接入` 改为 `北向` 后真实执行，
+加 -> 读回 60 秒 -> 改 120 秒 -> 删除 -> 读回不存在，全部通过。
+
+## 格式与空白
+
+```
+$ git diff --check
+(clean)
+$ git clang-format --binary clang-format-14 --diff
+(no output: 本次改动行已符合 .clang-format)
+```
+
+说明：整个文件用 clang-format 14 重排会与仓库既有代码产生大量无关差异（基线文件
+本身不是 14.0 的 clean 状态，DCU-D0-03 已有同样结论）。本次只格式化本单新增/修改
+的行，未整文件重排以免扩大 diff。

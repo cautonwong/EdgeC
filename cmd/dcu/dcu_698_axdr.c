@@ -237,7 +237,9 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
             return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
 
-    return c.off == c.len ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    /* ACTION-Request 的 Data 后允许一个时间标签字节（与 8000/6000 的参数解码一致）。 */
+    if (c.off == c.len || c.off + 1 == c.len) return 0;
+    return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
@@ -248,8 +250,8 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     if (oi == OI_TASK_SCHEDULER && method == 1) {
-        /* Class 10 复位无参数：线上就是一个 NULL，形状不符仍是 DAR 7。 */
-        if (!axdr || axdr_len != 1 || axdr[0] != DLT698_TAG_NULL)
+        /* Class 10 复位无参数：线上就是一个 NULL（可选再跟一个时间标签），形状不符仍是 DAR 7。 */
+        if (!axdr || axdr[0] != DLT698_TAG_NULL || (axdr_len != 1 && axdr_len != 2))
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         return dcu_698_call(omd, NULL, NULL);
     }

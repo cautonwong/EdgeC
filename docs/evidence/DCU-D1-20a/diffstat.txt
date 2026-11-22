@@ -1,0 +1,11 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |   8 +-
+ ci/baseline/composition_root_budget.txt     |   3 +-
+ cmd/dcu/dcu_698_axdr.c                      |   8 +-
+ cmd/dcu/dcu_north_adapter.c                 |   5 +-
+ docs/evidence/DCU-D1-20a/comments.md        |  12 ++
+ docs/evidence/DCU-D1-20a/diffstat.txt       |   3 +
+ docs/evidence/DCU-D1-20a/summary.md         |  64 ++++++++++
+ docs/evidence/DCU-D1-20a/tests.log          | 108 +++++++++++++++++
+ tests/test_dcu_698_axdr.c                   | 174 +++++++++++++++++++++++++---
+ tests/test_dcu_698_tasks.c                  |   3 +-
+ 10 files changed, 356 insertions(+), 32 deletions(-)

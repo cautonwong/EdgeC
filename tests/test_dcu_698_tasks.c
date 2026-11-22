@@ -227,7 +227,8 @@ static void test_wrong_tag_and_count_return_7(void **state) {
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
 
     body_t trailing = body;
-    _u8(&trailing, 0);
+    _u8(&trailing, 0); /* 允许的一个时间标签字节 */
+    _u8(&trailing, 0); /* 多余的尾随字节 */
     assert_int_equal(
         dcu_698_accept_action_axdr(MK_OMD(OI_TASK_SCHEDULER, 127), trailing.b, trailing.n),
         EDGE_SLAVE_SRC_TYPE_MISMATCH);
