@@ -253,10 +253,10 @@ sequenceDiagram
     P-->>B: <name>.ack
 ```
 
-- `accept()` 路径未被任何产品使用（`iems_app.c:230`；`dcu_north_source.c:128`；`smart_box/main.c:103`，已验证）；活路径是 `on_downlink`。
-- 三个产品都只用 `mqtt_json_decode_downlink` 解析；SparkplugB 选中的 NCMD（protobuf）无法解码，必然拒绝（`iems_app.c:162`；`dcu_north_source.c:110`；`smart_box/main.c:87`，已验证）。
+- `accept()` 路径未被任何产品使用（`iems_app.c:230`；`dcu_north_source.c:85`；`smart_box/main.c:103`，已验证）；活路径是 `on_downlink`。
+- 三个产品都只用 `mqtt_json_decode_downlink` 解析；SparkplugB 选中的 NCMD（protobuf）无法解码，必然拒绝（`iems_app.c:162`；`dcu_north_source.c:67`；`smart_box/main.c:87`，已验证）。
 - IEMS 只有 PCS 控制点走聚合根；其余点位直接 `datahub_publish` 写影子后再下发（`iems_app.c:285-299`，已验证）——与 ADR-0011 决策 4"下行控制必须过聚合根"存在冲突。
-- DCU / SmartBox 的 `on_downlink` 解析后明确返回 -1（不假装执行）（`dcu_north_source.c:104-121`；`smart_box/main.c:82-96`，已验证）。
+- DCU / SmartBox 的 `on_downlink` 解析后明确返回 -1（不假装执行）（`dcu_north_source.c:61-78`；`smart_box/main.c:82-96`，已验证）。
 
 ---
 
