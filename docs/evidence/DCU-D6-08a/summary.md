@@ -37,14 +37,28 @@ Cycle in lock order graph: M18 (…) => M28 (…) => M18
 
 按任务允许的"第三方库假阳性"路径处理：
 
-1. `ci/tsan.supp`：只抑制 `deadlock:pthreadMutexEnter`（SQLite 的互斥包装），不抑制 uv 锁或任何第一方函数。
-2. `tests/CMakeLists.txt` 的四处 TSAN_OPTIONS 加上 `suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp`。
+1. `ci/tsan.supp` 只抑制 `deadlock:pthreadMutexEnter`（SQLite 的互斥包装）；uv 锁与第一方 `pthread_mutex_lock` 都不经过它，所以第一方锁序仍会被报告。
+2. 抑制文件**不挂全局**：只挂在同时打开 storage 与档案库、实测会触发该报告的三个用例上——`test_dcu_node`、`test_dcu_runtime_health`、`test_dcu_mutex_marathon`。`tests/CMakeLists.txt` 的 `add_edge_test` 宏保持原样，其他用例无抑制。
 3. `cmd/dcu/dcu_storage.c` 的 init 注释写明单线程所有权，并指向 suppression 的原因。
 4. 新增单线程生命周期用例。
 
+### 抑制键的取舍
+
+先试过按本仓库调用帧抑制（`deadlock:dcu_storage_init` 等）。TSAN 不匹配这些帧，警告仍在（`/tmp/d6-08a-tsan-narrow.log`，3 条），因此改为"只按 SQLite 包装函数抑制 + 只挂在三个用例上"的形状，既不放宽其他用例，也不放过第一方锁。
+
+### 门禁仍然有效（A/B）
+
+- 同一个 `ci/tsan.supp` 下，一个故意写反两把第一方 pthread 锁顺序的临时程序仍报 `lock-order-inversion`（2 行，与无抑制时相同）：`/tmp/d6-08a-lock-ab-supp.log`。
+- `test_dcu_node` 不带抑制直接跑有 6 行 lock-order；带抑制为 0 行。说明抑制只在该用例生效。
+
+### `exitcode=0` 的说明
+
+`TSAN_OPTIONS` 已经带 `exitcode=0`，所以这些警告从来不会让 ctest 变红；D6-08 的判据是"日志里没有 ThreadSanitizer 行"。抑制改变的是日志干净度，不是 ctest 退出码。
+
 ## 验证
 
-- A/B：同一 TSAN 二进制，无抑制时 3 条 lock-order 警告；带 `ci/tsan.supp` 时 0 条。
+- A/B：`test_dcu_node` 无抑制 6 行 lock-order，带抑制 0 行；第一方 pthread 反序程序在抑制文件存在时仍报 2 行。
+- `test_dcu_node` / `test_dcu_runtime_health` / `test_dcu_mutex_marathon` 带抑制直接跑均为 0 行；其余用例不带抑制。
 - TSAN `test_dcu_runtime_health` 直接运行：3/3 通过，无 ThreadSanitizer 输出（含新增单线程用例）。
 - TSAN `ctest -R 'dcu|dlt698'`：32/32；把 32 个测试二进制逐个直接跑，TSAN 行数为 0。
 - Release `ctest -R 'dcu|dlt698'` 32/32、ASAN 32/32、告警门禁 0 新增、守卫通过、验收 3 + 9、`git diff --check` 干净。

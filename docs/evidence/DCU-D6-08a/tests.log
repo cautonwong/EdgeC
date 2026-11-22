@@ -51,3 +51,20 @@ acceptance_exit=0
 
 == git diff --check ==
 diff_check_exit=0
+
+== 收窄抑制后 ==
+scoped direct (node/runtime_health/mutex_marathon):
+  test_dcu_node lines=0
+  test_dcu_runtime_health lines=0
+  test_dcu_mutex_marathon lines=0
+test_dcu_node without suppressions: 6 lines
+raw pthread inversion with ci/tsan.supp: 2 lines (same as without: 2)
+frame-keyed attempt (deadlock:dcu_storage_init ...): rejected, 6 lines remained
+
+== TSAN full rerun ==
+100% tests passed, 0 tests failed out of 32
+== ASAN rerun ==
+100% tests passed, 0 tests failed out of 32
+== guards / diff check ==
+guards_exit=0
+diff_check_exit=0
