@@ -198,6 +198,7 @@ typedef struct {
     size_t acl_len;
     size_t fail_index;
     int row_rc;
+    int axdr_rc;
     int begin_calls;
     int end_calls;
     size_t seen_sel_len;
@@ -269,6 +270,14 @@ static int fake_end(void* ctx, uint32_t oad) {
     (void)oad;
     f->end_calls++;
     return 0;
+}
+
+static int fake_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    (void)oad;
+    (void)buf;
+    (void)cap;
+    (void)len;
+    return ((fake_record_t*)ctx)->axdr_rc;
 }
 
 static void assert_slave_response(const net_buf_t* out, const uint8_t* want, size_t want_len) {
@@ -686,6 +695,66 @@ static void test_report_timeout_unblocks(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+/* GET 5004 A2：端口回 CLASS_MISMATCH / UNDEFINED 时驱动必须映射成 DAR 5 / 4。 */
+static void test_get_maps_source_rc_to_dar(void** state) {
+    (void)state;
+    struct {
+        int rc;
+        uint8_t dar;
+    } cases[] = {
+        {EDGE_SLAVE_SRC_CLASS_MISMATCH, DLT698_DAR_OBJECT_CLASS_MISMATCH},
+        {EDGE_SLAVE_SRC_UNDEFINED, DLT698_DAR_OBJECT_UNDEFINED},
+    };
+    static uint8_t session[1024];
+
+    for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
+        net_buf_pool_t pool;
+        assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+        memset(session, 0, sizeof(session));
+
+        fake_record_t f;
+        memset(&f, 0, sizeof(f));
+        uint16_t ois[1] = {0x5004};
+        f.acl_len = build_acl(f.acl, ois, 1);
+        f.axdr_rc = cases[c].rc;
+
+        uint8_t apdu[8] = {DLT698_SVC_GET_REQ, 0x01, 0x05, 0x50, 0x04, 0x02, 0x00, 0x00};
+        uint8_t frame[64];
+        size_t flen = build_slave_frame(frame, apdu, sizeof(apdu));
+
+        edge_slave_source_ops_t src;
+        memset(&src, 0, sizeof(src));
+        src.object_list = fake_object_list;
+        src.resolve_axdr = fake_resolve_axdr;
+
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+        memset(priv, 0, sizeof(priv));
+        size_t consumed = 0;
+        assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, &f, out,
+                                                          &consumed),
+                         0);
+
+        struct net_buf_simple nb;
+        net_buf_simple_init_with_data(&nb, out->b.data, out->b.len);
+        nb.len = (uint16_t)out->b.len;
+        dlt698_addr_t sa;
+        uint8_t svc = 0, choice = 0, piid = 0;
+        uint8_t* payload = NULL;
+        size_t payload_len = 0;
+        assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
+                                                &payload_len),
+                         0);
+        assert_int_equal(svc, DLT698_SVC_GET_RES);
+        assert_int_equal(payload[4], 0x00);         /* CHOICE [0] DAR */
+        assert_int_equal(payload[5], cases[c].dar);
+
+        net_buf_unref(out);
+        net_buf_pool_destroy(&pool);
+    }
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
@@ -702,6 +771,7 @@ int main(void) {
         cmocka_unit_test(test_report_no_session_no_send),
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
+        cmocka_unit_test(test_get_maps_source_rc_to_dar),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

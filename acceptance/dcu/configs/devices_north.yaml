@@ -5,26 +5,20 @@
 # "读档案计数"这条就会跑到 645 电表上、报 KeyError —— 失败原因和被测对象无关。
 # 一份清单一台 DUT，是这套台架一直的约定。
 #
+# 点表只声明一个标量（3000 属性 4 最大事件记录数），给平台提供设备级读数；电压/电流/功率
+# 是数组，平台的标量点表驱动取不了，由 test_dcu_northbound.py 直接发帧解析。
+# 5004 A2 是冻结数据数组而不是条数，不进点表；记录由 GetRecord 用例验证。
+#
 # 链路：dcu_product.py 把 DCU 的 unix socket 桥成 127.0.0.1:19212，
 # 平台按 access: tcp 连上去问属性（平台的传输层只认 serial/tcp，不认 unix socket）。
-criteria_profiles:
-  dcu_698_live:
-    - quantity: 日冻结记录数
-      min: 0
-      max: 65535
-
 models:
   dcu_698_image:
     type: meter
     protocol: dlt698
-    criteria: dcu_698_live
-    capabilities: [日冻结记录数]
-    # 变量类（2000/2001/2004 等）按标准返回数组，平台点表只列标量；数组形状
-    # 由 test_dcu_northbound.py 直接解析 APDU 验证。6000/6012 属性 2 是配置数组，
-    # 未实现时直接验 DAR=5，不进点表。
+    capabilities: [最大事件记录数]
     point_table:
-      日冻结记录数:
-        address: "50040200"
+      最大事件记录数:
+        address: "30000400"
         length: 2
         encoding: uint
         scale: 1

@@ -174,9 +174,11 @@ static void test_object_model_scalar_type_tags(void **state) {
         dcu_value_t v;
         assert_int_equal(dcu_698_value_for_oad(unexposed[i], &v), EDGE_SLAVE_SRC_CLASS_MISMATCH);
     }
-    assert_value(MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2),
-                 DCU_698_TAG_LONG_UNSIGNED, 7.0);
+    /* 5004 A2 是冻结数据数组而不是条数；Normal GET 不暴露，回 CLASS_MISMATCH。 */
     dcu_value_t v;
+    assert_int_equal(dcu_698_value_for_oad(
+                         MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 2), &v),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 3), &v),
@@ -280,13 +282,19 @@ static void test_resolve_axdr_for_north_list_oads(void **state) {
     init_model();
 
     const uint32_t oads[] = {OAD_VOLTAGE, OAD_CURRENT, OAD_ACTIVE_POWER_TOTAL,
-                             MK_OAD(OI_METER_DISCOVERY, 3), OAD_DAILY_FREEZE};
+                             MK_OAD(OI_METER_DISCOVERY, 3)};
     for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
         uint8_t buf[EDGE_SLAVE_AXDR_MAX];
         size_t len = 0;
         assert_int_equal(dcu_north_resolve_axdr(NULL, oads[i], buf, sizeof(buf), &len), 0);
         assert_true(len > 0);
     }
+
+    /* 5004 A2 是冻结数据数组，不是标量/条数；Normal GET 不暴露，回 DAR 5。 */
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     teardown_model();
 }

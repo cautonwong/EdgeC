@@ -13,6 +13,7 @@
 #include "dcu_poller.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "edge_slave_plane.h"
 #include "shmring.h"
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {

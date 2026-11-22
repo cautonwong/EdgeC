@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "dcu_698_var.h"
+#include "edge_slave_plane.h"
 
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
 #define BYTE(id) ((id) >> 3)
@@ -54,13 +55,11 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_var_read,
      .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)}},
 
+    /* 5004 只走 GetRecord（D1-07）：A2 是冻结数据数组而不是条数，把条数当属性值
+     * 就是假语义。属性与方法一律不暴露，类内定义交给 class_defines_* 决定 DAR。 */
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),
      .class_id = IC_RECORD,
-     .scope = DCU_OBJ_SHARED,
-     .read = dcu_698_acq_5004_read,
-     .method = dcu_698_acq_5004_execute,
-     .attr_mask = {[BYTE(2)] = BIT(2)},
-     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+     .scope = DCU_OBJ_SHARED},
 
     {.oi = OI_REMOTE_CONTROL,
      .class_id = IC_CONTROL,
@@ -206,6 +205,7 @@ static const struct {
 
 static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_id) {
     if (method_id == 0) return false;
+    if (class_id == 9 && method_id == 6) return false; /* 表148 跳过方法 6 */
     if (oi == OI_REMOTE_CONTROL && method_id >= DCU_ACTION_METHOD_FIRST &&
         method_id <= DCU_ACTION_METHOD_LAST) {
         return true;

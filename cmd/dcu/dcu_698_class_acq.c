@@ -6,37 +6,6 @@
 #include "dcu_discovery.h"
 #include "dcu_poller.h"
 
-int dcu_698_acq_5004_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
-                          void *out_val) {
-    (void)obj;
-    (void)elem_idx;
-    if (!out_val) return -1;
-
-    if (attr_id == 2) {
-        const router_sink_ops_t *sink = dcu_698_internal_sink_ops();
-        if (sink->count_freezes) {
-            return sink->count_freezes(sink->ctx, (uint16_t *)out_val);
-        } else {
-            *(uint16_t *)out_val = 0;
-            return 0;
-        }
-    }
-    return -2;
-}
-
-/* Class 9 方法 3/4/5/7/8 已登记进 mask，但实现随 D1-15 的 GetRecord/RSD 落地。
- * 现在明确回 -4（存在但拒绝执行），不得返回 0 让主站误以为冻结已执行。 */
-int dcu_698_acq_5004_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
-                             void *result) {
-    (void)obj;
-    (void)param;
-    (void)result;
-    if (method_id == 3 || method_id == 4 || method_id == 5 || method_id == 7 || method_id == 8) {
-        return -4;
-    }
-    return -2;
-}
-
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result) {
     dcu_poller_t *poller = (dcu_poller_t *)obj->instance;

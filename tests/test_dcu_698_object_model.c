@@ -24,7 +24,6 @@ typedef struct {
     size_t method_count;
 } expected_object_t;
 
-static const uint8_t k_attr_2[] = {2};
 static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
 static const uint8_t k_attr_event[] = {4, 11, 12};
@@ -32,7 +31,6 @@ static const uint8_t k_method_1[] = {1};
 static const uint8_t k_method_127[] = {127};
 static const uint8_t k_method_1_127[] = {1, 127};
 static const uint8_t k_method_8000[] = {127, 128, 129, 130, 131};
-static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
 static const expected_object_t k_expected[] = {
     {OI_METER_ARCHIVE, IC_ACQUISITION, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
@@ -41,8 +39,7 @@ static const expected_object_t k_expected[] = {
      NULL, 0},
     {(uint16_t)((OAD_CURRENT >> 16) & 0xFFFF), IC_VARIABLE, DCU_OBJ_PER_METER, k_attr_23, 2, NULL,
      0},
-    {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, k_attr_2, 1,
-     k_method_5004, 5},
+    {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
     {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 5},
     {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
@@ -141,6 +138,13 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
                      EDGE_SLAVE_SRC_UNDEFINED);
     assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL),
                      EDGE_SLAVE_SRC_UNDEFINED);
+
+    /* 5004：Class 9 的方法 3 类定义但未暴露 → 5；方法 6 类里没有 → 4。 */
+    uint16_t oi_5004 = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF);
+    assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 3), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(oi_5004, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
+
 
     assert_int_equal(dcu_698_read(MK_OAD(OI_DISCOVERY_RESULT, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
@@ -350,6 +354,7 @@ static void test_event_method1_resets_records(void **state) {
     assert_int_equal(evt_3000.last_start_time, 0);
     assert_int_equal(evt_3000.last_end_time, 0);
 
+    /* Class 24 定义了方法 2，但 3000 只暴露复位 → 类不匹配（DAR 5）。 */
     assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 2), NULL, NULL),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 

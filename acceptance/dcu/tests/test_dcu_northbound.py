@@ -1,9 +1,10 @@
 """DCU 北向（族 B，DL/T 698.45 从站）验收：主站能不能真的读到 DCU 的量。
 
-## 标量走设备模型，数组直接看 APDU
+## 数组/记录型属性直接看 APDU
 
-计数类 OAD 只剩 5004 走平台设备模型：`meter.read_all()`，报告里有设备级归属。
-6000/6012 的属性 2 在标准里是数组，标量通道不再冒充；这两条直接发帧验 DAR=5。
+6000/6012/5004 的属性 2 在标准里是数组（5004 是冻结数据数组），标量通道不再冒充；
+这三条直接发帧验 DAR=5。5004 的冻结记录由 GetRecord 读取，单独按时间范围验。
+设备级标量读数走 3000 属性 4（最大事件记录数），让北向任务有设备级归属。
 变量类属性 2 自 ADR-0016 起是标准数组（如 2000 是 A/B/C 三相），平台点表只认标量，
 所以这些用例直接发帧、按 A-XDR 形状解析；这是平台能力缺口，不是放弃判据。
 
@@ -14,7 +15,7 @@
 
 1. 电压 OAD（20000200）读回三相数组，A 相 2317（231.7 V，scale −1）——
    台架喂给 DCU 的就是这个值，所以这条同时验了"南向采集 → 聚合根 → 698 编码"整条链
-2. 6000/6012 属性 2 是配置数组，数组通道未落地时必须回 DAR=5，不能用计数冒充
+2. 6000/6012/5004 属性 2 是数组，数组通道未落地时必须回 DAR=5，不能用计数冒充
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 4. SET 3000 A11/A12 合法值回 DAR 0 且可读回；类型不符 DAR 7；未声明属性 DAR 5
 5. Class 20：同一 socket 上预连接 → CONNECT → ACL → RELEASE 全链路
@@ -292,14 +293,26 @@ def test_master_gets_class_mismatch_for_task_config_array():
     assert apdu[8] == 5, f"6012 A2 应回 DAR=5，收到 {apdu[8]}（{apdu.hex()}）"
 
 
-@case(id="D_00_00_02_000007", clause="free: 698 读取 5004 日冻结记录数", tags=["北向"])
+@case(id="D_00_00_02_000007", clause="free: 5004 属性 2 是冻结数据数组，Normal GET 未实现时回 DAR=5", tags=["北向"])
 @pytest.mark.contract
-@pytest.mark.requires_capability("日冻结记录数")
-def test_master_reads_freeze_count(meter):
-    """5004 属性 2 是 uint16 计数；值是 0 也合法，类型标签必须对。"""
+def test_master_gets_class_mismatch_for_freeze_array():
+    """5004 属性 2 是冻结数据数组而不是条数；Normal GET 未实现时必须回 DAR=5，记录走 GetRecord。"""
+    oad = 0x50040200
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
+    assert apdu[8] == 5, f"5004 A2 应回 DAR=5，收到 {apdu[8]}（{apdu.hex()}）"
+
+
+@case(id="D_00_00_02_000017", clause="free: 698 读取 3000 属性 4 最大事件记录数（设备级读数）", tags=["北向"])
+@pytest.mark.contract
+@pytest.mark.requires_capability("最大事件记录数")
+def test_master_reads_event_max_records(meter):
+    """设备级标量读数：3000 属性 4 最大事件记录数，让北向任务有设备级归属。"""
     meter.connect()
     readings = meter.read_all().readings
-    assert int(readings["日冻结记录数"]) >= 0
+    assert int(readings["最大事件记录数"]) >= 0
 
 
 @case(id="D_00_00_02_000008", clause="free: 列表里未实现的 OAD 逐项回 DAR，不丢其它读数", tags=["北向"])
