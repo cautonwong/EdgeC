@@ -776,7 +776,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D0-09 | 已合并 | `dcu/D0-09-class-ids` | `6638ce23` | `docs/evidence/DCU-D0-09/` | 合并提交 `6638ce23`；F100→21、F200→22、3000/3005→24；生成器按 7.3 小节解析，F100 入目录（513→514）；快照改按处理器族分派；合并后告警、目录、28/28、守卫、验收全过 |
 | D0-10 | 已合并 | `dcu/D0-10-atomic-bus-log` | `28b0363f` | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；`dump_json_atomic`（同目录 mkstemp+fsync+replace）替换 4 处 `write_text`；并发读守卫；合并后验收连跑 2 次绿 |
 | D1-00 | 已合并 | `main` | `355c8251` | `scripts/extract_dcu_698_catalog.py` | 生成器、目录与 `--check` 门禁均已入库；D0-07 接入 CI 与守卫自检 |
-| D1-01 | 进行中 | `dcu/D1-01-catalog-classes` | `21ca75f0` | `docs/evidence/DCU-D1-01/` | dcu-dev 执行中；逐行用 7.3/7.4/附录 A 定类，冲突归零，生成器对未解释差异变红 |
+| D1-01 | 已合并 | `dcu/D1-01-catalog-classes` | `ceb6a576` | `docs/evidence/DCU-D1-01/` | 合并提交 `ceb6a576`；79 行冲突 75 条按标准定类、4 条保留产品类并记录；生成器对无决策/再 OCR/类不符变红；核对表生成并校验 |
 | D1-02 | 待验收 | `main` | `8d8089bf` | `docs/design/DCU_698_OBJECT_MODEL.md` | 设计文档已提交，待架构评审 |
 | D1-03 | 已合并 | `dcu/D1-03-object-model` | `81730385` | `docs/evidence/DCU-D1-03/` | router 664→76 行；256 位 mask，门面走预检；object_model 709 行待 D1-04 拆；合并后 26/26 测试、守卫、验收全过 |
 | D1-04 | 已合并 | `dcu/D1-04-var-handlers` | `100f9a41` | `docs/evidence/DCU-D1-04/` | 27/27 目标测试、守卫、验收 2+4 通过；200A/200F 与 attr2/attr4 类型对齐；`/no-comments` 删 5 条并修 `IC_VARIABLE` 过期示例；704 行待后续拆 |
@@ -794,8 +794,11 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
 | D1-16 | 未开始 | - | - | - | - |
-| D1-17 | 进行中 | `dcu/D1-17-appconn` | `21ca75f0` | `docs/evidence/DCU-D1-17/` | edgec-dev-0 执行中；先写 ADR-0015 会话端口，再接 4400 应用连接与对象列表 ACL |
-| D1-18 | 进行中 | 审计（只读） | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 逐 OAD 审计：已暴露的每个属性/方法位是实时值、真实写入，还是 -2/-4 占位；产出状态矩阵与分级修复队列 |
+| D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
+| D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
+| D1-18a | 进行中 | `dcu/D1-18a-variable-shapes` | `ceb6a576` | `docs/evidence/DCU-D1-18a/` | dcu-dev 执行中；Class 1/3/4/6 按标准做 attr2 数组、attr3 Scaler_Unit、正确整数类型与 OAD 元素索引；先写值形状 ADR |
+| D1-18b | 未开始 | - | - | - | 3000/3005 按 Class 24 重排属性，删除 Class 7 号位的假语义 |
+| D6-08a | 进行中 | `dcu/D6-08a-tsan-lock` | `ceb6a576` | `docs/evidence/DCU-D6-08a/` | TSAN 报 `dcu_node_create_in` 与 `dcu_node_destroy` 的锁顺序相反；先证是否真实并发，再修顺序或记录单线程所有权 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6 | 未开始 | - | - | - | 随各阶段并行 |
 
@@ -835,6 +838,9 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D0-10 | 已合并 | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；原子写消除 `bus.json` 半截读；并发守卫；合并后验收 2 次绿；复核恢复了 7 条被删的运行约束 |
 | 2026-11-22 | D1-06 | 部分合并 | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；A.9 参数解码与 DAR 7；129–131 因缺继电器映射回 DAR 2；codec 补 OAD 标签；验收 9 例；组合根台账修正 `57846715` |
 | 2026-11-22 | D1-14a | 已合并 | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；UBSAN 抓到的有符号左移 UB；合并后全量 UBSAN 332/332、0 runtime error；Release 30/30、守卫、验收通过 |
+| 2026-11-22 | D1-17 | 已合并 | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；Class 20 会话与对象列表 ACL；合并后 32/32、ASAN、守卫、验收通过 |
+| 2026-11-22 | D1-01 | 已合并 | `docs/evidence/DCU-D1-01/` | 合并提交 `ceb6a576`；75 条按标准、4 条保留产品类并记录；生成器与守卫自检覆盖无决策/再 OCR 两类回退 |
+| 2026-11-22 | D1-18 | 审计完成 | `docs/design/DCU_698_OAD_STATUS.md` | 56 位中 0 real；变量类类型/缩放/数组形状、逐表寻址、事件/记录/采集类假语义是 P0 主因 |
 
 ### 12.4 并行工作树
 
