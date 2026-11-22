@@ -163,6 +163,8 @@ static void test_object_model_scalar_type_tags(void **state) {
     init_model();
 
     assert_value(MK_OAD(OI_METER_DISCOVERY, 3), DCU_698_TAG_LONG_UNSIGNED, 5.0);
+    assert_value(MK_OAD(OI_METER_DISCOVERY, 6), DCU_698_TAG_LONG_UNSIGNED, 5.0);
+    assert_value(MK_OAD(OI_METER_DISCOVERY, 10), DCU_698_TAG_ENUM, DISCOVERY_STATUS_IDLE);
     /* 6000 A2 现在是数组属性：标量通道仍然明确拒绝。 */
     dcu_value_t v6000;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_METER_ARCHIVE, 2), &v6000),
@@ -171,12 +173,16 @@ static void test_object_model_scalar_type_tags(void **state) {
     dcu_value_t v6012;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_TASK_SCHEDULER, 2), &v6012),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
-    static const uint32_t unexposed[] = {MK_OAD(OI_METER_DISCOVERY, 2),
-                                         MK_OAD(OI_DISCOVERY_RESULT, 2)};
-    for (size_t i = 0; i < sizeof(unexposed) / sizeof(unexposed[0]); i++) {
-        dcu_value_t v;
-        assert_int_equal(dcu_698_value_for_oad(unexposed[i], &v), EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    }
+    /* 6002 A2 已暴露但是结果数组，标量端口明确拒绝；6003 不是对象。 */
+    dcu_value_t v6002;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_METER_DISCOVERY, 2), &v6002),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    dcu_value_t v6003;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x6003, 2), &v6003), EDGE_SLAVE_SRC_NOT_FOUND);
+    /* 6002 A5 由表 A.7 定义但未暴露 -> DAR 5。 */
+    dcu_value_t v6002a5;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_METER_DISCOVERY, 5), &v6002a5),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     /* 5004 A2 是冻结数据数组而不是条数；Normal GET 不暴露，回 CLASS_MISMATCH。 */
     dcu_value_t v;
     assert_int_equal(

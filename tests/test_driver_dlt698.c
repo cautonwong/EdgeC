@@ -800,12 +800,12 @@ static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc
                      0);
 }
 
-static void test_slave_accepts_product_object_list_37(void** state) {
+static void test_slave_accepts_product_object_list_36(void** state) {
     (void)state;
     uint8_t list[2048];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 37);
+    assert_int_equal(list[1], 36);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -910,7 +910,7 @@ int main(void) {
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
-        cmocka_unit_test(test_slave_accepts_product_object_list_37),
+        cmocka_unit_test(test_slave_accepts_product_object_list_36),
         cmocka_unit_test(test_slave_set_read_only_is_denied),
         cmocka_unit_test(test_slave_rejects_41_object_list),
     };

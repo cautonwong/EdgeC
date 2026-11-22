@@ -37,6 +37,8 @@ int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
                           void *out_val);
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
+int dcu_698_acq_6002_encode(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
+                            size_t *len);
 
 /**
  * @brief 编码 Class 24 已暴露属性的 A-XDR。

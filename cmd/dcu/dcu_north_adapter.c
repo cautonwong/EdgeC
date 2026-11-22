@@ -60,7 +60,7 @@ int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
-    if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME)
+    if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME || oi == OI_METER_DISCOVERY)
         return dcu_698_accept_action_axdr(omd, axdr, axdr_len);
     if (oi != OI_REMOTE_CONTROL) return dcu_698_call(omd, axdr, NULL);
 

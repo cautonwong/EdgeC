@@ -8,6 +8,10 @@
 #include "dlt698_codec.h"
 #include "edge_log.h"
 
+static int _put_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t v);
+static int _put_u16(uint8_t *buf, size_t cap, size_t *off, uint16_t v);
+static int _put_enum(uint8_t *buf, size_t cap, size_t *off, uint8_t v);
+
 int dcu_698_acq_6012_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result) {
     dcu_poller_t *poller = (dcu_poller_t *)obj->instance;
@@ -50,27 +54,81 @@ int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
     if (!disc || !out_val) return -1;
 
-    if (attr_id == 3) {
-        uv_mutex_lock(&disc->lock);
-        *(uint16_t *)out_val = disc->count;
-        uv_mutex_unlock(&disc->lock);
-        return 0;
+    uint8_t status = 0;
+    uint16_t count = 0;
+    dcu_discovery_snapshot(disc, &status, &count);
+    switch (attr_id) {
+        case 3: /* Class 11 当前元素个数 */
+        case 6: /* 表 A.7 所有搜表结果记录数 */
+            *(uint16_t *)out_val = count;
+            return 0;
+        case 10: /* 表 A.7 空闲/搜表中 */
+            *(uint8_t *)out_val = status;
+            return 0;
+        default:
+            return -2;
     }
-    return -2;
 }
 
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result) {
+    (void)result;
     dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
-    if (!disc) return -1;
+    if (!disc) return EDGE_SLAVE_SRC_TEMPORARY;
 
-    if (method_id == 127) {
-        uint32_t duration = param ? *(const uint32_t *)param : 15;
-        int ret = dcu_discovery_start(disc, duration);
-        if (result) *(int *)result = ret;
-        return ret;
+    switch (method_id) {
+        case 127: {
+            if (!param) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            /* 没有下行搜表驱动：启动动作不能执行，回 DAR 2（暂时失效），
+             * 不进入"搜表中"再自行结束——那会让主站以为扫过一遍且没找到表。 */
+            return EDGE_SLAVE_SRC_TEMPORARY;
+        }
+        case 128:
+            dcu_discovery_clear(disc);
+            return 0;
+        case 129:
+            /* 产品没有跨台区结果集，清空操作没有对象可清；不是把 A2 一起清掉。 */
+            return 0;
+        default:
+            return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
-    return -2;
+}
+
+int dcu_698_acq_6002_encode(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
+                            size_t *len) {
+    if (!obj || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    dcu_discovery_t *disc = (dcu_discovery_t *)obj->instance;
+    if (!disc) return EDGE_SLAVE_SRC_TEMPORARY;
+
+    uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+    uint8_t status = 0;
+    uint16_t count = 0;
+    dcu_discovery_snapshot(disc, &status, &count);
+
+    size_t off = 0;
+    switch (attr_id) {
+        case 2:
+            /* 产品没有下行搜表驱动，结果集只能为空。非空结果缺 6003 的
+             * 所属采集器/信号品质等硬件字段，回暂时失效，不编造。 */
+            if (count != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+            if (_put_u8(buf, cap, &off, DLT698_TAG_ARRAY) != 0 || _put_u8(buf, cap, &off, 0) != 0) {
+                return EDGE_SLAVE_SRC_TEMPORARY;
+            }
+            break;
+        case 3:
+        case 6:
+            if (_put_u16(buf, cap, &off, count) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+            break;
+        case 10:
+            if (_put_enum(buf, cap, &off, status) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+            break;
+        default:
+            return dcu_698_oi_defines_attr(obj->oi, obj->class_id, attr_id)
+                       ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                       : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    *len = off;
+    return 0;
 }
 
 static int _put_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t v) {

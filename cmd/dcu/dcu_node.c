@@ -30,6 +30,7 @@ struct dcu_node_s {
     dcu_storage_t storage;
     dcu_event_obj_t evt_3000;
     dcu_event_obj_t evt_3005;
+    dcu_discovery_t discovery;
     uv_timer_t poller_timer;
     bool poller_timer_inited;
     dcu_event_handler_t event_handler;
@@ -202,6 +203,8 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
     node->evt_3005.snapshot_count = 1;
     node->evt_3005.snapshot_oads[0] = OAD_CURRENT;
 
+    dcu_discovery_init(&node->discovery);
+
     /* 5. Initialize Poller and Wire Router Operations */
     dcu_poller_init(&node->poller);
     /* 变量类属性 2 是数组，相/总通道都要采集，否则整条读取按 DAR 6 失败。 */
@@ -247,8 +250,8 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
                                    .msg_size = sizeof(pipe_msg_t),
                                    .publish_realtime = _node_publish_realtime,
                                    .read_shadow = _node_read_shadow};
-    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
-                       &node->evt_3005, router_bus);
+    dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, &node->discovery,
+                       &node->evt_3000, &node->evt_3005, router_bus);
     dcu_param_store_t param_store = {
         .ctx = &node->storage, .save = _node_param_save, .load = _node_param_load};
     dcu_698_param_set_clock(dcu_clock_port_system());
@@ -522,6 +525,7 @@ void dcu_node_destroy(dcu_node_t *node) {
         node->poller_timer_inited = false;
     }
     dcu_storage_destroy(&node->storage);
+    dcu_discovery_destroy(&node->discovery);
     edge_composition_root_destroy(node->comp_root);
     if (node->loop) {
         uv_run(node->loop, UV_RUN_NOWAIT);

@@ -8,6 +8,7 @@
 #include "dcu_698_object_model.h"
 
 #define CATALOG_OI_COUNT (sizeof(dcu698_catalog_ois) / sizeof(dcu698_catalog_ois[0]))
+#define CATALOG_OI_ATTR_COUNT (sizeof(dcu698_catalog_oi_attrs) / sizeof(dcu698_catalog_oi_attrs[0]))
 #define CATALOG_CLASS_COUNT (sizeof(dcu698_catalog_classes) / sizeof(dcu698_catalog_classes[0]))
 
 static const dcu698_catalog_oi_t *catalog_oi(uint16_t oi) {
@@ -15,6 +16,13 @@ static const dcu698_catalog_oi_t *catalog_oi(uint16_t oi) {
         if (dcu698_catalog_ois[i].oi == oi) return &dcu698_catalog_ois[i];
     }
     return NULL;
+}
+
+static uint8_t catalog_oi_max_attr(uint16_t oi) {
+    for (size_t i = 0; i < CATALOG_OI_ATTR_COUNT; i++) {
+        if (dcu698_catalog_oi_attrs[i].oi == oi) return dcu698_catalog_oi_attrs[i].max_attr;
+    }
+    return 0;
 }
 
 static const dcu698_catalog_class_t *catalog_class(uint8_t class_id) {
@@ -41,8 +49,11 @@ static void test_masks_stay_within_the_class_definition(void **state) {
         const dcu_698_object_t *obj = dcu_698_object_at(i);
         const dcu698_catalog_class_t *cls = catalog_class(obj->class_id);
         assert_non_null(cls);
+        /* 附录 A 的实例属性可以超出 7.3 类表（6002 的 A6/A10）。 */
+        uint8_t oi_max = catalog_oi_max_attr(obj->oi);
+        uint8_t max_attr = oi_max > cls->max_attr ? oi_max : cls->max_attr;
         for (unsigned id = 0; id <= 255; id++) {
-            if (dcu_mask_test(obj->attr_mask, (uint8_t)id)) assert_true(id <= cls->max_attr);
+            if (dcu_mask_test(obj->attr_mask, (uint8_t)id)) assert_true(id <= max_attr);
             if (dcu_mask_test(obj->method_mask, (uint8_t)id)) assert_true(id <= cls->max_method);
         }
     }

@@ -533,6 +533,33 @@ int dcu_698_decode_scheme_op(uint8_t method, const uint8_t *buf, size_t len,
     return _time_tag_absent(buf, c.off, c.len) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
+static int _accept_discovery_action(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
+    uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
+
+    if (method == 127) {
+        if (!axdr || axdr_len == 0 || axdr_len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        dlt698_data_t d;
+        memset(&d, 0, sizeof(d));
+        uint16_t off = 0;
+        if (dlt698_decode_data(axdr, (uint16_t)axdr_len, &off, &d) != 0)
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        /* 表 A.7：搜表时长∷=long-unsigned（分钟），0 = 不限时。 */
+        if (d.tag != DLT698_TAG_LONG_UNSIGNED) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        if (!_time_tag_absent(axdr, off, axdr_len)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        uint32_t duration_min = d.val.u16;
+        return dcu_698_call(omd, &duration_min, NULL);
+    }
+
+    if (method == 128 || method == 129) {
+        if (!axdr || axdr_len == 0 || axdr[0] != DLT698_TAG_NULL ||
+            !_time_tag_absent(axdr, 1, axdr_len))
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_call(omd, NULL, NULL);
+    }
+
+    return EDGE_SLAVE_SRC_UNDEFINED;
+}
+
 int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
     const dcu_698_object_t *obj = NULL;
     int rc = dcu_698_check_call(omd, &obj);
@@ -540,6 +567,9 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
 
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
+    if (oi == OI_METER_DISCOVERY) {
+        return _accept_discovery_action(omd, axdr, axdr_len);
+    }
     if (oi == OI_TASK_SCHEDULER && method == 1) {
         if (!axdr || axdr[0] != DLT698_TAG_NULL || !_time_tag_absent(axdr, 1, axdr_len))
             return EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -807,6 +837,11 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     }
 
     uint16_t oi = (uint16_t)(oad >> 16);
+    if (oi == OI_METER_DISCOVERY) {
+        const dcu_698_object_t *disc_obj = dcu_698_find(oi);
+        if (!disc_obj) return EDGE_SLAVE_SRC_NOT_FOUND;
+        return dcu_698_acq_6002_encode(disc_obj, oad, buf, cap, len);
+    }
     if (dcu_698_var_is_oi(oi)) {
         return dcu_698_var_encode_axdr(oad, buf, cap, len);
     }

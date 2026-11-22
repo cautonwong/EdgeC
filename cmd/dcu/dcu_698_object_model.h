@@ -96,6 +96,9 @@ const dcu_698_object_t *dcu_698_object_at(size_t index);
 /** @brief 接口类定义（附录 A）是否包含该属性号；属性号从 1 起。 */
 bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id);
 
+/** @brief 类表或该 OI 的附录 A 实例定义是否包含该属性号（6002 的 A5..A10）。 */
+bool dcu_698_oi_defines_attr(uint16_t oi, uint8_t class_id, uint8_t attr_id);
+
 /** @brief 取当前注入的影子读取端口（变量类处理器用）；未初始化时为全零。 */
 const router_bus_ops_t *dcu_698_object_model_bus_ops(void);
 

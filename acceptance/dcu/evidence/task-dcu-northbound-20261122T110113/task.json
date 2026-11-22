@@ -1,0 +1,59 @@
+{
+  "task": "dcu-northbound",
+  "kind": "acceptance",
+  "product": "dcu",
+  "devices": "/tmp/dcu-d2-09/acceptance/dcu/configs/devices_north.yaml",
+  "select": "tag:北向",
+  "product_port": 25464,
+  "port_source": "platform_range",
+  "port_range": "20000-31999",
+  "port_attempts": 1,
+  "slave_ports": {},
+  "slave_addresses": {},
+  "slaves": [],
+  "launch": [
+    "/workspaces/test-platform/.venv/bin/python",
+    "/tmp/dcu-d2-09/acceptance/dcu/dcu_product.py",
+    "--port",
+    "25464",
+    "--keep-alive"
+  ],
+  "readiness": {
+    "seconds": 1.327,
+    "timeout": 15.0
+  },
+  "layout": {
+    "pytest_ini": "project",
+    "slave_script": "package",
+    "registers": "package",
+    "clauses": "package",
+    "sample_product": "package",
+    "cases": "project"
+  },
+  "pytest_exit_code": 1,
+  "product_exit_code": -15,
+  "error": null,
+  "started_at": "2026-11-22T11:01:13.147+00:00",
+  "runtime": {
+    "startup_seconds": 1.327,
+    "first_reading_seconds": null,
+    "total_seconds": 15.201
+  },
+  "env": {
+    "commit": "b90c22cb38b35e992b7ec21fc2255c861f612576",
+    "platform_version": "unknown",
+    "platform_source": "package",
+    "platform_sha256": "9e2b2de678aa46e4a23ab90852c1d6388c3fedc404989a0b0ee4fc69834d905e",
+    "product_sha256": "5b88a42e6a954e088124c2708372599ddceb3eef07f927719d555c3a7b5e4a26",
+    "simulator_version": "c2402e70da3ebc7bd14605d2cd3f1526ef15bf81caf3fa37223060f577201262"
+  },
+  "process_events": [
+    {
+      "kind": "product_exit",
+      "how": "platform_killed",
+      "code": null,
+      "signal": 15,
+      "at": "2026-11-22T11:01:28.326+00:00"
+    }
+  ]
+}

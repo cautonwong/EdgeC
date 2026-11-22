@@ -1,0 +1,213 @@
+{
+  "note": "本文件只记这一轮的范围:哪些用例被收集、哪些真正执行过、哪些没跑(被筛掉 / 被跳过)及原因、哪些失败了。判定结果不在这里。",
+  "collected": [
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_voltage_over_698",
+      "case": "D_00_00_02_000001"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_honest_dar_for_oversized_archive_array",
+      "case": "D_00_00_02_000002"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_action_returns_failure_dar_not_fake_success",
+      "case": "D_00_00_02_000003"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_action_wrong_shape_returns_type_mismatch",
+      "case": "D_00_00_02_000009"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_all_oads_in_one_frame",
+      "case": "D_00_00_02_000004"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_current_and_active_power",
+      "case": "D_00_00_02_000005"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_task_config_array",
+      "case": "D_00_00_02_000006"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_class_mismatch_for_freeze_array",
+      "case": "D_00_00_02_000007"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_event_max_records[dcu_north_01]",
+      "case": "D_00_00_02_000017",
+      "devices": [
+        "dcu_north_01"
+      ]
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_unimplemented_oad_gets_per_item_dar",
+      "case": "D_00_00_02_000008"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_adds_and_removes_archive_unit",
+      "case": "D_00_00_02_000018"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_changes_task_config_via_action",
+      "case": "D_00_00_02_000019"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_freeze_records",
+      "case": "D_00_00_02_000010"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_report_flag_round_trip",
+      "case": "D_00_00_02_000011"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_valid_flag_round_trip",
+      "case": "D_00_00_02_000012"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_wrong_type_returns_type_mismatch",
+      "case": "D_00_00_02_000013"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_masked_f200_attr_returns_class_mismatch",
+      "case": "D_00_00_02_000014"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_empty_record_range_returns_no_rows",
+      "case": "D_00_00_02_000015"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_class20_session_and_object_list_acl",
+      "case": "D_00_00_02_000016"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_starts_search_and_reads_standard_result_shapes",
+      "case": "D_00_00_02_000020"
+    }
+  ],
+  "deselected": [
+    {
+      "nodeid": "tests/test_atomic_bus_log.py::test_dump_json_atomic_never_exposes_a_torn_file",
+      "case": "DCU_00_00_01_000003_01",
+      "reason": "不满足 --select tag:北向"
+    },
+    {
+      "nodeid": "tests/test_dcu_acquisition.py::test_dcu_polls_the_bench_meter[dcu_north_01]",
+      "case": "DCU_00_00_01_000001_01",
+      "reason": "不满足 --select tag:北向"
+    },
+    {
+      "nodeid": "tests/test_dcu_acquisition.py::test_dcu_sends_trip_control_frame[dcu_north_01]",
+      "case": "DCU_00_00_01_000002_01",
+      "reason": "不满足 --select tag:北向"
+    }
+  ],
+  "skipped": [
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_voltage_over_698",
+      "case": "D_00_00_02_000001",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_honest_dar_for_oversized_archive_array",
+      "case": "D_00_00_02_000002",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_action_returns_failure_dar_not_fake_success",
+      "case": "D_00_00_02_000003",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_action_wrong_shape_returns_type_mismatch",
+      "case": "D_00_00_02_000009",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_all_oads_in_one_frame",
+      "case": "D_00_00_02_000004",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_current_and_active_power",
+      "case": "D_00_00_02_000005",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_task_config_array",
+      "case": "D_00_00_02_000006",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_gets_class_mismatch_for_freeze_array",
+      "case": "D_00_00_02_000007",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_unimplemented_oad_gets_per_item_dar",
+      "case": "D_00_00_02_000008",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_adds_and_removes_archive_unit",
+      "case": "D_00_00_02_000018",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_changes_task_config_via_action",
+      "case": "D_00_00_02_000019",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_freeze_records",
+      "case": "D_00_00_02_000010",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_report_flag_round_trip",
+      "case": "D_00_00_02_000011",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_valid_flag_round_trip",
+      "case": "D_00_00_02_000012",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_event_wrong_type_returns_type_mismatch",
+      "case": "D_00_00_02_000013",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_set_masked_f200_attr_returns_class_mismatch",
+      "case": "D_00_00_02_000014",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_empty_record_range_returns_no_rows",
+      "case": "D_00_00_02_000015",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_class20_session_and_object_list_acl",
+      "case": "D_00_00_02_000016",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    },
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_starts_search_and_reads_standard_result_shapes",
+      "case": "D_00_00_02_000020",
+      "reason": "Skipped: 没有 DCU_NORTH_SOCK（北向从站路径由产品壳给）"
+    }
+  ],
+  "executed": [
+    "tests/test_dcu_northbound.py::test_master_reads_event_max_records[dcu_north_01]"
+  ],
+  "failed": [
+    {
+      "nodeid": "tests/test_dcu_northbound.py::test_master_reads_event_max_records[dcu_north_01]",
+      "case": "D_00_00_02_000017",
+      "reason": "testplatform.transport.interfaces.IncompleteFrameError: TCP 127.0.0.1:19212: 2.0 秒内没收满一帧(收到 0 字节,整帧需要 未知 字节),半帧不交给上层:"
+    }
+  ],
+  "errored": []
+}

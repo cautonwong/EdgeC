@@ -451,8 +451,8 @@ static const dcu698_catalog_oi_t dcu698_catalog_ois[] = {
     {0x5011, 9},
     {0x6000, 10},
     {0x6001, 8},
-    {0x6002, 10},
-    {0x6003, 10},
+    {0x6002, 11},
+    {0x6003, 8},
     {0x6004, 8},
     {0x6012, 10},
     {0x6013, 8},
@@ -526,6 +526,32 @@ static const dcu698_catalog_oi_t dcu698_catalog_ois[] = {
     {0xF210, 8},
     {0xF300, 17},
     {0xF301, 17},
+};
+
+/* 附录 A 的实例属性上限，只列超出 7.3 类表的 OI。 */
+typedef struct {
+    uint16_t oi;
+    uint8_t max_attr;
+} dcu698_catalog_oi_attr_t;
+
+static const dcu698_catalog_oi_attr_t dcu698_catalog_oi_attrs[] = {
+    {0x2001, 4},
+    {0x2015, 4},
+    {0x3027, 11},
+    {0x3320, 3},
+    {0x4000, 4},
+    {0x4025, 3},
+    {0x4026, 3},
+    {0x4204, 3},
+    {0x6002, 10},
+    {0x8001, 5},
+    {0x8002, 3},
+    {0xF000, 5},
+    {0xF001, 4},
+    {0xF002, 4},
+    {0xF101, 4},
+    {0xF209, 6},
+    {0xF20C, 5},
 };
 
 typedef struct {

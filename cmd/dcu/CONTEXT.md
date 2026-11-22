@@ -125,7 +125,7 @@ classDiagram
 | REPORT.notification | 未实现（D1-16） | 无对应代码 |
 | Class 20 与 4400 应用连接 | 未实现（D1-17） | 无对应代码 |
 
-对象表在 `dcu_698_object_model.{h,c}`（17 个 OI），类型化读取在 `dcu_698_var.{h,c}`，从站 A-XDR 端口见 ADR `docs/adr/0013-698-slave-axdr-port.md`。
+对象表在 `dcu_698_object_model.{h,c}`（29 个 OI，含 11 个 Class 8 参数 OI），类型化读取在 `dcu_698_var.{h,c}`，从站 A-XDR 端口见 ADR `docs/adr/0013-698-slave-axdr-port.md`。
 
 ### 4.3 设计文档
 
