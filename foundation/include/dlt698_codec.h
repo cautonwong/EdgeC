@@ -133,6 +133,27 @@ int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32
 int dlt698_encode_set_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad, uint8_t dar,
                                net_buf_t *out);
 
+/** @brief CONNECT-Response 的可协商字段（表60 / 附录 H.2）。 */
+typedef struct {
+    uint16_t version;    /**< 商定的应用层协议版本号 */
+    const uint8_t *conf; /**< 8 字节协议一致性块；NULL 表示全 0 */
+    const uint8_t *func; /**< 16 字节功能一致性块；NULL 表示全 0 */
+    uint32_t timeout;    /**< 商定的应用连接超时时间（秒） */
+    uint8_t result;      /**< ConnectResult（表43）：0 允许，其余为拒绝原因 */
+} dlt698_connect_params_t;
+
+/**
+ * @brief 构造 CONNECT-Response（表60）。
+ *
+ * APDU：`82 | PIID-ACD | 厂商版本信息 | 协议版本 | 一致性块 | 帧尺寸 | 超时 | 结果 | 00 | 00`
+ * 与附录 H.2 的响应同形；厂商信息取本实现的常量。
+ */
+int dlt698_encode_connect_response(const dlt698_addr_t *sa, uint8_t piid,
+                                   const dlt698_connect_params_t *params, net_buf_t *out);
+
+/** @brief 构造 RELEASE-Response（表62）：`83 | PIID-ACD | 00 | 00 | 00`。 */
+int dlt698_encode_release_response(const dlt698_addr_t *sa, uint8_t piid, net_buf_t *out);
+
 /**
  * @brief GET-Response-NormalList 的一个结果项（标准 6.3.8.2.2 表73）。
  *

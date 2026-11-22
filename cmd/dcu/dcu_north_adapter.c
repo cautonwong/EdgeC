@@ -8,6 +8,7 @@
 #include "bus_orchestrator.h"
 #include "datahub.h"
 #include "dcu_698_axdr.h"
+#include "dcu_698_appconn.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
@@ -110,6 +111,7 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
         .accept_action = dcu_north_accept_action,
         .resolve_axdr = dcu_north_resolve_axdr,
         .accept_axdr = dcu_north_accept_axdr,
+        .object_list = dcu_698_appconn_resolve,
     };
     bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, NULL);
 

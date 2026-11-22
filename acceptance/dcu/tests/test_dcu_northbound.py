@@ -213,7 +213,7 @@ def test_master_reads_freeze_count(meter):
 @case(id="D_00_00_02_000008", clause="free: 列表里未实现的 OAD 逐项回 DAR，不丢其它读数", tags=["北向"])
 @pytest.mark.contract
 def test_unimplemented_oad_gets_per_item_dar():
-    """一帧 [2] 里混一个未实现的 OI：该项回 [0] DAR 6，另一项的数据照常在同一帧。
+    """一帧 [2] 里混一个不在 Class 20 对象列表里的 OI：该项回 [0] DAR 3，另一项数据照常。
 
     台架点表只列产品支持的点，表达不了"主站问了一个不存在的对象"；这里直接发帧。
     判据是**两项都在**：少返一项、或把失败项当数据跳过，主站会以为读全了。
@@ -236,4 +236,6 @@ def test_unimplemented_oad_gets_per_item_dar():
     rest = body[10:]
     assert rest[:4] == missing.to_bytes(4, "big")
     assert rest[4] == 0x00, "失败项必须回 [0] DAR"
-    assert rest[5] == 6, f"未实现的 OI 应回 DAR 6（对象未找到），回了 {rest[5]}"
+    # ADR-0015：对象不在 Class 20 对象列表即未授权，DAR 3（拒绝读写），
+    # 而不是先落到处不存在的 DAR 6 —— 列表是访问控制的事实来源。
+    assert rest[5] == 3, f"列表外的 OI 应回 DAR 3（拒绝读写），回了 {rest[5]}"

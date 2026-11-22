@@ -204,6 +204,58 @@ int dlt698_encode_set_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
     return 0;
 }
 
+int dlt698_encode_connect_response(const dlt698_addr_t *sa, uint8_t piid,
+                                   const dlt698_connect_params_t *params, net_buf_t *out) {
+    if (!sa || !out || !params) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+
+    static const uint8_t vendor[24] = {'E', 'D', 'G', 'E', '0', '0', '0', '1', '2', '6', '1', '1',
+                                       '2', '2', '0', '0', '0', '1', '2', '6', '1', '1', '2', '2'};
+    net_buf_simple_add_u8(b, 0x82); /* CONNECT-Response */
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_mem(b, vendor, sizeof(vendor));
+    for (int i = 0; i < 8; i++) net_buf_simple_add_u8(b, 0); /* 厂家扩展信息 */
+    net_buf_simple_add_u8(b, (uint8_t)(params->version >> 8));
+    net_buf_simple_add_u8(b, (uint8_t)params->version);
+    for (int i = 0; i < 8; i++) net_buf_simple_add_u8(b, params->conf ? params->conf[i] : 0);
+    for (int i = 0; i < 16; i++) net_buf_simple_add_u8(b, params->func ? params->func[i] : 0);
+    net_buf_simple_add_u8(b, 0x04);
+    net_buf_simple_add_u8(b, 0x00);
+    net_buf_simple_add_u8(b, 0x04);
+    net_buf_simple_add_u8(b, 0x00);
+    net_buf_simple_add_u8(b, 0x01);
+    net_buf_simple_add_u8(b, 0x04);
+    net_buf_simple_add_u8(b, 0x00);
+    net_buf_simple_add_u8(b, (uint8_t)(params->timeout >> 24));
+    net_buf_simple_add_u8(b, (uint8_t)(params->timeout >> 16));
+    net_buf_simple_add_u8(b, (uint8_t)(params->timeout >> 8));
+    net_buf_simple_add_u8(b, (uint8_t)params->timeout);
+    net_buf_simple_add_u8(b, params->result);
+    net_buf_simple_add_u8(b, 0); /* 无认证附加信息 */
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
+int dlt698_encode_release_response(const dlt698_addr_t *sa, uint8_t piid, net_buf_t *out) {
+    if (!sa || !out) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+    net_buf_simple_add_u8(b, 0x83); /* RELEASE-Response */
+    net_buf_simple_add_u8(b, piid);
+    net_buf_simple_add_u8(b, 0); /* 成功（表62） */
+    net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
 int dlt698_encode_action_request(const dlt698_addr_t *sa, uint8_t piid, uint16_t oi, uint8_t method,
                                  uint8_t mode, const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;

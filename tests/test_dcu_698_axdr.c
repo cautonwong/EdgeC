@@ -303,6 +303,58 @@ static bool contains(const uint8_t *hay, size_t hay_len, const uint8_t *needle, 
     return false;
 }
 
+/* D1-17 起，驱动按 Class 20 对象列表授权；本文件验的是取值编码，
+ * 因此给一份覆盖这些 OAD 的测试 ACL，不改变被测路径。 */
+static const uint8_t k_test_acl[] = {
+    0x01, 0x0D, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02,
+    0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01,
+    0x00, 0x02, 0x02, 0x50, 0x00, 0x20, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02,
+    0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x00, 0x02,
+    0x02, 0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11,
+    0x03, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11,
+    0x05, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x01, 0x02, 0x02,
+    0x01, 0x04, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03,
+    0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x02, 0x02, 0x11, 0x05,
+    0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x04, 0x02, 0x02, 0x01,
+    0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x03, 0x16,
+    0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0A, 0x02, 0x02, 0x01, 0x01,
+    0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20,
+    0x0F, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01,
+    0x00, 0x02, 0x02, 0x50, 0x50, 0x00, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02,
+    0x11, 0x00, 0x16, 0x01, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02,
+    0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02,
+    0x02, 0x50, 0x60, 0x00, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02,
+    0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60, 0x12, 0x02, 0x02, 0x01,
+    0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50,
+    0xF2, 0x00, 0x02, 0x02, 0x01, 0x02, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03,
+    0x02, 0x02, 0x11, 0x03, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x80,
+    0x00, 0x02, 0x02, 0x01, 0x00, 0x01, 0x07, 0x02, 0x02, 0x11, 0x01, 0x03,
+    0x01, 0x02, 0x02, 0x11, 0x7E, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03,
+    0x01, 0x02, 0x02, 0x11, 0x80, 0x03, 0x01, 0x02, 0x02, 0x11, 0x81, 0x03,
+    0x01, 0x02, 0x02, 0x11, 0x82, 0x03, 0x01, 0x02, 0x02, 0x11, 0x83, 0x03,
+    0x01,
+};
+
+static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    if (oad != 0x44000200u) return -1;
+    if (sizeof(k_test_acl) > cap) return -1;
+    memcpy(buf, k_test_acl, sizeof(k_test_acl));
+    *len = sizeof(k_test_acl);
+    return 0;
+}
+
+static int test_exchange(void *priv, const uint8_t *frame, size_t frame_len,
+                         const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
+                         size_t *consumed) {
+    edge_slave_source_ops_t wrapped = *src;
+    wrapped.object_list = test_object_list;
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    return dlt698_driver.req_slave_exchange(priv, session, frame, frame_len, &wrapped,
+                                            (void *)src, out, consumed);
+}
+
 static void exchange_and_check(const uint8_t *frame, size_t frame_len,
                                const edge_slave_source_ops_t *src, const uint8_t *want,
                                size_t want_len) {
@@ -314,8 +366,7 @@ static void exchange_and_check(const uint8_t *frame, size_t frame_len,
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc =
-        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+    int rc = test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     assert_true(consumed > 0);
     assert_true(contains(out->b.data, out->b.len, want, want_len));
@@ -357,7 +408,7 @@ static void test_driver_rejects_axdr_buffer_shortage(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_too_big_src, NULL,
+    int rc = test_exchange(priv, frame, frame_len, &k_too_big_src, NULL,
                                               out, &consumed);
     assert_int_equal(rc, 0);
     /* 缓冲不足现在是明确的 DAR 应答（-1 按 NOT_FOUND 处理），不是静默超时。 */
@@ -382,7 +433,7 @@ static void test_driver_normal_list_uses_axdr_per_item(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_list_src, NULL, out,
+    int rc = test_exchange(priv, frame, frame_len, &k_list_src, NULL, out,
                                               &consumed);
     assert_int_equal(rc, 0);
 
@@ -435,7 +486,7 @@ static net_buf_t *run_list(const uint32_t *oads, size_t n,
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
     int rc =
-        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -546,7 +597,7 @@ static void test_driver_normal_list_reuses_one_buffer(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_big_list_src, NULL,
+    int rc = test_exchange(priv, frame, frame_len, &k_big_list_src, NULL,
                                               out, &consumed);
     assert_int_equal(rc, 0);
 
@@ -608,7 +659,7 @@ static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
     int rc =
-        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -679,7 +730,7 @@ static void test_normal_list_dar_mapping(void **state) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_list_class_mismatch,
+    int rc = test_exchange(priv, frame, frame_len, &k_list_class_mismatch,
                                               NULL, out, &consumed);
     assert_int_equal(rc, 0);
     /* APDU: 85 | 02 | PIID | n | OAD(4) | 00 | DAR ...，APDU 从偏移 9 起。 */
@@ -748,7 +799,7 @@ static net_buf_t *run_set(uint8_t *frame, size_t frame_len, const edge_slave_sou
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
     int rc =
-        dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, src, NULL, out, &consumed);
+        test_exchange(priv, frame, frame_len, src, NULL, out, &consumed);
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
@@ -877,7 +928,7 @@ static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    int rc = dlt698_driver.req_slave_exchange(priv, NULL, frame, frame_len, &k_action_src, NULL, out,
+    int rc = test_exchange(priv, frame, frame_len, &k_action_src, NULL, out,
                                               &consumed);
     assert_int_equal(rc, 0);
     assert_int_equal(out->b.data[9], DLT698_SVC_ACTION_RES);

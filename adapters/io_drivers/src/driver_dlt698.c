@@ -264,13 +264,230 @@ static uint8_t _dar_for_action_rc(int rc) {
     return _dar_for_source_rc(rc);
 }
 
+/* ---- Class 20 应用连接：会话状态与对象列表 ACL（ADR-0015） ---- */
+
+#define DLT698_OI_CONN 0x4400u
+#define DLT698_OI_CONN_OBJECT_LIST 0x44000200u
+#define DLT698_ACL_MAX_OBJECTS 16
+#define DLT698_ACL_MAX_ATTRS 8
+#define DLT698_ACL_MAX_METHODS 8
+#define DLT698_ATTR_RIGHT_READ 1u
+#define DLT698_ATTR_RIGHT_WRITE 2u
+#define DLT698_ATTR_RIGHT_RW 3u
+
+typedef struct {
+    uint8_t id;
+    uint8_t rights;
+} dlt698_acl_attr_t;
+
+typedef struct {
+    uint8_t id;
+    uint8_t allowed;
+} dlt698_acl_method_t;
+
+typedef struct {
+    uint16_t oi;
+    uint8_t n_attrs;
+    uint8_t n_methods;
+    dlt698_acl_attr_t attrs[DLT698_ACL_MAX_ATTRS];
+    dlt698_acl_method_t methods[DLT698_ACL_MAX_METHODS];
+} dlt698_acl_object_t;
+
+typedef struct {
+    bool loaded;
+    uint8_t count;
+    dlt698_acl_object_t objects[DLT698_ACL_MAX_OBJECTS];
+} dlt698_acl_t;
+
+typedef struct {
+    bool connected;
+    uint8_t client_addr;
+    dlt698_acl_t acl;
+} dlt698_session_t;
+
+/* 对象列表结构（7.3.20 表182）：array { structure { OI, structure { attr[], method[] } } }，
+ * 字段是 A-XDR Data；只接受本实现写入的那种形状，任何越界都判列表不可用。 */
+static int _acl_take(const uint8_t *buf, size_t len, size_t *off, uint8_t tag) {
+    if (*off >= len || buf[*off] != tag) return -1;
+    (*off)++;
+    return 0;
+}
+
+static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
+    size_t off = 0;
+    if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
+    uint8_t n = buf[off++];
+    if (n > DLT698_ACL_MAX_OBJECTS) return false;
+
+    for (uint8_t i = 0; i < n; i++) {
+        dlt698_acl_object_t *obj = &acl->objects[i];
+        if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
+        if (_acl_take(buf, len, &off, 0x50) != 0 || len - off < 2) return false;
+        obj->oi = (uint16_t)((buf[off] << 8) | buf[off + 1]);
+        off += 2;
+
+        if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
+        if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
+        uint8_t na = buf[off++];
+        if (na > DLT698_ACL_MAX_ATTRS) return false;
+        obj->n_attrs = na;
+        for (uint8_t a = 0; a < na; a++) {
+            if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
+            if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
+            obj->attrs[a].id = buf[off++];
+            if (_acl_take(buf, len, &off, 0x16) != 0 || off >= len) return false;
+            obj->attrs[a].rights = buf[off++];
+        }
+
+        if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
+        uint8_t nm = buf[off++];
+        if (nm > DLT698_ACL_MAX_METHODS) return false;
+        obj->n_methods = nm;
+        for (uint8_t m = 0; m < nm; m++) {
+            if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
+            if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
+            obj->methods[m].id = buf[off++];
+            if (_acl_take(buf, len, &off, 0x03) != 0 || off >= len) return false;
+            obj->methods[m].allowed = buf[off++];
+        }
+    }
+    if (off != len) return false;
+    acl->count = n;
+    acl->loaded = true;
+    return true;
+}
+
+/* 取产品定义的对象列表；失败即"不可用"，绝不回退成放行。 */
+static bool _acl_load(dlt698_session_t *s, const edge_slave_source_ops_t *src, void *src_ctx) {
+    if (!s) return false;
+    s->acl.loaded = false;
+    s->acl.count = 0;
+    if (!src || !src->object_list) return false;
+    size_t len = 0;
+    if (src->object_list(src_ctx, DLT698_OI_CONN_OBJECT_LIST, s_axdr_buf, sizeof(s_axdr_buf),
+                         &len) != 0 ||
+        len == 0 || len > sizeof(s_axdr_buf)) {
+        return false;
+    }
+    return _acl_parse(s_axdr_buf, len, &s->acl);
+}
+
+static const dlt698_acl_object_t *_acl_find(const dlt698_session_t *s, uint16_t oi) {
+    if (!s || !s->acl.loaded) return NULL;
+    for (uint8_t i = 0; i < s->acl.count; i++) {
+        if (s->acl.objects[i].oi == oi) return &s->acl.objects[i];
+    }
+    return NULL;
+}
+
+static bool _acl_attr_allowed(const dlt698_acl_object_t *obj, uint8_t attr_id, bool write) {
+    for (uint8_t i = 0; i < obj->n_attrs; i++) {
+        if (obj->attrs[i].id != attr_id) continue;
+        uint8_t r = obj->attrs[i].rights;
+        return write ? (r == DLT698_ATTR_RIGHT_WRITE || r == DLT698_ATTR_RIGHT_RW)
+                     : (r == DLT698_ATTR_RIGHT_READ || r == DLT698_ATTR_RIGHT_RW);
+    }
+    return false;
+}
+
+static bool _acl_method_allowed(const dlt698_acl_object_t *obj, uint8_t method_id) {
+    for (uint8_t i = 0; i < obj->n_methods; i++) {
+        if (obj->methods[i].id == method_id) return obj->methods[i].allowed != 0;
+    }
+    return false;
+}
+
+/* 数据请求的授权入口：一次 OAD 的读写，或一次 OMD 的方法。 */
+static bool _acl_check(dlt698_session_t *s, const edge_slave_source_ops_t *src, void *src_ctx,
+                       uint32_t oad_or_omd, bool write, bool method) {
+    if (!s) return false;
+    uint16_t oi = (uint16_t)(oad_or_omd >> 16);
+    uint8_t id = (uint8_t)((oad_or_omd >> 8) & 0xFF);
+    /* 预连接窗口：允许读类 20 自己的对象列表，否则主站无从得知窗口。 */
+    if (!method && !write && oi == DLT698_OI_CONN && id == 2) return true;
+
+    if (!s->acl.loaded && !_acl_load(s, src, src_ctx)) return false;
+    const dlt698_acl_object_t *obj = _acl_find(s, oi);
+    if (!obj) return false;
+    return method ? _acl_method_allowed(obj, id) : _acl_attr_allowed(obj, id, write);
+}
+
+static int _handle_connect(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *body,
+                           size_t body_len, const edge_slave_source_ops_t *src, void *src_ctx,
+                           void *session, net_buf_t *out) {
+    /* CONNECT-Request（表59 / 附录 H.2）：version(2) conf(8) func(16) send(2) recv(2)
+     * window(1) apdu(2) timeout(4) mechanism(1) [时间标签]。 */
+    dlt698_session_t *s = (dlt698_session_t *)session;
+    if (!sa || !out) return -1;
+    uint8_t result = 255; /* 其他错误 */
+    uint16_t version = 0;
+    uint32_t timeout = 0;
+    const uint8_t *conf = NULL;
+    const uint8_t *func = NULL;
+
+    if (body && body_len >= 2 + 8 + 16 + 2 + 2 + 1 + 2 + 4 + 1) {
+        size_t off = 0;
+        version = (uint16_t)((body[off] << 8) | body[off + 1]);
+        off += 2;
+        conf = body + off;
+        off += 8;
+        func = body + off;
+        off += 16;
+        off += 2 + 2; /* 客户机收发帧最大尺寸 */
+        uint8_t window = body[off++];
+        uint16_t apdu_max = (uint16_t)((body[off] << 8) | body[off + 1]);
+        off += 2;
+        timeout = ((uint32_t)body[off] << 24) | ((uint32_t)body[off + 1] << 16) |
+                  ((uint32_t)body[off + 2] << 8) | body[off + 3];
+        off += 4;
+        uint8_t mechanism = body[off++];
+        size_t used = off;
+
+        bool params_ok = window > 0 && apdu_max > 0 &&
+                         (body_len == used || (body_len == used + 1 && body[used] == 0));
+        if (!params_ok) {
+            result = 255;
+        } else if (version != 0x0010) {
+            result = 5; /* 协议版本不匹配（表43） */
+        } else if (mechanism != 0) {
+            result = 255; /* 仅支持公共连接 [0]；其余机制不假装成功 */
+        } else if (!s || !_acl_load(s, src, src_ctx)) {
+            result = 255; /* 对象列表不可用时不授权 */
+        } else {
+            s->connected = true;
+            s->client_addr = sa->len ? sa->addr[sa->len - 1] : 0;
+            result = 0;
+        }
+    }
+
+    dlt698_connect_params_t params = {
+        .version = version,
+        .conf = conf,
+        .func = func,
+        .timeout = timeout,
+        .result = result,
+    };
+    return dlt698_encode_connect_response(sa, piid, &params, out);
+}
+
+static int _handle_release(const dlt698_addr_t *sa, uint8_t piid, void *session, net_buf_t *out) {
+    dlt698_session_t *s = (dlt698_session_t *)session;
+    if (s) memset(s, 0, sizeof(*s));
+    if (!sa || !out) return -1;
+    return dlt698_encode_release_response(sa, piid, out);
+}
+
 static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
                                size_t payload_len, const edge_slave_source_ops_t *src,
-                               void *src_ctx, net_buf_t *out) {
+                               void *src_ctx, void *session, net_buf_t *out) {
     /* SET-Request-Normal：payload = OAD(4) | Data(A-XDR) | 时间标签。 */
     if (!sa || !payload || !out || payload_len < 4) return -1;
     uint32_t oad =
         _read_be32(payload);
+
+    if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, true, false)) {
+        return dlt698_encode_set_response(sa, piid, oad, DLT698_DAR_DENIED, out);
+    }
 
     int rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
     if (payload_len > 4) {
@@ -355,7 +572,7 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
  * 整页，按产品返回码回 CHOICE [0] DAR（ADR-0014）。 */
 static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
                               size_t payload_len, const edge_slave_source_ops_t *src,
-                              void *src_ctx, net_buf_t *out) {
+                              void *src_ctx, void *session, net_buf_t *out) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
@@ -366,6 +583,10 @@ static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8
                                                      DLT698_DAR_TEMPORARY_FAILURE, out);
     }
     if (rc != 0) return -1; /* 报文截断/结构错：不应答 */
+    if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     DLT698_DAR_DENIED, out);
+    }
     if (!src || !src->record.begin || !src->record.row || !src->record.end) {
         return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
                                                      DLT698_DAR_TEMPORARY_FAILURE, out);
@@ -412,7 +633,6 @@ static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8
 static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
                                      const edge_slave_source_ops_t *src, void *src_ctx,
                                      net_buf_t *out, size_t *consumed) {
-    (void)session; /* 无跨帧状态：一问一答自成一体 */
     dlt698_req_t *p = (dlt698_req_t *)priv;
     if (!p || !in || !out || !consumed) return -1;
     *consumed = 0;
@@ -446,6 +666,17 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
      * 实测现象："值解出来对，但帧校验不过"。 */
     dlt698_addr_t sa = sa_rx;
 
+    /* Class 20：CONNECT/RELEASE 的 APDU 是 `服务 | PIID | 体 | 时标`，
+     * decode_frame_ex 会把首字节当 svc、次字节当 choice，因此这里用 choice 作 PIID，
+     * 并用 payload-1 还原 CONNECT 体。 */
+    if (svc == 0x02) {
+        return _handle_connect(&sa, choice, payload - 1, payload_len + 1, src, src_ctx, session,
+                               out);
+    }
+    if (svc == 0x03) {
+        return _handle_release(&sa, choice, session, out);
+    }
+
     if (svc == DLT698_SVC_GET_REQ) {
         /* [2] GetRequestNormalList：payload = count(1) | OAD(4)×n | 时间标签(1)。
          * 标准 6.3.8.1.2 表66。逐项都要给结果：读不到的回 DAR，不能少返一项 ——
@@ -463,6 +694,11 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
             for (size_t k = 0; k < n; k++) {
                 const uint8_t *oad_bytes = payload + 1 + 4 * k;
                 uint32_t oad = _read_be32(oad_bytes);
+                if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
+                    if (dlt698_encode_get_response_list_item_dar(out, oad, DLT698_DAR_DENIED) != 0)
+                        return -1;
+                    continue;
+                }
                 size_t dlen = 0;
                 if (src && src->resolve_axdr) {
                     /* A-XDR 通道：完整值（含类型标签）。实现后不再回落标量；
@@ -502,15 +738,18 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
         /* [3] GetRequestRecord：payload = OAD(4) | RSD | RCSD | 时间标签（表67）。 */
         if (choice == DLT698_CHOICE_GET_RECORD) {
-            return _handle_get_record(&sa, piid, payload, payload_len, src, src_ctx, out);
+            return _handle_get_record(&sa, piid, payload, payload_len, src, src_ctx, session, out);
         }
 
         /* [1] GetRequestNormal：payload = OAD(4) | 时间标签(1) */
         if (choice != DLT698_CHOICE_GET_NORMAL) return -1;
         if (payload_len < 4) return -1;
 
-        uint32_t oad =
-            _read_be32(payload);
+        uint32_t oad = _read_be32(payload);
+        if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, false, false)) {
+            dlt698_encode_get_response_dar(&sa, piid, oad, DLT698_DAR_DENIED, out);
+            return 0;
+        }
         if (src && src->resolve_axdr) {
             size_t dlen = 0;
             int rc = src->resolve_axdr(src_ctx, oad, s_axdr_buf, sizeof(s_axdr_buf), &dlen);
@@ -545,14 +784,19 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
     if (svc == DLT698_SVC_SET_REQ) {
         if (choice != 0x01) return -1;
-        return _handle_set_request(&sa, piid, payload, payload_len, src, src_ctx, out);
+        return _handle_set_request(&sa, piid, payload, payload_len, src, src_ctx, session, out);
     }
 
     if (svc == DLT698_SVC_ACTION_REQ) {
         /* ACTION-Request-Normal：payload = OMD(4) | Data | 时间标签（PIID 已由 decode 取出） */
         if (payload_len < 4) return -1;
-        uint32_t omd =
-            _read_be32(payload);
+        uint32_t omd = _read_be32(payload);
+        if (!_acl_check((dlt698_session_t *)session, src, src_ctx, omd, false, true)) {
+            dlt698_encode_action_response(&sa, piid, (uint16_t)(omd >> 16),
+                                          (uint8_t)((omd >> 8) & 0xFF), (uint8_t)(omd & 0xFF),
+                                          DLT698_DAR_DENIED, NULL, 0, out);
+            return 0;
+        }
 
         double param = 0.0;
         if (payload_len > 4) {
@@ -607,7 +851,7 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
 
 const edge_driver_t dlt698_driver = {
     .name = "DLT698",
-    .ctx_size = 0, /* request-native：无 per-session 上下文 */
+    .ctx_size = sizeof(dlt698_session_t), /* Class 20 会话与 ACL（ADR-0015） */
     .req_priv_size = sizeof(dlt698_req_t),
     .req_prepare = dlt698_req_prepare,
     .req_encode = dlt698_req_encode,
