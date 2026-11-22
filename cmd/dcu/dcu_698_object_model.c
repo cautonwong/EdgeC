@@ -1,7 +1,6 @@
-#include "dcu_698_object_internal.h"
-
 #include <stdint.h>
 
+#include "dcu_698_object_internal.h"
 #include "dcu_698_var.h"
 #include "edge_slave_plane.h"
 
@@ -15,8 +14,8 @@ static dcu_698_object_t g_objects[] = {
      .attr_mask = {[BYTE(2)] = BIT(2)},
      .method = dcu_698_acq_6000_execute,
      .method_mask = {[BYTE(127)] = BIT(127),
-                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130) | BIT(131) | BIT(132) |
-                                   BIT(133) | BIT(134)}},
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130) | BIT(131) | BIT(132) | BIT(133) |
+                                   BIT(134)}},
 
     {.oi = OI_ARCHIVE_UNIT,
      .class_id = IC_PARAM,
@@ -95,9 +94,7 @@ static dcu_698_object_t g_objects[] = {
      .method = dcu_698_security_f100_execute,
      .method_mask = {[BYTE(1)] = BIT(1)}},
 
-    {.oi = OI_CHANNEL_CONFIG,
-     .class_id = IC_PERIPHERAL,
-     .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_CHANNEL_CONFIG, .class_id = IC_PERIPHERAL, .scope = DCU_OBJ_SINGLETON},
 
     {.oi = OI_METER_DISCOVERY,
      .class_id = IC_ACQUISITION,
@@ -106,9 +103,7 @@ static dcu_698_object_t g_objects[] = {
      .method = dcu_698_acq_6002_execute,
      .attr_mask = {[BYTE(3)] = BIT(3)},
      .method_mask = {[BYTE(127)] = BIT(127)}},
-    {.oi = OI_DISCOVERY_RESULT,
-     .class_id = IC_ACQUISITION,
-     .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_DISCOVERY_RESULT, .class_id = IC_ACQUISITION, .scope = DCU_OBJ_SINGLETON},
 
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_SUB_EVENT,
@@ -116,8 +111,8 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_event_read,
      .write = dcu_698_event_write,
      .method = dcu_698_event_execute,
-     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4),
-                   [BYTE(11)] = BIT(11) | BIT(12)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(6),
+                   [BYTE(11)] = BIT(11) | BIT(12) | BIT(14)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
      .class_id = IC_SUB_EVENT,
@@ -125,8 +120,8 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_event_read,
      .write = dcu_698_event_write,
      .method = dcu_698_event_execute,
-     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4),
-                   [BYTE(11)] = BIT(11) | BIT(12)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(6),
+                   [BYTE(11)] = BIT(11) | BIT(12) | BIT(14)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
 };
 
@@ -191,7 +186,9 @@ const dcu_698_object_t *dcu_698_find(uint16_t oi) {
     return _find_mut(oi);
 }
 
-size_t dcu_698_object_count(void) { return OBJECT_COUNT; }
+size_t dcu_698_object_count(void) {
+    return OBJECT_COUNT;
+}
 
 const dcu_698_object_t *dcu_698_object_at(size_t index) {
     return index < OBJECT_COUNT ? &g_objects[index] : NULL;
@@ -202,15 +199,16 @@ static const struct {
     uint8_t class_id;
     uint8_t max_attr;
 } k_class_max_attr[] = {
-    {1, 5},  {2, 3},  {3, 3},  {4, 3},  {5, 6},  {6, 3},  {7, 10}, {8, 2},  {9, 3},
-    {10, 3}, {11, 4}, {12, 19}, {13, 5}, {14, 3}, {15, 3}, {16, 3}, {17, 4}, {18, 3},
+    {1, 5},   {2, 3},  {3, 3},   {4, 3},  {5, 6},   {6, 3},   {7, 10},  {8, 2},  {9, 3},
+    {10, 3},  {11, 4}, {12, 19}, {13, 5}, {14, 3},  {15, 3},  {16, 3},  {17, 4}, {18, 3},
     {19, 10}, {20, 5}, {21, 15}, {22, 4}, {23, 18}, {24, 14}, {25, 11}, {26, 5},
 };
 
 bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
     if (attr_id == 0) return false;
     for (size_t i = 0; i < sizeof(k_class_max_attr) / sizeof(k_class_max_attr[0]); i++) {
-        if (k_class_max_attr[i].class_id == class_id) return attr_id <= k_class_max_attr[i].max_attr;
+        if (k_class_max_attr[i].class_id == class_id)
+            return attr_id <= k_class_max_attr[i].max_attr;
     }
     return false;
 }
@@ -220,8 +218,8 @@ static const struct {
     uint8_t class_id;
     uint8_t max_method;
 } k_class_max_method[] = {
-    {1, 2},  {2, 2},  {3, 2},  {4, 2},  {5, 2},  {6, 2},  {7, 5},  {8, 2},  {9, 8},
-    {10, 3}, {11, 2}, {12, 4}, {13, 7}, {14, 4}, {15, 4}, {16, 2}, {17, 6}, {18, 8},
+    {1, 2},  {2, 2},  {3, 2},   {4, 2},  {5, 2},  {6, 2},  {7, 5},  {8, 2},  {9, 8},
+    {10, 3}, {11, 2}, {12, 4},  {13, 7}, {14, 4}, {15, 4}, {16, 2}, {17, 6}, {18, 8},
     {19, 2}, {20, 2}, {21, 12}, {22, 2}, {23, 5}, {24, 5}, {25, 2}, {26, 2},
 };
 
@@ -242,9 +240,13 @@ static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_
     return false;
 }
 
-const router_sink_ops_t *dcu_698_internal_sink_ops(void) { return &g_router_sink_ops; }
+const router_sink_ops_t *dcu_698_internal_sink_ops(void) {
+    return &g_router_sink_ops;
+}
 
-dcu_inventory_t *dcu_698_internal_inventory(void) { return s_router_inv; }
+dcu_inventory_t *dcu_698_internal_inventory(void) {
+    return s_router_inv;
+}
 
 void dcu_698_internal_control_sink(dcu_control_sink_t *out_fn, void **out_ctx) {
     if (out_fn) *out_fn = s_control_sink;

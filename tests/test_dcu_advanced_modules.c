@@ -1,8 +1,10 @@
 #include <cmocka.h>
 #include <setjmp.h>
+#include <sqlite3.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -10,6 +12,8 @@
 #include <uv.h>
 
 #include "datahub.h"
+#include "datahub_priv.h"
+#include "dcu_698_axdr.h"
 #include "dcu_discovery.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
@@ -17,9 +21,73 @@
 #include "dcu_router.h"
 #include "dcu_security.h"
 #include "dcu_storage.h"
-#include "stream_engine.h"
 #include "stream_bus_datahub_adapter.h"
-#include "datahub_priv.h"
+#include "stream_engine.h"
+
+#define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
+
+/* date_time_s 是设备本地民用时间：固定东八区，线上下发与回读才有确定语义。 */
+static char g_saved_tz[128];
+static int g_had_tz;
+
+static int setup_timezone(void** state) {
+    (void)state;
+    const char* tz = getenv("TZ");
+    g_had_tz = tz != NULL;
+    if (g_had_tz) snprintf(g_saved_tz, sizeof(g_saved_tz), "%s", tz);
+    setenv("TZ", "CST-8", 1);
+    tzset();
+    return 0;
+}
+
+static int teardown_timezone(void** state) {
+    (void)state;
+    if (g_had_tz) {
+        setenv("TZ", g_saved_tz, 1);
+    } else {
+        unsetenv("TZ");
+    }
+    tzset();
+    return 0;
+}
+
+/* 测试只读 event_history 的实际落库值，验证存储单位；产品侧没有事件读取路径。 */
+static void _event_row_times(dcu_storage_t* storage, uint16_t oi, uint64_t* start, uint64_t* end) {
+    *start = 0;
+    *end = 0;
+    sqlite3_stmt* stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db,
+                           "SELECT start_time, end_time FROM event_history WHERE oi = ?;", -1,
+                           &stmt, NULL) != SQLITE_OK) {
+        return;
+    }
+    sqlite3_bind_int(stmt, 1, oi);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *start = (uint64_t)sqlite3_column_int64(stmt, 0);
+        *end = (uint64_t)sqlite3_column_int64(stmt, 1);
+    }
+    sqlite3_finalize(stmt);
+}
+
+static void _event_row_times_for(dcu_storage_t* storage, const char* addr, uint16_t oi,
+                                 uint64_t* start, uint64_t* end) {
+    *start = 0;
+    *end = 0;
+    sqlite3_stmt* stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db,
+                           "SELECT start_time, end_time FROM event_history WHERE meter_address = ? "
+                           "AND oi = ? ORDER BY rowid DESC LIMIT 1;",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        return;
+    }
+    sqlite3_bind_text(stmt, 1, addr, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int(stmt, 2, oi);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        *start = (uint64_t)sqlite3_column_int64(stmt, 0);
+        *end = (uint64_t)sqlite3_column_int64(stmt, 1);
+    }
+    sqlite3_finalize(stmt);
+}
 
 static int _mock_count_freezes(void* ctx, uint16_t* out_count) {
     return dcu_storage_count_freezes((dcu_storage_t*)ctx, out_count);
@@ -92,8 +160,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     evt_3000.delay_s = 5;
     evt_3000.report_flag = 1;
     evt_3000.is_enabled = true;
-    evt_3000.last_start_time = 0;
-    evt_3000.last_end_time = 0;
+    evt_3000.last_start_time = (dcu_event_stamp_t){0};
+    evt_3000.last_end_time = (dcu_event_stamp_t){0};
 
     dcu_event_obj_t evt_3005;
     evt_3005.oi = OI_OVER_CURRENT;
@@ -105,8 +173,8 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     evt_3005.delay_s = 3;
     evt_3005.report_flag = 1;
     evt_3005.is_enabled = true;
-    evt_3005.last_start_time = 0;
-    evt_3005.last_end_time = 0;
+    evt_3005.last_start_time = (dcu_event_stamp_t){0};
+    evt_3005.last_end_time = (dcu_event_stamp_t){0};
 
     router_sink_ops_t router_sink = {.ctx = &storage,
                                      .record_telemetry = (void*)dcu_storage_write_telemetry,
@@ -248,7 +316,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
     assert_int_equal(evt_3000.record_count, 1);
 
-    // Class 24 记录表 A6-A9 均未暴露；A2 是 OAD 数组，只能走 A-XDR，旧标量入口拒绝。
+    /* 复杂属性不走标量入口。 */
     dcu_event_record_t first_evt_rec = evt_3000.records[0];
     ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
     assert_int_equal(ret, -2);
@@ -257,7 +325,28 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     assert_int_equal(first_evt_rec.index, 1);
     assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f);  // 快照电压 150V
     assert_true(first_evt_rec.is_active);                             // 事件处于发生状态
-    assert_int_equal(first_evt_rec.start_time, base_ts + 5ULL * 1000000000ULL);  // 触发点正确
+    assert_int_equal(first_evt_rec.start_time.mono_ns, base_ts + 5ULL * 1000000000ULL);
+
+    /* 墙钟来自 CLOCK_REALTIME，不是 ev->ts（单调纳秒）；容差 5s 覆盖调度抖动。 */
+    uint64_t wall_now = (uint64_t)time(NULL);
+    assert_true(first_evt_rec.start_time.epoch_s >= wall_now - 5 &&
+                first_evt_rec.start_time.epoch_s <= wall_now + 5);
+
+    uint8_t a6[256];
+    size_t a6_len = 0;
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), a6, sizeof(a6), &a6_len), 0);
+    enum { A6_ARRAY_HDR = 2, A6_STRUCT_HDR = 2, A6_INDEX_BYTES = 5 };
+    uint64_t wire_epoch = 0;
+    assert_int_equal(dcu_698_date_time_s_to_epoch(
+                         a6 + A6_ARRAY_HDR + A6_STRUCT_HDR + A6_INDEX_BYTES, 8, &wire_epoch),
+                     0);
+    assert_true(wire_epoch >= wall_now - 5 && wire_epoch <= wall_now + 5);
+
+    uint64_t row_start = 0, row_end = 0;
+    _event_row_times(&storage, OI_VOLTAGE_DROP, &row_start, &row_end);
+    assert_true(row_start >= wall_now - 5 && row_start <= wall_now + 5);
+    assert_int_equal(row_end, 0);
 
     // 💡 C. 注入电压恢复 220.5V 标量，失压事件应消除
     scalar_msg.ts = base_ts + 10ULL * 1000000000ULL;
@@ -267,7 +356,32 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 消除时记录序号不变，但 is_active 状态应改变，且时标填充
     first_evt_rec = evt_3000.records[0];
     assert_false(first_evt_rec.is_active);  // 状态成功变更为恢复 (false)
-    assert_int_equal(first_evt_rec.end_time, base_ts + 10ULL * 1000000000ULL);  // 消除时标正确
+    assert_int_equal(first_evt_rec.end_time.mono_ns, base_ts + 10ULL * 1000000000ULL);
+    wall_now = (uint64_t)time(NULL);
+    assert_true(first_evt_rec.end_time.epoch_s >= wall_now - 5 &&
+                first_evt_rec.end_time.epoch_s <= wall_now + 5);
+
+    assert_int_equal(first_evt_rec.start_time.epoch_s, row_start);
+    _event_row_times(&storage, OI_VOLTAGE_DROP, &row_start, &row_end);
+    assert_int_equal(row_start, first_evt_rec.start_time.epoch_s);
+    assert_int_equal(row_end, first_evt_rec.end_time.epoch_s);
+
+    /* 旧行单位是单调纳秒：没有产品读取路径，未来读取必须按单位/版本识别，
+     * 公历区间判定只做最后拒绝，旧行不得被渲染成日期。 */
+    assert_int_equal(dcu_storage_write_event(&storage, "LegacyMeter", OI_VOLTAGE_DROP,
+                                             1716500000000000000ULL, 0, 1.0f),
+                     0);
+    uint64_t legacy_start = 0, legacy_end = 0;
+    _event_row_times_for(&storage, "LegacyMeter", OI_VOLTAGE_DROP, &legacy_start, &legacy_end);
+    assert_int_equal(legacy_start, 1716500000000000000ULL);
+    assert_false(dcu_698_epoch_is_civil(legacy_start));
+
+    dcu_event_stamp_t saved_start = evt_3000.records[0].start_time;
+    evt_3000.records[0].start_time = (dcu_event_stamp_t){.mono_ns = 1, .epoch_s = legacy_start};
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), a6, sizeof(a6), &a6_len),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    evt_3000.records[0].start_time = saved_start;
 
     // ==============================================================================
     // 6. 验证日冻结管线与 SQLite RSD 持久化 (Class 9 Freezing & Query)
@@ -334,5 +448,5 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_advanced_features_dispatch),
     };
-    return cmocka_run_group_tests(tests, NULL, NULL);
+    return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

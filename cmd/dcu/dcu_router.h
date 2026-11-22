@@ -75,16 +75,34 @@
 #define OI_CHANNEL_CONFIG 0xF200    // 外设串口信道物理配置 OI
 
 #define MAX_EVENT_RECORDS 10
+#define MAX_EVENT_SNAPSHOTS 8
+#define DCU_EVENT_SNAPSHOT_BYTES 64
+
+/**
+ * @brief 事件时标的两个口径：mono_ns 是产生记录时的单调纳秒副本，epoch_s 是墙钟整秒
+ *        （date_time_s 与 event_history 落库）。
+ *
+ * uv_hrtime 是开机以来单调纳秒，不能当公历时间；CLOCK_REALTIME 才是 epoch 来源。
+ * 两者必须一起存，任何一侧缺失都如实回 NULL 或类型不匹配，不互相换算冒充。
+ */
+typedef struct {
+    uint64_t mono_ns;
+    uint64_t epoch_s;
+} dcu_event_stamp_t;
 
 /**
  * @brief Class 7 单个事件记录结构体 (与电力契约数据严格对齐)
  */
 typedef struct {
     uint16_t index;
-    uint64_t start_time;
-    uint64_t end_time;
+    dcu_event_stamp_t start_time;
+    dcu_event_stamp_t end_time;
     float snapshot_value;
     bool is_active;
+    /* 生成记录时抓到的关联对象属性 A-XDR 值（A6 记录单元的 Data 字段）。len 0 = 未取到，编 NULL。
+     */
+    uint8_t snapshot_len[MAX_EVENT_SNAPSHOTS];
+    uint8_t snapshot[MAX_EVENT_SNAPSHOTS][DCU_EVENT_SNAPSHOT_BYTES];
 } dcu_event_record_t;
 
 /**
@@ -92,16 +110,16 @@ typedef struct {
  */
 typedef struct {
     uint16_t oi;
-    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 事件记录表存储 (A6-A9 未暴露)
-    uint16_t record_count;                          // 记录表 1 当前条数 (A3 四表结构未暴露)
-    uint32_t snapshot_oads[8];  // 关联对象属性表 OAD (A2 数组未暴露)
+    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 事件记录表 1 (A6)
+    uint16_t record_count;                          // 记录表 1 当前条数 (A3 四表结构)
+    uint32_t snapshot_oads[MAX_EVENT_SNAPSHOTS];    // 关联对象属性表 OAD (A2)
     uint8_t snapshot_count;
-    float threshold;            // 触发门限 (A5 配置参数结构未暴露)
+    float threshold;  // 触发门限 (A5 配置参数结构未暴露)
     uint32_t delay_s;
-    uint8_t report_flag;        // 上报标识 (A11)
-    bool is_enabled;            // 有效标识 (A12)
-    uint64_t last_start_time;   // 最近发生时间 (A14 数组未暴露)
-    uint64_t last_end_time;
+    uint8_t report_flag;                // 上报标识 (A11)
+    bool is_enabled;                    // 有效标识 (A12)
+    dcu_event_stamp_t last_start_time;  // 最近发生时间 (A14)
+    dcu_event_stamp_t last_end_time;    // 最近结束时间 (A14)
 } dcu_event_obj_t;
 
 typedef struct {

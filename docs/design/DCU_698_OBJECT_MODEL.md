@@ -398,11 +398,13 @@ DCU 等级 `full`。2301 到 2308 八个总加组。总加计算与 Class 13 控
 
 DCU 等级 `full`。3000 到 300B 的分项事件，包括失压、欠压、过压、断相、失流、过流、功率因数超下限、全失压、辅助电源掉电、电压逆相序、电流逆相序、无功需量超限。事件记录与 Class 7 共用存储与上报，但属性 3 是四张表的记录数结构，不是单个计数。
 
-本仓库已落地的 3000/3005 行按表193编号暴露 A4 最大记录数（long-unsigned）、A11 上报标识（enum 0 到 3）、A12 有效标识（bool）；写路径只接受 A11、A12，A11 拒绝 0 到 3 之外的值。方法 1 复位清空记录表、当前记录数与最近发生/结束时间。北向标量表已登记 A4（long-unsigned）、A11（enum）、A12（bool）。
+本仓库已落地的 3000/3005 行按表193编号暴露 A2 关联对象属性表（array OAD）、A3 当前记录数（四表 structure）、A4 最大记录数（long-unsigned）、A6 事件记录表 1（array structure）、A11 上报标识（enum 0 到 3）、A12 有效标识（bool）、A14 时间状态记录表（array structure）。写路径只接受 A11、A12，A11 拒绝 0 到 3 之外的值。方法 1 复位清空记录表、当前记录数与最近发生/结束时间。北向标量表已登记 A4（long-unsigned）、A11（enum）、A12（bool）。
 
-其余属性保持 mask 关闭：A2 关联对象属性表、A3 当前记录数（四表 structure）、A5 配置参数（structure；3000 需要电压上限、电压下限、电流下限三路门限，结构只存单门限，不能填满）、A6 到 A9 事件记录表（array）、A10 当前值记录表（array）、A13 失压统计（structure，次数与累计秒未存储）、A14 时间状态记录表（array）。关闭位在门面层按 DAR 5（类定义有、实例未声明）拒绝；类里没有的属性号回 DAR 4，未知 OI 回 DAR 6。A2、A3、A5、A6 到 A10、A14 依赖 A-XDR 结构/数组通道（P0 第 10 项）；通道落地后按 A.4 的字段顺序打开对应位。
+事件时标在生成记录时从 `CLOCK_REALTIME` 取整秒，和 `uv_hrtime` 单调纳秒并列保存：记录里的单调值只作存在性判定与审计副本（监测阶段的延时判定一直用 `ev->ts`），`epoch_s` 用于 A6/A14 的 `date_time_s` 与 `event_history` 落库。表49 的 `date_time_s` 不带时区，主站看到的是设备本地民用时间，因此编码经 `localtime_r`、解码经 `mktime`，进程 TZ 即设备配置的时区；**部署时必须配置设备 TZ**，否则主站读到的是 UTC。没有墙钟（如时钟读取失败）时回 `TYPE_MISMATCH`（线上 DAR 7），不把 0 或单调值编成公历日期。A6 结束时间列没有 NULL 槽位：事件未结束时编表49 的非法时标（年 `FFFFH`，其余字段 `FFH`），已结束但墙钟不可编码则失败关闭。A14 的最近一次发生/结束时间按表194 明确允许 NULL，未发生/未结束编 `0x00`。A6 记录单元里的关联对象数据在生成记录时抓拍 A-XDR 值，取不到编 NULL；上报状态没有按通道存储，编空数组。`event_history` 从此写入墙钟整秒；旧行存的是单调纳秒，不迁移、不渲染：幅度不能可靠区分两种单位，未来读取必须先加单位/版本字段并丢弃旧行。
 
-A4、A11、A12 的对象层测试在 `tests/test_dcu_698_object_model.c`，标量表测试在 `tests/test_dcu_698_value_table.c`，线上 A11/A12 与 A6 的 DAR 5 在 `tests/test_dcu_698_axdr.c`，类属性上限与目录一致在 `tests/test_dcu_698_catalog.c`。
+其余属性保持 mask 关闭：A5 配置参数（structure；3000 需要电压上限、电压下限、电流下限三路门限，结构只存单门限，不能填满）、A7 到 A9 事件记录表 2 到 4（未实例化）、A10 当前值记录表（array）、A13 失压统计（structure，次数与累计秒未存储）。关闭位在门面层按 DAR 5（类定义有、实例未声明）拒绝；类里没有的属性号回 DAR 4，未知 OI 回 DAR 6。
+
+A4、A11、A12 的对象层测试在 `tests/test_dcu_698_object_model.c`，标量表测试在 `tests/test_dcu_698_value_table.c`，A6/A14 的时间编码、NULL 与非法时标在 `tests/test_dcu_698_axdr.c`，流式记录到线上 A6 的墙钟对拍在 `tests/test_dcu_advanced_modules.c`，类属性上限与目录一致在 `tests/test_dcu_698_catalog.c`。
 
 ### Class 25 无线公网通信接口类
 

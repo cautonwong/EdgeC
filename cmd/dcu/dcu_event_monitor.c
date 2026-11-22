@@ -6,6 +6,7 @@
 #include <time.h>
 
 #include "datahub.h"
+#include "dcu_698_var.h"
 #include "dcu_inventory.h"
 #include "edge_log.h"
 
@@ -170,6 +171,24 @@ typedef struct {
     event_sink_ops_t sink_ops;
 } logger_stage_ctx_t;
 
+/* uv_hrtime 是单调时钟，不能当公历时间；事件记录的墙钟只从 CLOCK_REALTIME 取。 */
+static uint64_t _wall_epoch_s(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0 || ts.tv_sec < 0) return 0;
+    return (uint64_t)ts.tv_sec;
+}
+
+static void _capture_record_snapshots(const dcu_event_obj_t* evt, dcu_event_record_t* rec) {
+    for (uint8_t i = 0; i < evt->snapshot_count && i < MAX_EVENT_SNAPSHOTS; i++) {
+        size_t len = 0;
+        if (dcu_698_var_encode_axdr(evt->snapshot_oads[i], rec->snapshot[i],
+                                    sizeof(rec->snapshot[i]), &len) == 0 &&
+            len <= sizeof(rec->snapshot[i])) {
+            rec->snapshot_len[i] = (uint8_t)len;
+        }
+    }
+}
+
 static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
     logger_stage_ctx_t* ctx = (logger_stage_ctx_t*)stage->priv_state;
     if (!ctx) return STAGE_DROP;
@@ -186,6 +205,7 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             float val = (float)ev->payload.val.f;
             bool is_recover = (val < 0.0f);
             float actual_val = is_recover ? -val : val;
+            uint64_t wall_s = _wall_epoch_s();
 
             // 💡 倒序排列追加事件记录表 (新产生的排在最前)
             uint16_t limit = (evt->record_count < MAX_EVENT_RECORDS) ? evt->record_count
@@ -195,36 +215,39 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             }
 
             dcu_event_record_t* new_rec = &evt->records[0];
+            memset(new_rec, 0, sizeof(*new_rec));
             new_rec->index = (uint16_t)(evt->record_count + 1);
             new_rec->snapshot_value = actual_val;
             new_rec->is_active = !is_recover;
 
             if (!is_recover) {
-                new_rec->start_time = ev->ts;
-                new_rec->end_time = 0;
-                evt->last_start_time = ev->ts;  // 更新最近发生时标
+                new_rec->start_time.mono_ns = ev->ts;
+                new_rec->start_time.epoch_s = wall_s;
+                evt->last_start_time = new_rec->start_time;
 
                 // 【Generic Snapshot Engine】根据 Attr 3 抓拍现场数据
                 pipe_msg_t snapshots[8];
                 int captured = dcu_obj_snapshot(evt->oi, ev->device_id, snapshots, 8);
+                _capture_record_snapshots(evt, new_rec);
 
                 // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
                 /* ev->device_id 是 slot_id（影子表的设备身份），不是数组下标 */
-                const production_meter_t* meter =
-                    dcu_inventory_by_slot(ctx->inv, ev->device_id);
+                const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, ev->device_id);
                 const char* addr = meter ? meter->address : "Unknown";
 
                 if (ctx->sink_ops.archive_event) {
-                    ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi, ev->ts, 0,
-                                                actual_val);
+                    ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi,
+                                                new_rec->start_time.epoch_s, 0, actual_val);
                 }
 
                 printf("📝 [SNAPSHOT] 事件 %04X 触发 (表: %s)！抓取 %d 项关联快照并入库。\n",
                        evt->oi, addr, captured);
             } else {
                 new_rec->start_time = evt->last_start_time;
-                new_rec->end_time = ev->ts;
-                evt->last_end_time = ev->ts;  // 更新最近恢复时标
+                new_rec->end_time.mono_ns = ev->ts;
+                new_rec->end_time.epoch_s = wall_s;
+                evt->last_end_time = new_rec->end_time;
+                _capture_record_snapshots(evt, new_rec);
 
                 const char* addr = (ctx->inv && ev->device_id < ctx->inv->count)
                                        ? ctx->inv->meters[ev->device_id].address
@@ -232,7 +255,8 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
                 if (ctx->sink_ops.archive_event) {
                     ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi,
-                                                evt->last_start_time, ev->ts, actual_val);
+                                                evt->last_start_time.epoch_s,
+                                                new_rec->end_time.epoch_s, actual_val);
                 }
 
                 printf("📝 [SNAPSHOT] 事件 %04X 恢复 (表: %s)！记录更新。\n", evt->oi, addr);
@@ -297,7 +321,8 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
     if (ev->tag_id == OAD_DAILY_FREEZE) {
         uint32_t dev = ev->device_id;
         if (ctx->inv && dev >= ctx->inv->count) return STAGE_DROP;
-        const char* addr = (ctx->inv && dev < ctx->inv->count) ? ctx->inv->meters[dev].address : "Unknown";
+        const char* addr =
+            (ctx->inv && dev < ctx->inv->count) ? ctx->inv->meters[dev].address : "Unknown";
 
         // 💡 [2D Matrix Snapshot] 瞬间抓取 DataHub Shadow 缓存全断面电参量快照
         double active_energy = 0.0, voltage = 0.0, current = 0.0;

@@ -10,10 +10,10 @@
 #define DCU_ARCHIVE_BATCH_MAX 8
 
 typedef struct {
-    uint8_t method;           /* 127–134 */
-    uint16_t config_seq;      /* 129/130/131 的配置序号 */
-    uint16_t unit_count;      /* 127/128/129/130/132 的单元数 */
-    bool has_annex;           /* 附属信息非空：产品没有存储路径 */
+    uint8_t method;      /* 127–134 */
+    uint16_t config_seq; /* 129/130/131 的配置序号 */
+    uint16_t unit_count; /* 127/128/129/130/132/133 的单元数 */
+    bool has_annex;      /* 附属信息非空：产品没有存储路径 */
     dcu_archive_unit_t units[DCU_ARCHIVE_BATCH_MAX];
 } dcu_archive_op_t;
 
@@ -39,8 +39,9 @@ int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, con
 /**
  * @brief 编码 Class 24 已暴露属性的 A-XDR。
  *
- * A2/A3 输出 array/structure；A4/A11/A12 是同路径的标量属性。A5 未暴露：
- * 表A.4 按 OI 要求不同字段结构，`dcu_event_obj_t` 未存储。
+ * A2/A3/A6/A14 输出 array/structure；A4/A11/A12 是同路径的标量属性。
+ * 事件时间只从记录里的 epoch_s 编成 date_time_s；没有墙钟就回 TYPE_MISMATCH，不编 1970。
+ * A5 仍不暴露：表A.4 按 OI 要求不同字段结构，`dcu_event_obj_t` 未存储。
  * 返回 0 或 `EDGE_SLAVE_SRC_*`；buffer 不足返回 TYPE_MISMATCH。
  */
 int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
@@ -58,8 +59,8 @@ int dcu_698_control_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
 /** @brief 演示/组合根私有的拉合闸入口；不是 OI 8000 的标准方法。 */
 int dcu_698_control_legacy_action(uint32_t slot, uint8_t action);
 
-int dcu_698_security_f100_execute(const dcu_698_object_t *obj, uint8_t method_id,
-                                  const void *param, void *result);
+int dcu_698_security_f100_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                                  void *result);
 
 const router_sink_ops_t *dcu_698_internal_sink_ops(void);
 dcu_inventory_t *dcu_698_internal_inventory(void);

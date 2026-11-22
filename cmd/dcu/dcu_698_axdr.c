@@ -1,9 +1,10 @@
 #include "dcu_698_axdr.h"
-#include "dcu_698_appconn.h"
 
 #include <string.h>
+#include <time.h>
 #include <uv.h>
 
+#include "dcu_698_appconn.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_var.h"
 #include "dcu_router.h"
@@ -17,12 +18,72 @@ static int _time_tag_absent(const uint8_t *buf, size_t off, size_t len) {
     return off == len || (off + 1 == len && buf[off] == DLT698_NO_TIME_TAG);
 }
 
+/* 表49 的 date_time_s 不带时区，主站要看到设备本地民用时间：经 localtime_r/mktime
+ * 展开，进程 TZ 即设备配置的时区。部署时必须配置 TZ，否则主站读到的是 UTC。 */
+#define DCU_698_EPOCH_MIN 946684800ULL  /* 2000-01-01T00:00:00Z */
+#define DCU_698_EPOCH_MAX 4102444800ULL /* 2100-01-01T00:00:00Z */
+
+int dcu_698_epoch_is_civil(uint64_t epoch_s) {
+    return epoch_s >= DCU_698_EPOCH_MIN && epoch_s < DCU_698_EPOCH_MAX;
+}
+
+int dcu_698_date_time_s_to_epoch(const uint8_t *data, uint8_t len, uint64_t *out) {
+    if (!data || !out) return -1;
+    int offset;
+    if (len == 11 && data[0] == 0x19) {
+        /* 表48：year(2) month day weekday hour minute second millisecond(2) */
+        offset = 1;
+    } else if (len == 8 && data[0] == 0x1C) {
+        offset = 0;
+    } else {
+        return -1;
+    }
+    int year = ((int)data[1] << 8) | data[2];
+    int month = data[3], day = data[4];
+    int hour = data[5 + offset], minute = data[6 + offset], sec = data[7 + offset];
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || sec > 59) {
+        return -1;
+    }
+    struct tm tm = {0};
+    tm.tm_year = year - 1900;
+    tm.tm_mon = month - 1;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = minute;
+    tm.tm_sec = sec;
+    tm.tm_isdst = -1;
+    time_t t = mktime(&tm);
+    if (t == (time_t)-1) return -1;
+    uint64_t epoch = (uint64_t)t;
+    if (!dcu_698_epoch_is_civil(epoch)) return -1;
+    *out = epoch;
+    return 0;
+}
+
+int dcu_698_put_date_time_s(uint64_t epoch_s, uint8_t *buf, size_t cap, size_t *off) {
+    if (!buf || !off || !dcu_698_epoch_is_civil(epoch_s)) return -1;
+    if (*off + 8 > cap) return -1;
+    time_t t = (time_t)epoch_s;
+    struct tm tm;
+    if (!localtime_r(&t, &tm)) return -1;
+    int year = tm.tm_year + 1900;
+    buf[(*off)++] = 0x1C;
+    buf[(*off)++] = (uint8_t)((unsigned)year >> 8);
+    buf[(*off)++] = (uint8_t)year;
+    buf[(*off)++] = (uint8_t)(tm.tm_mon + 1);
+    buf[(*off)++] = (uint8_t)tm.tm_mday;
+    buf[(*off)++] = (uint8_t)tm.tm_hour;
+    buf[(*off)++] = (uint8_t)tm.tm_min;
+    buf[(*off)++] = (uint8_t)tm.tm_sec;
+    return 0;
+}
+
 /**
  * @brief 把 `dcu_value_t` 编成完整 A-XDR 值（含类型标签）。
  *
  * 缓冲由调用方给；任何类型放不进 `cap` 都返回 -1，不截断。
  */
-static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, size_t* len) {
+static int _encode_axdr_value(const dcu_value_t *v, uint8_t *buf, size_t cap, size_t *len) {
     if (!v || !buf || !len) return -1;
 
     switch (v->type_tag) {
@@ -128,8 +189,7 @@ static int _take_ti(axdr_cursor_t *c, uint8_t *unit, uint16_t *value) {
 
 static int _take_date_time(axdr_cursor_t *c, uint8_t out[7]) {
     const uint8_t *p = NULL;
-    if (!_take(c, 8, &p) || p[0] != DLT698_TAG_DATE_TIME_S)
-        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (!_take(c, 8, &p) || p[0] != DLT698_TAG_DATE_TIME_S) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     memcpy(out, p + 1, 7);
     return 0;
 }
@@ -223,8 +283,7 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
             break;
         case 129: {
             const uint8_t *p = NULL;
-            if (!_take(&c, 1, &p) || p[0] != DLT698_TAG_NULL)
-                return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            if (!_take(&c, 1, &p) || p[0] != DLT698_TAG_NULL) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             break;
         }
         case 130: {
@@ -302,8 +361,7 @@ static int _put_empty_time(uint8_t *buf, size_t cap, size_t *off) {
 }
 
 /* 6013 A2：12 字段结构，与解码顺序一一对应。 */
-static int _encode_task_unit(uint8_t *buf, size_t cap, size_t *off,
-                             const dcu_task_unit_t *t) {
+static int _encode_task_unit(uint8_t *buf, size_t cap, size_t *off, const dcu_task_unit_t *t) {
     if (_put_tagged_u8(buf, cap, off, DLT698_TAG_STRUCTURE, 12) != 0 ||
         _put_tagged_u8(buf, cap, off, DLT698_TAG_UNSIGNED, (uint8_t)t->task_id) != 0 ||
         _put_ti(buf, cap, off, t->interval_unit, t->interval_value) != 0 ||
@@ -377,8 +435,8 @@ int dcu_698_task_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *
                                                                  : EDGE_SLAVE_SRC_UNDEFINED;
         }
         /* 元素索引是 task_id：0 表示最小现有 ID，绝不按数组位置寻址。 */
-        const dcu_task_unit_t *t = elem ? dcu_poller_task_find(poller, elem)
-                                        : _next_task(poller, 0, false);
+        const dcu_task_unit_t *t =
+            elem ? dcu_poller_task_find(poller, elem) : _next_task(poller, 0, false);
         if (!t) return EDGE_SLAVE_SRC_NOT_FOUND;
         if (_encode_task_unit(buf, cap, &off, t) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
     } else {
@@ -389,14 +447,13 @@ int dcu_698_task_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *
     return 0;
 }
 
-int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+int dcu_north_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     (void)ctx;
     if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     /* Class 20 属性 2：对象列表是 ACL 的唯一来源（ADR-0015）。 */
     if (oad == 0x44000200u) {
-        return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0
-                                                               : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
 
     uint16_t oi = (uint16_t)(oad >> 16);
@@ -426,14 +483,13 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
 /* 表 A.9：8000 的告警状态与命令状态都是 8 路继电器，一次操作最多 8 项。 */
 #define ACTION_MAX_ITEMS 8
 
-static int _decode_action_item(uint8_t method, const dlt698_data_t* item,
-                               dcu_action_param_t* out) {
+static int _decode_action_item(uint8_t method, const dlt698_data_t *item, dcu_action_param_t *out) {
     uint8_t want = (method == 129) ? 4 : (method == 130) ? 2 : 3;
     if (item->tag != DLT698_TAG_STRUCTURE || item->val.container.count != want ||
         !item->val.container.items) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    const dlt698_data_t* f = item->val.container.items;
+    const dlt698_data_t *f = item->val.container.items;
     if (f[0].tag != DLT698_TAG_OAD) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     out->relay_oad = f[0].val.u32;
 
@@ -456,8 +512,8 @@ static int _decode_action_item(uint8_t method, const dlt698_data_t* item,
     return 0;
 }
 
-int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
-                                dcu_action_param_t* out) {
+int dcu_698_decode_action_param(uint8_t method, const uint8_t *buf, size_t len,
+                                dcu_action_param_t *out) {
     if (!buf || !out || len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     uint16_t off = 0;
@@ -474,8 +530,8 @@ int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
     if (method < DCU_ACTION_METHOD_FIRST || method > DCU_ACTION_METHOD_LAST) {
         return EDGE_SLAVE_SRC_NOT_FOUND;
     }
-    if (d.tag != DLT698_TAG_ARRAY || !d.val.container.items ||
-        d.val.container.count == 0 || d.val.container.count > ACTION_MAX_ITEMS) {
+    if (d.tag != DLT698_TAG_ARRAY || !d.val.container.items || d.val.container.count == 0 ||
+        d.val.container.count > ACTION_MAX_ITEMS) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
 
@@ -494,7 +550,7 @@ int dcu_698_decode_action_param(uint8_t method, const uint8_t* buf, size_t len,
 
 typedef enum { W_U8, W_BOOL } write_kind_t;
 
-static int _write_kind_for(uint16_t oi, uint8_t attr_id, write_kind_t* kind) {
+static int _write_kind_for(uint16_t oi, uint8_t attr_id, write_kind_t *kind) {
     if (!kind) return -1;
     if (oi == OI_VOLTAGE_DROP || oi == OI_OVER_CURRENT) {
         if (attr_id == 11) {
@@ -510,15 +566,15 @@ static int _write_kind_for(uint16_t oi, uint8_t attr_id, write_kind_t* kind) {
 }
 
 /* 处理器回 -2 表示值不合法（如枚举越界），如实报类型不匹配而非暂时失效。 */
-static int _write_via_table(uint32_t oad, const void* value) {
+static int _write_via_table(uint32_t oad, const void *value) {
     int rc = dcu_698_write(oad, value);
     if (rc == 0) return 0;
     return rc == -2 ? EDGE_SLAVE_SRC_TYPE_MISMATCH : EDGE_SLAVE_SRC_TEMPORARY;
 }
 
 /* 用 codec 的 A-XDR 解码器取类型与值：标签宽度只有这一处来源。 */
-static int _decode_axdr_scalar(const uint8_t* p, size_t len, int64_t* i, double* f,
-                               bool* is_float) {
+static int _decode_axdr_scalar(const uint8_t *p, size_t len, int64_t *i, double *f,
+                               bool *is_float) {
     if (!p || !i || !f || !is_float || len == 0 || len > UINT16_MAX)
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
@@ -575,13 +631,13 @@ static int _decode_axdr_scalar(const uint8_t* p, size_t len, int64_t* i, double*
     return rc;
 }
 
-int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t len) {
+int dcu_north_accept_axdr(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len) {
     (void)ctx;
     if (!axdr || len == 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     uint16_t oi = (uint16_t)(oad >> 16);
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
-    const dcu_698_object_t* obj = dcu_698_find(oi);
+    const dcu_698_object_t *obj = dcu_698_find(oi);
     if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
     if (!dcu_mask_test(obj->attr_mask, attr_id))
         return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
@@ -613,7 +669,7 @@ int dcu_north_accept_axdr(void* ctx, uint32_t oad, const uint8_t* axdr, size_t l
     }
 }
 
-static int _octets_text(const dlt698_data_t* d, char* out, size_t cap) {
+static int _octets_text(const dlt698_data_t *d, char *out, size_t cap) {
     if (d->tag != DLT698_TAG_OCTET_STRING || !out || cap == 0) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
@@ -624,18 +680,17 @@ static int _octets_text(const dlt698_data_t* d, char* out, size_t cap) {
     return 0;
 }
 
-static int _decode_basic(const dlt698_data_t* d, dcu_archive_unit_t* unit) {
-    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 10 ||
-        !d->val.container.items) {
+static int _decode_basic(const dlt698_data_t *d, dcu_archive_unit_t *unit) {
+    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 10 || !d->val.container.items) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    const dlt698_data_t* f = d->val.container.items;
+    const dlt698_data_t *f = d->val.container.items;
     int rc = _octets_text(&f[0], unit->address, sizeof(unit->address));
     if (rc != 0) return rc;
-    if (f[1].tag != DLT698_TAG_ENUM || f[2].tag != DLT698_TAG_ENUM ||
-        f[3].tag != DLT698_TAG_OAD || f[5].tag != DLT698_TAG_UNSIGNED ||
-        f[6].tag != DLT698_TAG_UNSIGNED || f[7].tag != DLT698_TAG_ENUM ||
-        f[8].tag != DLT698_TAG_LONG_UNSIGNED || f[9].tag != DLT698_TAG_LONG_UNSIGNED) {
+    if (f[1].tag != DLT698_TAG_ENUM || f[2].tag != DLT698_TAG_ENUM || f[3].tag != DLT698_TAG_OAD ||
+        f[5].tag != DLT698_TAG_UNSIGNED || f[6].tag != DLT698_TAG_UNSIGNED ||
+        f[7].tag != DLT698_TAG_ENUM || f[8].tag != DLT698_TAG_LONG_UNSIGNED ||
+        f[9].tag != DLT698_TAG_LONG_UNSIGNED) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
     unit->baud_code = f[1].val.u8;
@@ -651,12 +706,11 @@ static int _decode_basic(const dlt698_data_t* d, dcu_archive_unit_t* unit) {
     return 0;
 }
 
-static int _decode_extended(const dlt698_data_t* d, dcu_archive_unit_t* unit) {
-    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 4 ||
-        !d->val.container.items) {
+static int _decode_extended(const dlt698_data_t *d, dcu_archive_unit_t *unit) {
+    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 4 || !d->val.container.items) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    const dlt698_data_t* f = d->val.container.items;
+    const dlt698_data_t *f = d->val.container.items;
     if (f[2].tag != DLT698_TAG_LONG_UNSIGNED || f[3].tag != DLT698_TAG_LONG_UNSIGNED) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
@@ -669,19 +723,18 @@ static int _decode_extended(const dlt698_data_t* d, dcu_archive_unit_t* unit) {
     return 0;
 }
 
-static int _decode_annex(const dlt698_data_t* d, bool* has_annex) {
+static int _decode_annex(const dlt698_data_t *d, bool *has_annex) {
     if (d->tag != DLT698_TAG_ARRAY) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     *has_annex = d->val.container.count > 0;
     return 0;
 }
 
 /* 6001 A2：structure{配置序号, Basic, Extended, Annex}。 */
-static int _decode_unit(const dlt698_data_t* d, dcu_archive_unit_t* unit, bool* has_annex) {
-    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 4 ||
-        !d->val.container.items) {
+static int _decode_unit(const dlt698_data_t *d, dcu_archive_unit_t *unit, bool *has_annex) {
+    if (d->tag != DLT698_TAG_STRUCTURE || d->val.container.count != 4 || !d->val.container.items) {
         return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     }
-    const dlt698_data_t* f = d->val.container.items;
+    const dlt698_data_t *f = d->val.container.items;
     if (f[0].tag != DLT698_TAG_LONG_UNSIGNED) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     unit->config_seq = f[0].val.u16;
     int rc = _decode_basic(&f[1], unit);
@@ -691,7 +744,7 @@ static int _decode_unit(const dlt698_data_t* d, dcu_archive_unit_t* unit, bool* 
     return _decode_annex(&f[3], has_annex);
 }
 
-int dcu_698_accept_archive_action(uint32_t omd, const uint8_t* axdr, size_t axdr_len) {
+int dcu_698_accept_archive_action(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
     dcu_archive_op_t op;
     int rc = dcu_698_decode_archive_op(method, axdr, axdr_len, &op);
@@ -702,8 +755,8 @@ int dcu_698_accept_archive_action(uint32_t omd, const uint8_t* axdr, size_t axdr
     return dcu_698_call(omd, &op, NULL);
 }
 
-int dcu_698_decode_archive_op(uint8_t method, const uint8_t* buf, size_t len,
-                              dcu_archive_op_t* out) {
+int dcu_698_decode_archive_op(uint8_t method, const uint8_t *buf, size_t len,
+                              dcu_archive_op_t *out) {
     if (!buf || !out || len == 0 || len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     uint16_t off = 0;
@@ -745,8 +798,7 @@ int dcu_698_decode_archive_op(uint8_t method, const uint8_t* buf, size_t len,
         case 129: {
             /* 参数 structure{配置序号, 基本信息}。 */
             if (d.tag == DLT698_TAG_STRUCTURE && d.val.container.count == 2 &&
-                d.val.container.items &&
-                d.val.container.items[0].tag == DLT698_TAG_LONG_UNSIGNED) {
+                d.val.container.items && d.val.container.items[0].tag == DLT698_TAG_LONG_UNSIGNED) {
                 out->config_seq = d.val.container.items[0].val.u16;
                 rc = _decode_basic(&d.val.container.items[1], &out->units[0]);
                 if (rc == 0) out->unit_count = 1;
@@ -756,8 +808,7 @@ int dcu_698_decode_archive_op(uint8_t method, const uint8_t* buf, size_t len,
         case 130: {
             /* 参数 structure{配置序号, 扩展信息, 附属信息}。 */
             if (d.tag == DLT698_TAG_STRUCTURE && d.val.container.count == 3 &&
-                d.val.container.items &&
-                d.val.container.items[0].tag == DLT698_TAG_LONG_UNSIGNED) {
+                d.val.container.items && d.val.container.items[0].tag == DLT698_TAG_LONG_UNSIGNED) {
                 out->config_seq = d.val.container.items[0].val.u16;
                 rc = _decode_extended(&d.val.container.items[1], &out->units[0]);
                 if (rc == 0) rc = _decode_annex(&d.val.container.items[2], &out->has_annex);
@@ -778,8 +829,7 @@ int dcu_698_decode_archive_op(uint8_t method, const uint8_t* buf, size_t len,
         case 133: {
             /* 参数 structure{通信地址, 端口号}。 */
             if (d.tag == DLT698_TAG_STRUCTURE && d.val.container.count == 2 &&
-                d.val.container.items &&
-                d.val.container.items[1].tag == DLT698_TAG_OAD) {
+                d.val.container.items && d.val.container.items[1].tag == DLT698_TAG_OAD) {
                 rc = _octets_text(&d.val.container.items[0], out->units[0].address,
                                   sizeof(out->units[0].address));
                 out->units[0].port = (uint8_t)(d.val.container.items[1].val.u32 & 0xFF);
