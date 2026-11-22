@@ -796,7 +796,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-16 | 未开始 | - | - | - | - |
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
-| D1-18a | 进行中 | `dcu/D1-18a-variable-shapes` | `ceb6a576` | `docs/evidence/DCU-D1-18a/` | dcu-dev 执行中；Class 1/3/4/6 按标准做 attr2 数组、attr3 Scaler_Unit、正确整数类型与 OAD 元素索引；先写值形状 ADR |
+| D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
 | D1-18b | 进行中 | `dcu/D1-18b-event-class24` | `b6af6b3d` | `docs/evidence/DCU-D1-18b/` | edgec-dev-0 执行中；3000/3005 按 Class 24 重排，能实现则实现，不能实现则撤 mask 回 DAR 5 |
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
@@ -844,6 +844,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D1-18 | 审计完成 | `docs/design/DCU_698_OAD_STATUS.md` | 56 位中 0 real；变量类类型/缩放/数组形状、逐表寻址、事件/记录/采集类假语义是 P0 主因 |
 | 2026-11-22 | D6-08a | 已合并 | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 锁序定向抑制到 3 个用例；A/B 证明第一方锁序仍报；ASAN/UBSAN/fanalyzer 已清，全量 TSAN 在跑 |
 | 2026-11-22 | D6-08 | 完成 | `docs/evidence/DCU-D6-08/` | 全量 ASAN/UBSAN/TSAN 各 334/334，UBSAN 0 runtime error，TSAN 0 ThreadSanitizer 行；fanalyzer 0 new |
+| 2026-11-22 | D1-18a | 已合并 | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；标准数组与 Scaler_Unit；元素索引选表槽位；修 tag 常量与南向相位键；验收改为解析 APDU 数组 |
 
 ### 12.4 并行工作树
 
