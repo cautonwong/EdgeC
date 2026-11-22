@@ -61,7 +61,12 @@ int dcu_storage_init(dcu_storage_t* storage, uv_loop_t* loop, const char* db_pat
         "device_id INTEGER, quality INTEGER);"
         "CREATE TABLE IF NOT EXISTS event_history (meter_address TEXT, oi INTEGER, start_time "
         "INTEGER, end_time INTEGER, snapshot_value REAL, PRIMARY KEY (meter_address, oi, "
-        "start_time));";
+        "start_time));"
+        "CREATE TABLE IF NOT EXISTS dcu_params (oi INTEGER PRIMARY KEY, value BLOB NOT NULL, "
+        "updated_at INTEGER NOT NULL);"
+        "CREATE TABLE IF NOT EXISTS dcu_param_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "oi INTEGER NOT NULL, changed_at INTEGER NOT NULL, source TEXT NOT NULL, old_value BLOB, "
+        "new_value BLOB);";
 
     sqlite3_exec(storage->db, sql_init, NULL, NULL, NULL);
 
@@ -248,6 +253,126 @@ int dcu_storage_count_freezes(dcu_storage_t* storage, uint16_t* out_count) {
     }
     sqlite3_finalize(stmt);
     return 0;
+}
+
+int dcu_storage_param_save(dcu_storage_t* storage, uint16_t oi, const uint8_t* buf, size_t len,
+                           const char* source) {
+    if (!storage || !storage->db || !buf || len == 0 || len > 64 || !source) return -1;
+    if (sqlite3_exec(storage->db, "BEGIN IMMEDIATE TRANSACTION;", NULL, NULL, NULL) != SQLITE_OK) {
+        return -2;
+    }
+
+    sqlite3_stmt* stmt = NULL;
+    uint8_t old_blob[64];
+    int old_len = -1; /* -1 = 之前没有该 OI 的行 */
+    int rc = -3;
+    int step = 0;
+    int n = 0;
+    const void* p = NULL;
+    sqlite3_int64 now = 0;
+
+    if (sqlite3_prepare_v2(storage->db, "SELECT value FROM dcu_params WHERE oi = ?;", -1, &stmt,
+                           NULL) != SQLITE_OK) {
+        goto rollback;
+    }
+    sqlite3_bind_int(stmt, 1, (int)oi);
+    step = sqlite3_step(stmt);
+    if (step == SQLITE_ROW) {
+        n = sqlite3_column_bytes(stmt, 0);
+        p = sqlite3_column_blob(stmt, 0);
+        if (n <= 0 || n > (int)sizeof(old_blob) || !p) {
+            sqlite3_finalize(stmt);
+            stmt = NULL;
+            goto rollback;
+        }
+        memcpy(old_blob, p, (size_t)n);
+        old_len = n;
+    } else if (step != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        goto rollback;
+    }
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+
+    now = (sqlite3_int64)time(NULL);
+    if (sqlite3_prepare_v2(storage->db,
+                           "INSERT OR REPLACE INTO dcu_params (oi, value, updated_at) "
+                           "VALUES (?, ?, ?);",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        goto rollback;
+    }
+    sqlite3_bind_int(stmt, 1, (int)oi);
+    sqlite3_bind_blob(stmt, 2, buf, (int)len, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 3, now);
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        goto rollback;
+    }
+    sqlite3_finalize(stmt);
+    stmt = NULL;
+
+    if (sqlite3_prepare_v2(storage->db,
+                           "INSERT INTO dcu_param_audit (oi, changed_at, source, old_value, "
+                           "new_value) VALUES (?, ?, ?, ?, ?);",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        goto rollback;
+    }
+    sqlite3_bind_int(stmt, 1, (int)oi);
+    sqlite3_bind_int64(stmt, 2, now);
+    sqlite3_bind_text(stmt, 3, source, -1, SQLITE_TRANSIENT);
+    if (old_len >= 0) {
+        sqlite3_bind_blob(stmt, 4, old_blob, old_len, SQLITE_TRANSIENT);
+    } else {
+        sqlite3_bind_null(stmt, 4);
+    }
+    sqlite3_bind_blob(stmt, 5, buf, (int)len, SQLITE_TRANSIENT);
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        sqlite3_finalize(stmt);
+        stmt = NULL;
+        goto rollback;
+    }
+    sqlite3_finalize(stmt);
+
+    if (sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL) != SQLITE_OK) {
+        sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL);
+        return -4;
+    }
+    return 0;
+
+rollback:
+    if (stmt) sqlite3_finalize(stmt);
+    sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL);
+    return rc;
+}
+
+int dcu_storage_param_load(dcu_storage_t* storage, uint16_t oi, uint8_t* buf, size_t cap,
+                           size_t* len) {
+    if (!storage || !storage->db || !buf || !len) return -1;
+
+    sqlite3_stmt* stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db, "SELECT value FROM dcu_params WHERE oi = ?;", -1, &stmt,
+                           NULL) != SQLITE_OK) {
+        return -2;
+    }
+    sqlite3_bind_int(stmt, 1, (int)oi);
+
+    int rc = -3;
+    int step = sqlite3_step(stmt);
+    if (step == SQLITE_ROW) {
+        int n = sqlite3_column_bytes(stmt, 0);
+        const void* p = sqlite3_column_blob(stmt, 0);
+        if (n > 0 && (size_t)n <= cap && p) {
+            memcpy(buf, p, (size_t)n);
+            *len = (size_t)n;
+            rc = 0;
+        }
+    } else if (step == SQLITE_DONE) {
+        rc = 1;
+    }
+    sqlite3_finalize(stmt);
+    return rc;
 }
 
 int dcu_storage_begin_trans(dcu_storage_t* storage) {

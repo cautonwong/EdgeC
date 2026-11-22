@@ -4,6 +4,7 @@
  */
 
 #include "dcu_driver_adapter.h"
+#include "dcu_698_param.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_task_store.h"
@@ -94,6 +95,19 @@ static int _node_archive_clear(void *ctx) {
 /* 6012 任务持久化端口：解码后的 op 交给 store，在同一连接上事务化落地。 */
 static int _node_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t *op) {
     return dcu_task_store_apply((dcu_storage_t *)ctx, poller, op);
+}
+
+/* Class 8 参数端口：4000 由参数模块做成 RAM 影子，永远不会走到这里。 */
+static int _node_param_save(void *ctx, uint16_t oi, const uint8_t *buf, size_t len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_save(storage, oi, buf, len, "dlt698");
+}
+
+static int _node_param_load(void *ctx, uint16_t oi, uint8_t *buf, size_t cap, size_t *len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_load(storage, oi, buf, cap, len);
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
@@ -219,6 +233,11 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
                                    .read_shadow = _node_read_shadow};
     dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
                        &node->evt_3005, router_bus);
+    /* Class 8 参数：启动时把已落盘的值读回 RAM；4000 不落盘。 */
+    dcu_param_store_t param_store = {.ctx = &node->storage,
+                                     .save = _node_param_save,
+                                     .load = _node_param_load};
+    dcu_698_param_init(&param_store);
     /* 遥控动作下沉到聚合根：路由只认识对象，发 645 控制帧是领域动作 */
     dcu_router_set_control_sink(_node_control_sink, node);
 

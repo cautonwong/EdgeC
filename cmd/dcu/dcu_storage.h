@@ -93,6 +93,23 @@ int dcu_storage_query_freeze(dcu_storage_t* storage, const char* addr, uint32_t 
 int dcu_storage_count_freezes(dcu_storage_t* storage, uint16_t* out_count);
 
 /**
+ * @brief 保存一个 Class 8 参数值并写一条审计记录。
+ *
+ * 读取旧值、upsert 与审计插入在同一个 `BEGIN IMMEDIATE` 内；任何一步失败都
+ * 回滚并返回负值，RAM 由调用方保持不变。4000 由参数模块做成 RAM 影子，不落盘。
+ */
+int dcu_storage_param_save(dcu_storage_t* storage, uint16_t oi, const uint8_t* buf, size_t len,
+                           const char* source);
+
+/**
+ * @brief 读取一个 Class 8 参数值。
+ *
+ * 返回 0 且写入 `*len`；无该行返回 1；参数错误或值大于 `cap` 返回负值（不截断）。
+ */
+int dcu_storage_param_load(dcu_storage_t* storage, uint16_t oi, uint8_t* buf, size_t cap,
+                           size_t* len);
+
+/**
  * @brief 显式开启与提交事务 (用于批量操作加速)
  */
 int dcu_storage_begin_trans(dcu_storage_t* storage);
