@@ -155,6 +155,10 @@ trap _nb_cleanup EXIT INT TERM
 # 一起算,只跑一个产品时(`run.sh dcu`)上一轮别的产品的证据会混进这次门禁。
 rm -rf "$REPORTS"
 mkdir -p "$REPORTS"
+# 每个任务的真实退出码写在这里：平台 gate 只统计有 summary.json 的任务，
+# 任务文件加载失败的任务会从门禁里消失。收尾时用这份记录核对声明过的任务集合。
+STATUS_FILE="$REPORTS/tasks.status"
+: > "$STATUS_FILE"
 
 product_dirs=()
 for product in "${PRODUCTS[@]}"; do
@@ -198,6 +202,7 @@ for product in "${PRODUCTS[@]}"; do
         code=$?
         set -e
         echo "[$product] $(basename "$task" .yaml) 退出码 $code"
+        printf '%s\t%s\t%s\n' "$product" "$(basename "$task" .yaml)" "$code" >> "$STATUS_FILE"
         echo
     done
     echo
@@ -217,6 +222,16 @@ set +e
 gate=$?
 set -e
 echo
+# 平台 gate 只数有 summary.json 的任务。声明过但没跑起来/退出非 0 的任务
+# 必须在这里补一刀，否则一轮只剩 1 个任务也照样"全部合格"。
+set +e
+PRODUCT_LIST="$(IFS=,; echo "${PRODUCTS[*]}")"
+"$PYTHON" "$ROOT/ci/scripts/check_acceptance_tasks.py" --root "$HERE" --status "$STATUS_FILE" \
+    --products "$PRODUCT_LIST"
+tasks=$?
+set -e
+echo
 echo "报告: $REPORTS"
 echo "归因: $PYTHON $PLATFORM/tools/attribute_round.py $REPORTS/<产品>"
-exit "$gate"
+if [[ "$gate" -ne 0 ]]; then exit "$gate"; fi
+exit "$tasks"
