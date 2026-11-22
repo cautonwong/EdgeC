@@ -44,8 +44,13 @@
 | 6000 | 10 | M5 | method | `_oi_6000_execute` | masked-but-undefined | `memset(inv->meters)`（RAM） | 无 | Class 10 没有方法 5；产品用它清空档案 |
 | 6000 | 10 | M127 | method | `_oi_6000_execute` | partial | `dcu_inventory_add`（RAM） | `test_dcu_698_object_model::test_legacy_methods_127_and_128_dispatch`、`test_dcu_router::test_dcu_router_dispatch` | 标准 Add；只改 RAM，不写 `meter_inventory`，重启即丢 |
 | 6000 | 10 | M128 | method | `_oi_6000_execute` | partial | `dcu_inventory_remove`（RAM） | `test_dcu_698_object_model::test_legacy_methods_127_and_128_dispatch` | 标准 128 是 AddBatch；这里实现为按地址删除 |
-| 6012 | 10 | A2 | attr | `_oi_6012_read` | partial | `poller->scheme_count`（RAM） | `test_dcu_698_value_table::test_object_model_scalar_type_tags` | 标准 A.7 属性 2 是 `array 任务配置单元`；这里返回计数 |
-| 6012 | 10 | M1 | method | `_oi_6012_execute` | partial | `dcu_poller_add_scheme`（RAM） | 无 | Class 10 方法 1 是复位；这里实现为 AddScheme；标准 6012 方法 127–130 未暴露 |
+| 6012 | 10 | A2 | attr | `dcu_698_task_encode_axdr` | ok | `dcu_poller_t.tasks[16]`（DB 首启播种/重启装载） | `test_dcu_698_tasks::test_a2_bytes_are_exact` | 标准 A.7 属性 2 是 `array 任务配置单元`，按 task_id 升序 |
+| 6012 | 10 | M1 | method | `dcu_698_acq_6012_execute` | ok | 运行态游标/`last_run_time`/monitor 清零 | `test_dcu_698_object_model::test_task_scheduler_reset_and_add` | Class 10 复位只清运行态；配置与落库由 129 Clear 负责 |
+| 6012 | 10 | M127 | method | `dcu_698_accept_action_axdr` → `dcu_task_store_apply` | ok | `dcu_task_config` + poller tasks | `test_dcu_698_tasks::test_add_task_changes_plan_and_persists` | 标准 Add/upsert；整批事务化，未实现字段 DAR 2 |
+| 6012 | 10 | M128 | method | 同上 | ok | `dcu_task_config` + poller tasks | `test_dcu_698_tasks::test_delete_stops_task` | 标准 Delete；缺 ID 回 DAR 6 |
+| 6012 | 10 | M129 | method | 同上 | ok | `dcu_task_config` + poller tasks | `test_dcu_698_tasks::test_clear_persists_across_reload` | 标准 Clear；保留播种标记，重启保持为空 |
+| 6012 | 10 | M130 | method | 同上 | ok | `dcu_task_config` + poller tasks | `test_dcu_698_tasks::test_status_update_stops_and_resumes` | 标准 Update{id,status}；status 1 恢复时重置时钟 |
+| 6013 | 8 | A2 | attr | `dcu_698_task_encode_axdr` | ok | 6012 A2 的单条结构 | `test_dcu_698_tasks::test_a2_bytes_are_exact` | 元素索引 = task_id；0 = 最小现有 ID |
 | 0010 | 1 | A2 | attr | `dcu_698_var_read` | partial | DataHub 影子 `OAD_ACTIVE_ENERGY`，device 0 | `test_dcu_698_var::test_six_ois_values_and_type_tags`、`test_legacy_scalar_output_types`、`test_energy_attr2_and_attr4_type_tags`、`test_dcu_698_axdr::test_product_variable_axdr_types` | 标签 `double-long-unsigned` 对，但 `raw=trunc(工程值)`；标准 scale −2，应为 `1234567` 而不是 `12345` |
 | 0010 | 1 | A4 | attr | `dcu_698_var_read` | partial | 同一个影子值 | `test_dcu_698_var::test_energy_attr2_and_attr4_type_tags`、`test_dcu_698_value_table::test_scalar_rejects_64bit_raw`、`test_dcu_698_axdr::test_product_variable_axdr_types` | 标签 `long64-unsigned` 对，但值等于 A2 截断值；标准 scale −4，且高精度应是更细的值 |
 | 0020 | 1 | A2 | attr | `dcu_698_var_read` | partial | DataHub 影子 `OAD_REACTIVE_ENERGY`，device 0 | 同 0010 A2 | 注释写“反向有功”，标准 0020 是反向有功；换算同 0010 |
@@ -146,11 +151,12 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 - 129–134 完全没进 mask。
 - Add/Delete/Clear 只改 `dcu_inventory_t` 内存；全仓库没有写 `meter_inventory` 的 INSERT/UPDATE，只有 `dcu_inventory_load_from_db()` 的 SELECT。所以“添加成功”的档案重启即丢。
 
-### 4.4 6012：属性和方法都错位
+### 4.4 6012：已按 A.7 实现（D2-03）
 
 - 标准 A.7：属性 2 = `array 任务配置单元`，属性 3 = `array 记录单元`；方法 127 Add、128 Delete、129 Clear、130 Update。
-- 代码：属性 2 返回 `poller->scheme_count` 标量；方法 1 实现为 `dcu_poller_add_scheme`。
-- 结果：主站读配置表只能拿到一个计数；按标准方法 127 下发会直接 NOT_FOUND（mask 未置位）；按方法 1 下发会被当成“复位”，实际却新增方案。
+- 代码：属性 2 由 `dcu_698_task_encode_axdr()` 输出 `array<6013 结构>`（按 task_id 升序）；127–130 由 `dcu_698_accept_action_axdr()` 用有界游标严格解码后交给 `dcu_task_store_apply()`。
+- 持久化：`dcu_task_config` 表建在既有 `storage->db` 上；首次启动播种任务 1（5 s、方案 1），Clear 后保留播种标记，重启保持为空。
+- 未实现的字段（时间窗口、延时、优先级、脚本、非空时段表、月/年 TI、方案类型 2–5）按 DAR 2 拒绝；属性 3 仍未暴露。
 
 ### 4.5 5004：把“条数”冒充“冻结表”
 
@@ -253,7 +259,7 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 | 6002/6003 类 | A.7 IC 列写 11/8 | 10 | 同上；6003 本身是结构类型，不是对象 |
 | 8000 类 | A.9 IC 列写 8；7.3.13 是 Class 13 | 13 | 项目 catalog 取 13；视为原文列错位 |
 | 6000 方法 | 127–134 | 1–5、127、128 | 1–5 是产品自定义；128 语义错；129–134 缺失 |
-| 6012 方法 | 127–130 | 1 | 标准方法全缺失 |
+| 6012 方法 | 127–130 | 1、127–130 | 已按 A.7 实现；方法 1 是运行态复位 |
 | 5004 方法 | 1、2、3、4、5、7、8 | 3、4、5、7、8（全 `-4`） | 冻结不可触发、不可配置 |
 | 8000 方法 | 127–131 | 1、127–131 | 1 执行真实控制；127–131 全 TEMPORARY |
 | 8000 属性 | 2、4、5 | 无 | 配置/告警/命令状态不可读 |
@@ -270,7 +276,7 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 2. **每表寻址**（所有 `DCU_OBJ_PER_METER` 行）。`dcu_698_var_read_value()` 固定 `device_id=0`，`dcu_698_var_read()` 忽略 `elem_idx`。必须把 OAD 元素索引/表实例映射成 `slot_id`，否则多表现场所有表返回 0 号表数据。
 3. **3000/3005 属性号整体错位**（A2–A6、A8–A10）。按 7.3.24 重排：A2 关联对象表、A3 四表记录数结构、A4 最大记录数、A5 配置参数、A6–A9 四张记录表、A10 当前值、A11 上报标识、A12 有效标识、A14 时间状态。
 4. **5004 属性 2 用条数冒充冻结表**。实现冻结记录数组/A-XDR 或明确返回 DAR 5；不能把 `count_freezes` 的 `uint16_t` 当属性值。
-5. **6000/6012 方法假成功**。Add/Delete/Clear 只改 RAM，无 `meter_inventory` 持久化；6000 方法 128 是 Delete 但标准是 AddBatch；6012 方法 1 是 AddScheme 但标准 Class 10 方法 1 是复位。需要落库、按 A.7 方法号重排，或明确拒绝。
+5. **6000 方法假成功**。Add/Delete/Clear 只改 RAM，无 `meter_inventory` 持久化；6000 方法 128 是 Delete 但标准是 AddBatch。需要落库、按 A.7 方法号重排，或明确拒绝。（6012 已在 D2-03 落库。）
 6. **F200 属性 2/3 假写**。写只改静态全局，不落盘、不重配串口；标准属性 2 是只读端口列表、属性 3 是数量、属性 4 是配置。按 A.13/Class 22 重做。
 7. **8000 方法 1 挂错语义**。真实拉/合闸在 Class 13 方法 1（复位）下执行；标准 129/130/131 是跳闸/合闸/明文合闸，却返回 TEMPORARY。把控制下沉接到 129/130/131；方法 1 恢复为复位。
 8. **F100 方法 1 假鉴权**。XOR 模拟把 `is_authenticated` 置 true 并返回 0；Class 21 方法 1 是复位。安全路径要么接真实 ESAM，要么明确 DAR 5，不能返回成功。
@@ -288,7 +294,7 @@ out->raw = (int64_t)msg.payload.val.f;   /* cmd/dcu/dcu_698_var.c:57-60 */
 ### P2 — 标准定义但未暴露
 
 1. 6000：方法 129–134；属性 2 的数组/结构表示。
-2. 6012：属性 3；方法 127–130。
+2. 6012：属性 3。
 3. 5004：方法 1、2；属性 3。
 4. 8000：属性 2、4、5。
 5. F100：属性 2–15；方法 2–12。
