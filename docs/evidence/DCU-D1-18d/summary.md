@@ -1,6 +1,15 @@
 # DCU-D1-18d 控制与安全类诚实化
 
-基线与分支：`dcu/D1-18d-control-security`，工作树 `/tmp/dcu-d1-18d`，父提交 `13230256`（D1-18c 合并后）。
+基线与分支：`dcu/D1-18d-control-security`，工作树 `/tmp/dcu-d1-18d`。两个提交 rebase 到 `9b27252e`（含 D1-18c 与 D0-11）之上。
+
+## rebase 冲突处理
+
+`tests/test_dcu_698_object_model.c`、`tests/test_dcu_advanced_modules.c` 有冲突，两边意图都保留：
+
+- 采集行沿用 D1-18c：6000 无属性/方法、6012 只广告方法 1/127、6002 只广告 A3 与方法 127、6003 无属性；6002 A2 读取回 -1。6000 的未广告方法按新 DAR 规则写成 DAR 5/DAR 4，不再写 -1。
+- 控制/安全行沿用本单：8000 只广告 127–131，F200 无属性无方法，F100 只广告方法 1。
+- 删除本单早期的 6000 方法 127/128 成功路径测试（D1-18c 已把这些方法整体下架），其“未广告即拒绝”的意图由 `test_mask_rejects_missing_attr_and_method` 覆盖。
+- 生产代码全部自动合并：对象表 8000 mask 仍为 127–131，F200 仍无 mask，`k_methods_8000` 仍为 127–131。
 
 ## 目的
 
@@ -48,8 +57,8 @@ DAR 分类只在 `dcu_698_call` 一处产生：未广告位先查类定义（`_c
 ## 门禁
 
 - 干净构建 + `check_build_warnings.py`：0 warning
-- 全量 `ctest`：336/336
-- ASAN + UBSAN（dcu/dlt698 33 项）：33/33（并行首次 `test_dcu_runtime_health` 负载超时，串行全量通过）
+- 全量 `ctest`：338/338（rebase 到 `9b27252e` 后）
+- ASAN + UBSAN（dcu/dlt698 35 项）：35/35（串行）
 - `run_guard_selftest.py`：全部通过
 - 验收 `test.sh --omnis dcu`：dcu-acceptance 3/3、dcu-northbound 10/10
 - `-fanalyzer`（cmd/dcu）：0 新报告
