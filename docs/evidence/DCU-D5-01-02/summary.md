@@ -1,6 +1,6 @@
 # DCU-D5-01/02 Class 2 最大需量 + Class 5 谐波（partial by design）
 
-分支 `dcu/D5-01-02-readonly`，工作树 `/tmp/dcu-d5-01-02`，基线 `a3f8d40f`。
+分支 `dcu/D5-01-02-readonly`，工作树 `/tmp/dcu-d5-01-02`，基线 `a3f8d40f`，已 rebase 到含 D2-04 的 main。
 
 ## 前提核查
 
@@ -25,7 +25,7 @@
 
 没有 placeholder 值、零数组或返回成功的方法；ACL 不授予任何写权限。
 
-计数变化：对象表 30 → 36，Class 20 ACL 29 → 35，驱动 `DLT698_ACL_MAX_OBJECTS` 30 → 40（35 × 16 = 560 B，仍在 `DRIVER_PRIV_SIZE` 1024 内，`_Static_assert` 继续把关）。
+计数变化（含已合并的 D2-04 的 6014/6015）：对象表 32 → 38，Class 20 ACL 31 → 37，`EDGE_SLAVE_ACL_MAX_OBJECTS` 32 → 40（37 × 16 = 592 B，仍在 `DRIVER_PRIV_SIZE` 1024 内，`_Static_assert` 继续把关）。
 
 ## 跟进项（不在本分支实现）
 
@@ -35,10 +35,19 @@
 ## 验证
 
 - 干净构建（`ninja clean` + 全量重建）+ `check_build_warnings.py`：0 warning
-- 全量 `ctest -j8`：341/341
+- 全量 `ctest -j8`：342/342
 - ASAN：`test_dcu_698_axdr`、`test_dcu_698_appconn`、`test_dcu_698_object_model`、`test_driver_dlt698`、`test_dcu_698_catalog` 全过
 - `run_guard_selftest.py`：全部通过
 - `./test.sh --omnis dcu`：2/2 任务，`dcu-northbound` 21/21（含新用例 `D_00_00_02_000023`），`ACCEPTANCE_TASKS` 2/2
 - `git diff --check`：干净
 
 测试覆盖：`tests/test_dcu_698_axdr.c::test_product_class2_and_5_have_no_value_yet` 覆盖 DAR 5/4/6、方法 1/2/3；`test_dcu_698_object_model` 的类/掩码一致性；`test_dcu_698_catalog` 的目录类号一致性；验收用例对 10 个 OAD 断言 DAR 5，拒绝 Data 或空数组。
+
+## verifier 复核（rebase 到含 D2-04 的 main）
+
+- 冲突解决：保留 D2-04 的 6014/6015 行与宏生成的 Class 8 ACL 行，叠加本单 6 行；
+  `EDGE_SLAVE_ACL_MAX_OBJECTS` 取 40；对象数 38、ACL 37；驱动测试改为接受 37 个对象、
+  拒绝 41 个（上限 +1）。
+- 独立门禁：干净构建 + 告警门禁 0、全量 342/342、ASAN 13/13、守卫自测、
+  `./test.sh --omnis dcu` 2/2（北向 22 例，含 000023）、`/no-comments` 0 删除。
+- 设计文档计数与类号注释同步为 38/37/40。
