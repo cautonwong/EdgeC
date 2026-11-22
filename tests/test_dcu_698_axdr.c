@@ -13,6 +13,7 @@
 #include "datahub.h"
 #include "dcu_698_axdr.h"
 #include "dcu_698_object_model.h"
+#include "dcu_698_param.h"
 #include "dcu_698_var.h"
 #include "dcu_discovery.h"
 #include "dcu_inventory.h"
@@ -53,6 +54,40 @@ static int teardown_timezone(void **state) {
     }
     tzset();
     return 0;
+}
+
+static struct tm g_clock_value;
+
+static int fake_clock_now(void *ctx, struct tm *out) {
+    (void)ctx;
+    *out = g_clock_value;
+    return 0;
+}
+
+static int fake_clock_set(void *ctx, const struct tm *in) {
+    (void)ctx;
+    g_clock_value = *in;
+    return 0;
+}
+
+static int fake_param_save(void *ctx, uint16_t oi, uint8_t attr, const uint8_t *buf, size_t len) {
+    (void)ctx;
+    (void)oi;
+    (void)attr;
+    (void)buf;
+    (void)len;
+    return 0;
+}
+
+static int fake_param_load(void *ctx, uint16_t oi, uint8_t attr, uint8_t *buf, size_t cap,
+                           size_t *len) {
+    (void)ctx;
+    (void)oi;
+    (void)attr;
+    (void)buf;
+    (void)cap;
+    (void)len;
+    return 1;
 }
 
 static int mock_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out_msg) {
@@ -276,6 +311,50 @@ static void test_product_accept_set_paths(void **state) {
     dcu_698_object_model_reset();
 }
 
+static void test_product_class8_datetime_round_trip(void **state) {
+    (void)state;
+    init_product_model();
+
+    g_clock_value = (struct tm){
+        .tm_year = 124, .tm_mon = 4, .tm_mday = 6, .tm_hour = 7, .tm_min = 8, .tm_sec = 9};
+    static const dcu_clock_port_t clock = {
+        .now = fake_clock_now, .set = fake_clock_set, .ctx = NULL};
+    static const dcu_param_store_t store = {.save = fake_param_save, .load = fake_param_load};
+    dcu_698_param_set_clock(&clock);
+    dcu_698_param_init(&store);
+
+    static const uint8_t when[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4000, 2), when, sizeof(when)), 0);
+    assert_axdr(MK_OAD(0x4000, 2), when, sizeof(when));
+
+    const uint8_t mode[] = {0x16, 0x02};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4000, 3), mode, sizeof(mode)), 0);
+    assert_axdr(MK_OAD(0x4000, 3), mode, sizeof(mode));
+
+    const uint8_t precise[] = {0x02, 0x05, 0x11, 1, 0x11, 2, 0x11, 3, 0x11, 4, 0x11, 5};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4000, 4), precise, sizeof(precise)), 0);
+    assert_axdr(MK_OAD(0x4000, 4), precise, sizeof(precise));
+
+    const uint8_t one[] = {0x11, 0x01};
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4000, 1), one, sizeof(one)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4001, 1), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4001, 3), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4005, 2), one, sizeof(one)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    static const uint8_t bad_month[] = {0x1C, 0x07, 0xE8, 0x0D, 0x06, 0x07, 0x08, 0x09};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4000, 2), bad_month, sizeof(bad_month)),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_axdr(MK_OAD(0x4000, 2), when, sizeof(when));
+
+    dcu_698_object_model_reset();
+}
+
 static const uint8_t k_structure[] = {0x01, 0x02, DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x01, 0x12,
                                       0x00, 0x02}; /* array(2) long-unsigned */
 
@@ -429,7 +508,7 @@ static const uint8_t k_test_acl[] = {
     0x02, 0x11, 0x03, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0A, 0x02, 0x02, 0x01, 0x01,
     0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x0F, 0x02, 0x02, 0x01,
     0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x00, 0x02, 0x02,
-    0x01, 0x01, 0x02, 0x02, 0x11, 0x00, 0x16, 0x01, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02,
+    0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x01, 0x01, 0x00, 0x02, 0x02, 0x50, 0x50, 0x04, 0x02,
     0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60, 0x00,
     0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x60,
     0x12, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50,
@@ -711,7 +790,7 @@ static const edge_slave_source_ops_t k_big_list_src = {.resolve_axdr = big_list_
 static void test_driver_normal_list_reuses_one_buffer(void **state) {
     (void)state;
     uint32_t oads[8];
-    for (size_t i = 0; i < 8; i++) oads[i] = 0x50000000U | (uint32_t)i;
+    for (size_t i = 0; i < 8; i++) oads[i] = 0x50000200U | (uint32_t)i;
 
     uint8_t frame[128];
     size_t frame_len = build_get_list(frame, oads, 8);
@@ -1484,6 +1563,7 @@ int main(void) {
         cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
         cmocka_unit_test(test_normal_list_dar_mapping),
         cmocka_unit_test(test_product_accept_set_paths),
+        cmocka_unit_test(test_product_class8_datetime_round_trip),
         cmocka_unit_test(test_product_accept_set_event_attrs),
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),

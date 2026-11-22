@@ -3,19 +3,19 @@
  * @brief DCU Edge Collector Domain Aggregate Root Implementation (Issue #375)
  */
 
-#include "dcu_driver_adapter.h"
-#include "dcu_698_var.h"
 #include "dcu_node.h"
-#include "dcu_task_store.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "dcu_698_param.h"
+#include "dcu_698_var.h"
+#include "dcu_driver_adapter.h"
+#include "dcu_task_store.h"
 #include "dlt645_codec.h"
 #include "edge_api.h"
 #include "edge_log.h"
-
 
 struct dcu_node_s {
     uv_loop_t *loop;
@@ -94,6 +94,20 @@ static int _node_archive_clear(void *ctx) {
 /* 6012 任务持久化端口：解码后的 op 交给 store，在同一连接上事务化落地。 */
 static int _node_task_apply(void *ctx, dcu_poller_t *poller, const dcu_task_op_t *op) {
     return dcu_task_store_apply((dcu_storage_t *)ctx, poller, op);
+}
+
+/* Class 8 参数端口：4000 A2 走时钟端口，其余参数从这里落盘。 */
+static int _node_param_save(void *ctx, uint16_t oi, uint8_t attr, const uint8_t *buf, size_t len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_save(storage, oi, attr, buf, len, "dlt698");
+}
+
+static int _node_param_load(void *ctx, uint16_t oi, uint8_t attr, uint8_t *buf, size_t cap,
+                            size_t *len) {
+    dcu_storage_t *storage = (dcu_storage_t *)ctx;
+    if (!storage || !storage->db) return -1;
+    return dcu_storage_param_load(storage, oi, attr, buf, cap, len);
 }
 
 extern int dcu_tag_map_fn(uint32_t tag_id, uint32_t device_id);
@@ -219,6 +233,10 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
                                    .read_shadow = _node_read_shadow};
     dcu_router_init_ex(&node->inventory, &node->poller, router_sink, NULL, NULL, &node->evt_3000,
                        &node->evt_3005, router_bus);
+    dcu_param_store_t param_store = {
+        .ctx = &node->storage, .save = _node_param_save, .load = _node_param_load};
+    dcu_698_param_set_clock(dcu_clock_port_system());
+    dcu_698_param_init(&param_store);
     /* 遥控动作下沉到聚合根：路由只认识对象，发 645 控制帧是领域动作 */
     dcu_router_set_control_sink(_node_control_sink, node);
 
@@ -330,14 +348,15 @@ int dcu_node_set_event_handler(dcu_node_t *node, dcu_event_handler_t handler, vo
     return 0;
 }
 
-int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32_t oad,
-                                double val, uint64_t ts_ns) {
+int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32_t oad, double val,
+                                uint64_t ts_ns) {
     if (!node || !meter_addr) return -1;
 
     /* 1. 领域不变量检查：电表是否在当前档案中 */
     production_meter_t *meter = dcu_inventory_get(&node->inventory, meter_addr);
     if (!meter) {
-        LOG_WARN(LOG_CAT_CORE, "DCU Feed Reading: Meter '%s' not registered in inventory", meter_addr);
+        LOG_WARN(LOG_CAT_CORE, "DCU Feed Reading: Meter '%s' not registered in inventory",
+                 meter_addr);
         return -2;
     }
 
@@ -406,8 +425,8 @@ static void _deadline_bcd(unsigned offset_sec, uint8_t out[6]) {
     out[2] = (uint8_t)(((tmv.tm_hour / 10) << 4) | (tmv.tm_hour % 10));
     out[3] = (uint8_t)((((tmv.tm_mday) / 10) << 4) | ((tmv.tm_mday) % 10));
     out[4] = (uint8_t)((((tmv.tm_mon + 1) / 10) << 4) | ((tmv.tm_mon + 1) % 10));
-    out[5] = (uint8_t)((((tmv.tm_year + 1900) % 100) / 10) << 4 |
-                       (((tmv.tm_year + 1900) % 100) % 10));
+    out[5] =
+        (uint8_t)((((tmv.tm_year + 1900) % 100) / 10) << 4 | (((tmv.tm_year + 1900) % 100) % 10));
 }
 
 int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi,
@@ -465,13 +484,14 @@ int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t 
     /* edge_api_raw_io 接管 tx 的所有权（失败时它自己 unref），这里不能再动 */
     int rc = edge_api_raw_io(meter->channel_id, tx, NULL);
     if (rc != 0) {
-        LOG_ERROR(LOG_CAT_CORE, "DCU Control: 645 控制帧下发失败 meter=%s ch=%u rc=%d",
-                  meter_addr, (unsigned)meter->channel_id, rc);
+        LOG_ERROR(LOG_CAT_CORE, "DCU Control: 645 控制帧下发失败 meter=%s ch=%u rc=%d", meter_addr,
+                  (unsigned)meter->channel_id, rc);
         return -5;
     }
 
-    LOG_INFO(LOG_CAT_CORE, "DCU Control: 645 控制帧已下发 meter=%s ch=%u cmd=%02X(1A跳闸/1B合闸允许)",
-             meter_addr, (unsigned)meter->channel_id, cmd);
+    LOG_INFO(LOG_CAT_CORE,
+             "DCU Control: 645 控制帧已下发 meter=%s ch=%u cmd=%02X(1A跳闸/1B合闸允许)", meter_addr,
+             (unsigned)meter->channel_id, cmd);
     return 0;
 }
 

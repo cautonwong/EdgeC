@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "dcu_698_object_internal.h"
+#include "dcu_698_param.h"
 #include "dcu_698_var.h"
 #include "edge_slave_plane.h"
 
@@ -22,14 +23,23 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SINGLETON,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
-    {.oi = OI_TASK_SCHEDULER,
-     .class_id = IC_ACQUISITION,
-     .scope = DCU_OBJ_SHARED,
-     .attr_mask = {[BYTE(2)] = BIT(2)},
-     .method = dcu_698_acq_6012_execute,
-     .method_mask = {[BYTE(1)] = BIT(1),
-                     [BYTE(127)] = BIT(127),
-                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130)}},
+/* 类 8 白名单：对象行只广告属性 2；4000 的 A3/A4 由参数模块接管。 */
+#define PARAM_ROW(v)             \
+    {.oi = (v),                  \
+     .class_id = IC_PARAM,       \
+     .scope = DCU_OBJ_SINGLETON, \
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    DCU_698_PARAM_OIS(PARAM_ROW)
+#undef PARAM_ROW
+
+        {.oi = OI_TASK_SCHEDULER,
+         .class_id = IC_ACQUISITION,
+         .scope = DCU_OBJ_SHARED,
+         .attr_mask = {[BYTE(2)] = BIT(2)},
+         .method = dcu_698_acq_6012_execute,
+         .method_mask = {[BYTE(1)] = BIT(1),
+                         [BYTE(127)] = BIT(127),
+                         [BYTE(128)] = BIT(128) | BIT(129) | BIT(130)}},
 
     /* 6013 实例由 6012 A2 的 task_id 寻址；A2 由 resolve_axdr 编码，无标量读数。 */
     {.oi = OI_TASK_UNIT,
@@ -174,6 +184,7 @@ void dcu_698_object_model_reset(void) {
     g_router_bus_ops = (router_bus_ops_t){0};
     g_router_sink_ops = (router_sink_ops_t){0};
     s_router_inv = NULL;
+    dcu_698_param_reset();
 }
 
 void dcu_698_object_model_set_control_sink(dcu_control_sink_t fn, void *ctx) {
