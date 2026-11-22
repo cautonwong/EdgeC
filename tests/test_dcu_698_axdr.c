@@ -746,6 +746,7 @@ static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
 }
 
 static dcu_event_obj_t s_evt_3000;
+static dcu_event_obj_t s_evt_3005;
 
 static void init_product_model_with_events(void) {
     static dcu_inventory_t inv;
@@ -756,10 +757,13 @@ static void init_product_model_with_events(void) {
     s_evt_3000.oi = OI_VOLTAGE_DROP;
     s_evt_3000.report_flag = 2;
     s_evt_3000.is_enabled = true;
+    memset(&s_evt_3005, 0, sizeof(s_evt_3005));
+    s_evt_3005.oi = OI_OVER_CURRENT;
     router_sink_ops_t sink = {0};
     router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
     assert_int_equal(
-        dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, &s_evt_3000, NULL, bus), 0);
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, &s_evt_3000, &s_evt_3005, bus),
+        0);
 }
 
 static int product_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
@@ -802,7 +806,7 @@ static void test_event_class24_attrs_on_the_wire(void **state) {
     dcu_698_object_model_reset();
 }
 
-/* 表194：A2/A3/A5 的线格式；A6/A14 因时标来源未定而屏蔽。 */
+/* 表194：A2/A3 的线格式；A5/A6/A14 屏蔽（A5 待 A.4 存储，A6/A14 因事件时标为单调 uv_hrtime ns）。 */
 static void test_event_class24_complex_attrs(void **state) {
     (void)state;
     init_product_model_with_events();
@@ -825,13 +829,16 @@ static void test_event_class24_complex_attrs(void **state) {
                           0x00, 0x12, 0x00, 0x00, 0x12, 0x00, 0x00};
     assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 3), a3, sizeof(a3));
 
-    s_evt_3000.threshold = 176.0f;
-    s_evt_3000.delay_s = 5;
-    const uint8_t a5[] = {0x02, 0x02, 0x17, 0x43, 0x30, 0x00, 0x00, 0x12, 0x00, 0x05};
-    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 5), a5, sizeof(a5));
-
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
+    /* A5 未暴露：表A.4 对 3000 要求 4 字段、对 3005 要求 2 字段结构，dcu_event_obj_t 未存储。 */
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_OVER_CURRENT, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
     /* 事件时标是 uv_hrtime 单调纳秒，编成 date_time_s 会伪造墙钟；A6/A14 不暴露。 */
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),

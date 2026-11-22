@@ -82,12 +82,6 @@ static int _put_oad(uint8_t *buf, size_t cap, size_t *off, uint32_t oad) {
     return _put_u32(buf, cap, off, 0x51, oad);
 }
 
-static int _put_f32(uint8_t *buf, size_t cap, size_t *off, float f) {
-    uint32_t bits = 0;
-    memcpy(&bits, &f, sizeof(bits));
-    return _put_u32(buf, cap, off, DCU_698_TAG_FLOAT32, bits);
-}
-
 int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
                               size_t *len) {
     if (!obj || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -122,14 +116,6 @@ int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t
         if (rc == 0) rc = _put_u16(buf, cap, &off, DCU_698_TAG_LONG_UNSIGNED, evt->record_count);
         for (int i = 0; rc == 0 && i < 3; i++) {
             rc = _put_u16(buf, cap, &off, DCU_698_TAG_LONG_UNSIGNED, 0);
-        }
-    } else if (attr_id == 5) {
-        /* 表194：structure{门限, 延时(秒)}；延时在标准里是 long-unsigned。 */
-        if (evt->delay_s > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        rc = _put_head(buf, cap, &off, DCU_698_TAG_STRUCTURE, 2);
-        if (rc == 0) rc = _put_f32(buf, cap, &off, evt->threshold);
-        if (rc == 0) {
-            rc = _put_u16(buf, cap, &off, DCU_698_TAG_LONG_UNSIGNED, (uint16_t)evt->delay_s);
         }
     } else {
         return EDGE_SLAVE_SRC_CLASS_MISMATCH;
