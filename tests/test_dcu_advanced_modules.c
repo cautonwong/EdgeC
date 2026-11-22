@@ -269,10 +269,12 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
     assert_int_equal(evt_3000.record_count, 1);
 
-    dcu_event_record_t first_evt_rec;
-    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200,
-                              &first_evt_rec);  // 通过 OAD 召测首条事件记录
-    assert_int_equal(ret, 0);
+    // Class 24 把记录表编到 A6-A9；A2 是关联对象属性表，当前关闭，不得再读回记录。
+    dcu_event_record_t first_evt_rec = evt_3000.records[0];
+    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
+    assert_int_equal(ret, -1);
+
+    first_evt_rec = evt_3000.records[0];
     assert_int_equal(first_evt_rec.index, 1);
     assert_float_equal(first_evt_rec.snapshot_value, 150.0f, 0.01f);  // 快照电压 150V
     assert_true(first_evt_rec.is_active);                             // 事件处于发生状态
@@ -284,8 +286,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     stream_engine_push(stream_engine, &scalar_msg);
 
     // 消除时记录序号不变，但 is_active 状态应改变，且时标填充
-    ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
-    assert_int_equal(ret, 0);
+    first_evt_rec = evt_3000.records[0];
     assert_false(first_evt_rec.is_active);  // 状态成功变更为恢复 (false)
     assert_int_equal(first_evt_rec.end_time, base_ts + 10ULL * 1000000000ULL);  // 消除时标正确
 

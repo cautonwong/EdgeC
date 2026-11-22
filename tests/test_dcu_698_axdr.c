@@ -148,7 +148,9 @@ static void test_product_axdr_rejects_small_buffer_and_complex(void **state) {
     assert_int_equal(dcu_north_resolve_axdr(NULL, OAD_DAILY_FREEZE, buf, sizeof(buf), &len), 0);
     assert_int_equal(buf[0], DCU_698_TAG_LONG_UNSIGNED);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 3), buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x6000, 18), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     dcu_698_object_model_reset();
 }
@@ -175,6 +177,11 @@ static void test_product_accept_set_paths(void **state) {
 
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), baud, sizeof(baud)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 18), baud, sizeof(baud)),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x9999, 2), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_NOT_FOUND);
@@ -324,7 +331,7 @@ static bool contains(const uint8_t *hay, size_t hay_len, const uint8_t *needle, 
 }
 
 static const uint8_t k_test_acl[] = {
-    0x01, 0x0D, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02,
+    0x01, 0x0E, 0x02, 0x02, 0x50, 0x00, 0x10, 0x02, 0x02, 0x01, 0x02, 0x02,
     0x02, 0x11, 0x02, 0x16, 0x03, 0x02, 0x02, 0x11, 0x04, 0x16, 0x03, 0x01,
     0x00, 0x02, 0x02, 0x50, 0x00, 0x20, 0x02, 0x02, 0x01, 0x01, 0x02, 0x02,
     0x11, 0x02, 0x16, 0x03, 0x01, 0x00, 0x02, 0x02, 0x50, 0x20, 0x00, 0x02,
@@ -350,7 +357,9 @@ static const uint8_t k_test_acl[] = {
     0x01, 0x02, 0x02, 0x11, 0x7E, 0x03, 0x01, 0x02, 0x02, 0x11, 0x7F, 0x03,
     0x01, 0x02, 0x02, 0x11, 0x80, 0x03, 0x01, 0x02, 0x02, 0x11, 0x81, 0x03,
     0x01, 0x02, 0x02, 0x11, 0x82, 0x03, 0x01, 0x02, 0x02, 0x11, 0x83, 0x03,
-    0x01,
+    0x01, 0x02, 0x02, 0x50, 0x30, 0x00, 0x02, 0x02, 0x01, 0x04, 0x02, 0x02,
+    0x11, 0x04, 0x16, 0x01, 0x02, 0x02, 0x11, 0x06, 0x16, 0x01, 0x02, 0x02,
+    0x11, 0x0B, 0x16, 0x01, 0x02, 0x02, 0x11, 0x0C, 0x16, 0x01, 0x01, 0x00,
 };
 
 static int test_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
@@ -682,6 +691,61 @@ static net_buf_t *run_get_normal(const uint8_t *frame, size_t frame_len,
     assert_int_equal(rc, 0);
     *pool_out = pool;
     return out;
+}
+
+static void init_product_model_with_events(void) {
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    static dcu_event_obj_t evt_3000;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.report_flag = 2;
+    evt_3000.is_enabled = true;
+    router_sink_ops_t sink = {0};
+    router_bus_ops_t bus = {.msg_size = sizeof(pipe_msg_t), .read_shadow = mock_shadow};
+    assert_int_equal(
+        dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, &evt_3000, NULL, bus), 0);
+}
+
+static int product_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    return dcu_north_resolve_axdr(NULL, oad, buf, cap, len);
+}
+
+static const edge_slave_source_ops_t k_product_axdr_src = {.resolve_axdr = product_resolve_axdr};
+
+static void test_event_class24_attrs_on_the_wire(void **state) {
+    (void)state;
+    init_product_model_with_events();
+    uint8_t frame[128];
+    net_buf_pool_t *pool = NULL;
+
+    size_t frame_len = build_get_normal(frame, MK_OAD(OI_VOLTAGE_DROP, 11));
+    net_buf_t *out = run_get_normal(frame, frame_len, &k_product_axdr_src, &pool);
+    assert_int_equal(out->b.data[16], 0x01);
+    assert_int_equal(out->b.data[17], DLT698_TAG_ENUM);
+    assert_int_equal(out->b.data[18], 2);
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+
+    frame_len = build_get_normal(frame, MK_OAD(OI_VOLTAGE_DROP, 12));
+    out = run_get_normal(frame, frame_len, &k_product_axdr_src, &pool);
+    assert_int_equal(out->b.data[16], 0x01);
+    assert_int_equal(out->b.data[17], DLT698_TAG_BOOLEAN);
+    assert_int_equal(out->b.data[18], 1);
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+
+    frame_len = build_get_normal(frame, MK_OAD(OI_VOLTAGE_DROP, 6));
+    out = run_get_normal(frame, frame_len, &k_product_axdr_src, &pool);
+    assert_int_equal(out->b.data[16], 0x00);
+    assert_int_equal(out->b.data[17], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    net_buf_unref(out);
+    net_buf_pool_destroy(pool);
+
+    dcu_698_object_model_reset();
 }
 
 static void assert_get_normal_dar(int src_rc, uint8_t want_dar) {
@@ -1096,6 +1160,7 @@ static void test_driver_high_byte_oad_has_no_signed_shift(void **state) {
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_product_variable_axdr_types),
+        cmocka_unit_test(test_event_class24_attrs_on_the_wire),
         cmocka_unit_test(test_product_axdr_rejects_small_buffer_and_complex),
         cmocka_unit_test(test_driver_scalar_fallback_still_works),
         cmocka_unit_test(test_driver_high_byte_oad_has_no_signed_shift),

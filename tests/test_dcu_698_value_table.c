@@ -165,11 +165,18 @@ static void test_object_model_scalar_type_tags(void **state) {
                  DCU_698_TAG_LONG_UNSIGNED, 7.0);
     assert_value(MK_OAD(OI_CHANNEL_CONFIG, 2), DCU_698_TAG_DOUBLE_LONG_UNSIGNED, 9600.0);
     assert_value(MK_OAD(OI_CHANNEL_CONFIG, 3), DCU_698_TAG_UNSIGNED, 0.0);
-    assert_value(MK_OAD(OI_VOLTAGE_DROP, 4), DCU_698_TAG_LONG_UNSIGNED, 3.0);
-    assert_value(MK_OAD(OI_VOLTAGE_DROP, 5), DCU_698_TAG_LONG_UNSIGNED, MAX_EVENT_RECORDS);
-    assert_value(MK_OAD(OI_VOLTAGE_DROP, 6), DCU_698_TAG_FLOAT32, 5.0);
-    assert_value(MK_OAD(OI_VOLTAGE_DROP, 8), DCU_698_TAG_UNSIGNED, 1.0);
-    assert_value(MK_OAD(OI_VOLTAGE_DROP, 9), DCU_698_TAG_BOOLEAN, 1.0);
+    assert_value(MK_OAD(OI_VOLTAGE_DROP, 4), DCU_698_TAG_LONG_UNSIGNED, MAX_EVENT_RECORDS);
+    assert_value(MK_OAD(OI_VOLTAGE_DROP, 11), DCU_698_TAG_ENUM, 1.0);
+    assert_value(MK_OAD(OI_VOLTAGE_DROP, 12), DCU_698_TAG_BOOLEAN, 1.0);
+    static const uint8_t removed[] = {2, 3, 5, 6, 8, 9, 10, 14};
+    for (size_t i = 0; i < sizeof(removed) / sizeof(removed[0]); i++) {
+        dcu_value_t v;
+        assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, removed[i]), &v),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    dcu_value_t v;
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 18), &v),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     teardown_model();
 }
@@ -197,17 +204,19 @@ static void test_scalar_callback_type_and_width(void **state) {
     teardown_model();
 }
 
-static void test_structure_is_not_scalar(void **state) {
+static void test_unexposed_event_attrs_report_class_mismatch(void **state) {
     (void)state;
     init_model();
 
     dcu_value_t v;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 2), &v),
-                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, 18), &v),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     edge_point_value_t p;
     assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(OI_VOLTAGE_DROP, 2), NULL, 0, &p),
-                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     teardown_model();
 }
@@ -216,22 +225,19 @@ static void test_scalar_and_axdr_agree_on_width_one_types(void **state) {
     (void)state;
     init_model();
 
-    const uint32_t oads[] = {MK_OAD(OI_VOLTAGE_DROP, 8), MK_OAD(OI_VOLTAGE_DROP, 9)};
-    const uint8_t tags[] = {DCU_698_TAG_UNSIGNED, DCU_698_TAG_BOOLEAN};
-    for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
-        edge_point_value_t p;
-        memset(&p, 0, sizeof(p));
-        assert_int_equal(dcu_north_resolve_scalar(NULL, oads[i], NULL, 0, &p), 0);
-        assert_int_equal(p.type, tags[i]);
-        assert_int_equal(p.width, 1);
+    const uint32_t oad = MK_OAD(OI_CHANNEL_CONFIG, 3);
+    edge_point_value_t p;
+    memset(&p, 0, sizeof(p));
+    assert_int_equal(dcu_north_resolve_scalar(NULL, oad, NULL, 0, &p), 0);
+    assert_int_equal(p.type, DCU_698_TAG_UNSIGNED);
+    assert_int_equal(p.width, 1);
 
-        uint8_t buf[EDGE_SLAVE_AXDR_MAX];
-        size_t len = 0;
-        assert_int_equal(dcu_north_resolve_axdr(NULL, oads[i], buf, sizeof(buf), &len), 0);
-        assert_int_equal(len, 2);
-        assert_int_equal(buf[0], tags[i]);
-        assert_int_equal(buf[1], 1);
-    }
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, oad, buf, sizeof(buf), &len), 0);
+    assert_int_equal(len, 2);
+    assert_int_equal(buf[0], DCU_698_TAG_UNSIGNED);
+    assert_int_equal(buf[1], (uint8_t)p.raw);
 
     teardown_model();
 }
@@ -279,7 +285,7 @@ int main(void) {
         cmocka_unit_test(test_scalar_callback_type_and_width),
         cmocka_unit_test(test_scalar_and_axdr_agree_on_width_one_types),
         cmocka_unit_test(test_scalar_rejects_64bit_raw),
-        cmocka_unit_test(test_structure_is_not_scalar),
+        cmocka_unit_test(test_unexposed_event_attrs_report_class_mismatch),
         cmocka_unit_test(test_resolve_axdr_for_north_list_oads),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

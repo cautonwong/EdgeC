@@ -85,19 +85,19 @@ typedef struct {
 } dcu_event_record_t;
 
 /**
- * @brief Class 7 异常事件监控对象结构体
+ * @brief 分项事件对象存储（Class 24，3000/3005）
  */
 typedef struct {
     uint16_t oi;
-    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 倒序排列的事件记录表 (属性 2)
-    uint16_t record_count;                          // 当前记录条数 (属性 4)
-    uint32_t snapshot_oads[8];  // [Align Attr 3] 关联抓取的快照 OAD 列表
+    dcu_event_record_t records[MAX_EVENT_RECORDS];  // 事件记录表存储 (A6-A9 未暴露)
+    uint16_t record_count;                          // 记录表 1 当前条数 (A3 四表结构未暴露)
+    uint32_t snapshot_oads[8];  // 关联对象属性表 OAD (A2 数组未暴露)
     uint8_t snapshot_count;
-    float threshold;            // 判定门限值 (属性 6 配置参数)
+    float threshold;            // 触发门限 (A5 配置参数结构未暴露)
     uint32_t delay_s;
-    uint8_t report_flag;        // 上报标识 (属性 8)
-    bool is_enabled;            // 是否使能有效 (属性 9)
-    uint64_t last_start_time;   // 最近发生时间 (属性 10 的部分元素)
+    uint8_t report_flag;        // 上报标识 (A11)
+    bool is_enabled;            // 有效标识 (A12)
+    uint64_t last_start_time;   // 最近发生时间 (A14 数组未暴露)
     uint64_t last_end_time;
 } dcu_event_obj_t;
 
