@@ -516,9 +516,9 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D1-16 | feature | 补 REPORT.notification 端口回调、驱动编码与产品上报源 | D | 2 | D1-12、D1-13 | `edge_slave_plane.h`、`driver_dlt698.c`、`cmd/dcu/dcu_event_monitor.c` | 主动上报用例通过，断链后 SnF 补齐 |
 | D1-17 | feature | 从站交换补跨帧会话状态与 Class 20 对象列表查询，支持应用连接与 ACL | D | 3 | D1-12 | `driver_dlt698.c`、`cmd/dcu/dcu_north_adapter.c` | 未授权 OAD 返回 DAR=3，授权后成功 |
 
-### P2 Class 10 采集监控与调度迁移（20 人日，第 9 到 11 周，依赖 COM-C1-01）
+### P2 Class 10 采集监控与调度迁移（20 人日，第 9 到 11 周；2026-11-22 起改为 DCU 内先行）
 
-前提：`docs/plans/2026-11-21-terminal-common-components-plan.md` 的 `COM-C1-01` 已合并，且 D1-13 的 A-XDR 端口已落地。未合并时本阶段全部 `blocked`，不得在 `cmd/dcu` 内另写调度器。
+前提（2026-11-22 用户拍板）：`COM-C1-01` 尚未合并，为交付速度，本阶段改为在 `cmd/dcu` 内经消费者定义端口先实现，复用现有 `dcu_poller`、`dcu_storage`、`dcu_inventory`；`edge_acq` 合并后再迁移，迁移任务登记在 §12.6。禁止把 DCU 私有接口暴露给其他产品。
 
 | ID | 类型 | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -532,9 +532,9 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D2-08 | feature | 6032 到 6035 采集状态与任务监控，6040 到 6042 三个时标 | C | 2 | D2-03 | 监控对象 | 验收读任务状态，成功数与失败数与实际一致 |
 | D2-09 | feature | 6002 与 6003 搜表接入对象模型，搜表结果可召测 | D | 1 | D2-02 | 搜表路径 | 验收启动搜表并读结果 |
 
-### P3 Class 9、7、24、8 与时间、上报（18 人日，第 12 到 14 周，依赖 COM-C2）
+### P3 Class 9、7、24、8 与时间、上报（18 人日，第 12 到 14 周；2026-11-22 起改为 DCU 内先行）
 
-前提：`COM-C2-01` 的 `edge_time`、`COM-C2-02` 的 `edge_event`、D1-13 的 A-XDR 端口与 D1-15 的 Record 路径已合并。未合并时本阶段 `blocked`。
+前提（2026-11-22 用户拍板）：`edge_time` 与 `edge_event` 未合并，本阶段改为在 `cmd/dcu` 内经现有 `dcu_event_monitor`、`dcu_storage` 与端口先实现；两个组件合并后迁移，迁移任务登记在 §12.6。
 
 | ID | 类型 | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -547,9 +547,9 @@ P1 分两段。P1A 是目录、对象模型与标量北向，23 人日，可立�
 | D3-07 | feature | 3011 停电与 3106 停上电事件接入事件引擎与主动上报 | D | 2 | D3-05 | 事件对象 | 验收断电后收到主动上报 |
 | D3-08 | test | Class 9、7、24、8 的单元测试与验收判据，每类至少四例 | Q | 2 | D3-02 到 D3-06 | 测试文件 | `test_dcu_698_freeze`、`test_dcu_698_event`、`test_dcu_698_param` 全绿 |
 
-### P4 Class 13、23、19、20、21、18、22、25、26（24 人日，第 15 到 18 周，依赖 COM-C3）
+### P4 Class 13、23、19、20、21、18、22、25、26（24 人日，第 15 到 18 周；2026-11-22 起控制类改为 DCU 内先行）
 
-前提：`COM-C3-01` 的 `edge_control`、D1-13 的 A-XDR 端口与 D1-17 的 Class 20 会话已合并。未合并时控制相关任务 `blocked`，其余任务按 D1 完成后可开工。
+前提（2026-11-22 用户拍板）：`edge_control` 未合并，控制类任务改为在 `cmd/dcu` 内经 `dcu_node` 聚合根与现有控制端口先实现，`edge_control` 合并后迁移，迁移任务登记在 §12.6；其余任务按 D1 完成后可开工。
 
 | ID | 类型 | 任务 | 角色 | 人日 | 依赖 | 交付物 | 出口证据 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -798,6 +798,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
 | D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
 | D1-18b | 进行中 | `dcu/D1-18b-event-class24` | `b6af6b3d` | `docs/evidence/DCU-D1-18b/` | edgec-dev-0 执行中；3000/3005 按 Class 24 重排，能实现则实现，不能实现则撤 mask 回 DAR 5 |
+| D1-19 | 未开始 | - | - | - | 拆 `dcu_698_object_model.c` 为变量/事件/采集/控制/安全五个类族文件，消除多 dev 并行冲突；行为不变 |
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
@@ -861,13 +862,23 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 项 | 现状 | 影响 | 去向 |
 | --- | --- | --- | --- |
 | F200 属性语义 | 产品把 attr2 当波特率（uint32）、attr3 当校验位（uint8）；目录 Class 22 里 attr2 是设备对象列表（array）、attr3 是数量（unsigned） | 主站按标准读 F200 会拿到类型不符的值；D1-14 的合法写用例沿用了现有产品口径 | 产品点位表拍板后另立 defect；D1-10 只断言位号范围，不判定语义 |
-| 3000/3005 属性号 | `class_id` 已改 24，但 `attr_mask` 仍用 Class 7 的属性号（2–6、8–10），Class 24 的属性定义不同 | 主站按 Class 24 读会落到未定义属性；位号范围检查发现不了 | P3 事件任务（D3-02 起）按 Class 24 重排并加验收 |
+| 3000/3005 属性号 | `class_id` 已改 24，属性位在 D1-18b 中按 Class 24 重排 | 主站按 Class 24 读会落到未定义属性；位号范围检查发现不了 | D1-18b 收口 |
 | codec 魔数标签 | `dlt698_codec.c` 既有编码器里仍有 `18`/`5`/`28` 字面量，未用 `DLT698_TAG_*` | 可读性，易与新标签漂移 | 随下一次 codec 改动清理，单独 commit |
-| D1-01 OCR 冲突 | 目录仍有 79 行 IC 列错位；D0-09 只补了 F100 这一行 | 类归属可能错 | D1-01 按 PDF 逐行核对后归零 |
 | A.7 方法上限按类聚合 | 夹具把某 OI 的 A.7 方法号并进该类的 `max_method`，范围检查对同类其它 OI 也放行 | 只能发现越界，发现不了“方法放错 OI” | 后续把夹具改成 per-OI 方法集合 |
 | 生成器行窗口 | `parse_ois` 与 `parse_oi_methods` 都写死 6298..9450 | 原文行号变化会静默丢行 | 改为按附录标题定位 |
 | test-platform 解析器 | `testplatform.protocol.dlt698.parse_get_response_list` 遇到逐项 DAR 抛错、拒绝 count 0；`get_request_list` 仍拒绝空列表 | 验收只能直读 APDU，平台侧无法表达合法空列表与混合结果 | 外部 pinned 仓库更新；本仓不改 |
 | 继电器 OAD 映射 | A.9 的 129/130/131 用“继电器 OAD”寻址，产品只有 `dcu_inventory_by_slot()` 的槽位身份 | ACTION 129–131 只能回 DAR 2，无法真正跳合闸 | 产品点位表拍板：继电器 OAD → 电表地址/DO 通道；另立任务实现 |
+
+### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
+
+用户拍板：P2 到 P5 先在 `cmd/dcu` 内实现，不等 COM 组件。以下迁移在对应组件合并后执行，迁移完成前 DCU 私有实现是唯一实现，不得复制到其他产品。
+
+| 现在（DCU 内） | 迁移到 | 迁移判据 |
+| --- | --- | --- |
+| Class 10 采集方案、任务、档案查询复用 `dcu_poller` 与 `dcu_storage` | `edge_acq`（COM-C1-01） | 组件接口覆盖现有端口；DCU 全部单测与验收绿；`dcu_poller` 行数下降 |
+| 事件记录、上报标识、时间质量复用 `dcu_event_monitor` 与 `dcu_storage` | `edge_event`（COM-C2-02）、`edge_time`（COM-C2-01） | SnF 与时间质量用例迁移后全绿 |
+| Class 13 控制经 `dcu_node` 聚合根与现有控制端口 | `edge_control`（COM-C3-01） | 选择、执行、闭锁、记录四类用例迁移后全绿 |
+| 域内端口头仍在 `foundation/include/`，适配器仍在 `adapters/` | 不变 | 依赖方向检查通过 |
 
 ## Appendix A. 698 覆盖明细
 
