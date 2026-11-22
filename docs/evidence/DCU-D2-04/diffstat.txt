@@ -1,0 +1,8 @@
+ .audit/d2-04-design.md              | 15 +++++++++++++++
+ .audit/d2-04.todo.md                | 17 +++++++++++++++++
+ cmd/dcu/dcu_698_axdr.c              |  2 --
+ docs/evidence/DCU-D2-04/comments.md | 19 +++++++++++++++++++
+ docs/evidence/DCU-D2-04/summary.md  | 34 ++++++++++++++++++++++++++++++++++
+ docs/evidence/DCU-D2-04/tests.log   | 24 ++++++++++++++++++++++++
+ tests/test_dcu_698_schemes.c        | 14 --------------
+ 7 files changed, 109 insertions(+), 16 deletions(-)

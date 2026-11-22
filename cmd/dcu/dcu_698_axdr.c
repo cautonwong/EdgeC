@@ -307,8 +307,6 @@ int dcu_698_decode_task_op(uint8_t method, const uint8_t *buf, size_t len, dcu_t
     return _time_tag_absent(buf, c.off, c.len) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
-/* ---- OI 6014/6015：普通采集方案 ---- */
-
 /* 类型表里有独立标签、但 codec 枚举未列出的构造类型。 */
 #define AXDR_TAG_DATE_TIME 25
 #define AXDR_TAG_DATE 26

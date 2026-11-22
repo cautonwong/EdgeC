@@ -36,8 +36,6 @@ typedef struct {
     char path[64];
 } scheme_bench_t;
 
-/* ---- 链式提交 mock ---- */
-
 #define TRACE_MAX 64
 static uint32_t g_trace_tag[TRACE_MAX];
 static int g_trace_n;
@@ -108,8 +106,6 @@ static void _bench_free(scheme_bench_t *b) {
     snprintf(side, sizeof(side), "%s-shm", b->path);
     unlink(side);
 }
-
-/* ---- A-XDR 构造 ---- */
 
 static void _u8(body_t *b, uint8_t v) {
     b->b[b->n++] = v;
@@ -279,8 +275,6 @@ static void _step(scheme_bench_t *b) {
     dcu_poller_step(&b->poller, &b->inv, 0);
 }
 
-/* ---- 采集链：CSD 选择的列就是实际提交的 tag ---- */
-
 static void test_add_selected_columns_are_submitted(void **state) {
     (void)state;
     scheme_bench_t b;
@@ -356,8 +350,6 @@ static void test_referenced_scheme_refuses_csd_change_and_delete(void **state) {
     assert_int_equal(b.poller.scheme_count, 0);
     _bench_free(&b);
 }
-
-/* ---- 形状错误：DAR 7 且不改状态 ---- */
 
 static void test_shape_errors_return_7(void **state) {
     (void)state;
@@ -446,8 +438,6 @@ static void test_shape_errors_return_7(void **state) {
     _bench_free(&b);
 }
 
-/* ---- 字段策略：标准合法但产品不执行 -> DAR 2 ---- */
-
 static void test_policy_errors_return_2(void **state) {
     (void)state;
     scheme_bench_t b;
@@ -518,8 +508,6 @@ static void test_id_zero_and_batch_atomicity(void **state) {
     assert_null(dcu_poller_get_scheme(&b.poller, 8));
     _bench_free(&b);
 }
-
-/* ---- A2 字节精确 ---- */
 
 static void _expect_unit(body_t *b, uint8_t id, const uint32_t *csds, uint8_t count) {
     _u8(b, DLT698_TAG_STRUCTURE);
@@ -633,8 +621,6 @@ static void test_masks_and_unknown_methods(void **state) {
                      EDGE_SLAVE_SRC_UNDEFINED);
     _bench_free(&b);
 }
-
-/* ---- 持久化 ---- */
 
 static void test_persistence_reload_and_seed_once(void **state) {
     (void)state;
