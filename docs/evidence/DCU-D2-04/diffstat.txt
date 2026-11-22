@@ -1,10 +1,31 @@
- acceptance/dcu/tests/test_dcu_northbound.py |  2 +-
- cmd/dcu/dcu_698_axdr.c                      |  1 -
- cmd/dcu/dcu_north_adapter.c                 |  3 +-
- docs/evidence/DCU-D2-04/comments.md         |  4 ++
- docs/evidence/DCU-D2-04/summary.md          |  7 ++++
- docs/evidence/DCU-D2-04/tests.log           | 14 +++----
- tests/test_dcu_698_object_model.c           |  2 +-
- tests/test_dcu_698_schemes.c                | 59 ++++++++++++++++++++++++-----
- tests/test_driver_dlt698.c                  | 16 ++++----
- 9 files changed, 79 insertions(+), 29 deletions(-)
+ .audit/d3-06.todo.md                        |  14 -
+ .audit/design.md                            | 197 -------
+ .audit/grounding.md                         |  60 ---
+ acceptance/dcu/tests/test_dcu_northbound.py | 107 ++++
+ adapters/io_drivers/src/driver_dlt698.c     |   2 +-
+ cmd/dcu/CMakeLists.txt                      |   1 +
+ cmd/dcu/dcu_698_appconn.c                   |   9 +
+ cmd/dcu/dcu_698_axdr.c                      | 359 ++++++++++++-
+ cmd/dcu/dcu_698_axdr.h                      |  22 +
+ cmd/dcu/dcu_698_class_acq.c                 |  12 +
+ cmd/dcu/dcu_698_object_internal.h           |   2 +
+ cmd/dcu/dcu_698_object_model.c              |  15 +
+ cmd/dcu/dcu_node.c                          |  28 +-
+ cmd/dcu/dcu_north_adapter.c                 |   5 +-
+ cmd/dcu/dcu_poller.c                        |  50 ++
+ cmd/dcu/dcu_poller.h                        |  50 +-
+ cmd/dcu/dcu_router.h                        |   5 +
+ cmd/dcu/dcu_scheme_store.c                  | 426 +++++++++++++++
+ cmd/dcu/dcu_scheme_store.h                  |  19 +
+ docs/design/DCU_698_OBJECT_MODEL.md         |   8 +-
+ docs/evidence/DCU-D2-04/comments.md         |  37 ++
+ docs/evidence/DCU-D2-04/diffstat.txt        |   0
+ docs/evidence/DCU-D2-04/summary.md          |  41 ++
+ docs/evidence/DCU-D2-04/tests.log           |  24 +
+ foundation/include/edge_slave_plane.h       |   3 +
+ tests/CMakeLists.txt                        |   4 +
+ tests/test_dcu_698_appconn.c                |   2 +-
+ tests/test_dcu_698_object_model.c           |   2 +-
+ tests/test_dcu_698_schemes.c                | 771 ++++++++++++++++++++++++++++
+ tests/test_driver_dlt698.c                  |  16 +-
+ 30 files changed, 1990 insertions(+), 301 deletions(-)

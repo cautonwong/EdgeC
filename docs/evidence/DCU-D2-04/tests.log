@@ -22,3 +22,12 @@ dcu-acceptance 3/3；dcu-northbound 21/21（2/2 任务退出 0，含 D_00_00_02_
 
 == git diff --check ==
 干净
+
+## verifier pass after rebase onto main (D1-20a, D3-04a, D3-06 merged)
+clean build 0 warnings; check_build_warnings 0 new
+full ctest 342/342
+ASAN targeted 14/14
+run_guard_selftest all pass
+./test.sh --omnis dcu: 3 + 21 passed (000020 runs as 北向), 2/2 tasks, ACCEPTANCE_TASKS 2/2
+/no-comments third pass: 5 deletions, 2 structural fixes (shared ACL cap, explicit bad frame);
+.audit/ removed from the branch
