@@ -23,6 +23,7 @@ import json
 import re
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -34,6 +35,11 @@ def catalog_paths(root: Path) -> tuple[Path, Path, Path, Path]:
         root / "docs" / "design" / "DCU_698_OI_CATALOG.json",
         root / "tests" / "fixtures" / "dcu_698_catalog_expected.h",
     )
+
+
+def reconciliation_path(root: Path) -> Path:
+    return root / "docs" / "design" / "DCU_698_CLASS_RECONCILIATION.md"
+
 
 CLASS_HEAD = re.compile(r"7\.3\.(\d+)\s+(.*?)（class_id=(\d+)）")
 ATTR = re.compile(r"^(\d+)[．.]\s*(.+?)\s*[（(](static|dyn\.?)[）)]\s*(.*)$")
@@ -54,8 +60,107 @@ OI_CLASS_OVERRIDES = {
     0x3300: 8, 0x3301: 8, 0x3302: 8,
 }
 
+# DCU-D1-01: rows where the range heuristic or the OCR text layer disagrees
+# with the standard. `parsed` is the printed IC the decision was checked
+# against; `model` is what the catalog uses. A `deferred` row keeps the
+# product class until the object table is corrected.
+#
+# 201E..202C print 8, but 201C/2026..202E print 6 and 7.3.6 defines these event
+# values as data variables. 4022 prints 6 between 8s. Every other decision
+# follows the Appendix A IC column: collections are class 11, units class 8.
+class ClassDecision(NamedTuple):
+    parsed: int    # IC as printed in docs/698_parsed.md when the decision was made
+    model: int     # class the catalog/object model uses
+    source: str    # Appendix A table and line the decision cites
+    deferred: bool = False
+
+
+OI_CLASS_DECISIONS: dict[int, ClassDecision] = {
+    0x201E: ClassDecision(8, 6, "表A.3 @6693（OCR 列印 8；相邻 201C/2026-202E 为 6，7.3.6）", False),
+    0x2020: ClassDecision(8, 6, "表A.3 @6694（同上）", False),
+    0x2021: ClassDecision(8, 6, "表A.3 @6695（同上）", False),
+    0x2022: ClassDecision(8, 6, "表A.3 @6696（同上）", False),
+    0x2023: ClassDecision(8, 6, "表A.3 @6697（同上）", False),
+    0x2024: ClassDecision(8, 6, "表A.3 @6701（同上）", False),
+    0x2025: ClassDecision(8, 6, "表A.3 @6702（同上）", False),
+    0x202A: ClassDecision(8, 6, "表A.3 @6715（同上）", False),
+    0x202C: ClassDecision(8, 6, "表A.3 @6716（同上）", False),
+    0x3006: ClassDecision(24, 24, "表A.4 @6906", False),
+    0x3007: ClassDecision(24, 24, "表A.4 @6912", False),
+    0x3008: ClassDecision(24, 24, "表A.4 @6917", False),
+    0x3303: ClassDecision(8, 8, "表A.4 @7421", False),
+    0x3304: ClassDecision(8, 8, "表A.4 @7430", False),
+    0x3305: ClassDecision(8, 8, "表A.4 @7444", False),
+    0x3306: ClassDecision(8, 8, "表A.4 @7460", False),
+    0x3307: ClassDecision(8, 8, "表A.4 @7480", False),
+    0x3308: ClassDecision(8, 8, "表A.4 @7493", False),
+    0x3309: ClassDecision(8, 8, "表A.4 @7508", False),
+    0x330A: ClassDecision(8, 8, "表A.4 @7526", False),
+    0x330B: ClassDecision(8, 8, "表A.4 @7538", False),
+    0x330C: ClassDecision(8, 8, "表A.4 @7553", False),
+    0x330D: ClassDecision(8, 8, "表A.4 @7562", False),
+    0x330E: ClassDecision(8, 8, "表A.4 @7572", False),
+    0x330F: ClassDecision(8, 8, "表A.4 @7585", False),
+    0x3310: ClassDecision(8, 8, "表A.4 @7600", False),
+    0x3311: ClassDecision(8, 8, "表A.4 @7615", False),
+    0x3312: ClassDecision(8, 8, "表A.4 @7627", False),
+    0x3313: ClassDecision(8, 8, "表A.4 @7639", False),
+    0x3314: ClassDecision(8, 8, "表A.4 @7655", False),
+    0x3315: ClassDecision(8, 8, "表A.4 @7675", False),
+    0x3320: ClassDecision(8, 8, "表A.4 @7695", False),
+    0x4022: ClassDecision(6, 8, "表A.5 @7900（相邻 4021/4024 为 8）", False),
+    0x6000: ClassDecision(11, 10, "表A.7 @8128", True),
+    0x6001: ClassDecision(8, 8, "表A.7 @8165", False),
+    0x6002: ClassDecision(11, 10, "表A.7 @8219", True),
+    0x6003: ClassDecision(8, 10, "表A.7 @8255", True),
+    0x6004: ClassDecision(8, 8, "表A.7 @8280", False),
+    0x6013: ClassDecision(8, 8, "表A.7 @8312", False),
+    0x6014: ClassDecision(11, 11, "表A.7 @8354", False),
+    0x6015: ClassDecision(8, 8, "表A.7 @8372", False),
+    0x6016: ClassDecision(11, 11, "表A.7 @8409", False),
+    0x6017: ClassDecision(8, 8, "表A.7 @8423", False),
+    0x6018: ClassDecision(11, 11, "表A.7 @8440", False),
+    0x6019: ClassDecision(8, 8, "表A.7 @8467", False),
+    0x601A: ClassDecision(11, 11, "表A.7 @8503", False),
+    0x601B: ClassDecision(8, 8, "表A.7 @8505", False),
+    0x601C: ClassDecision(11, 11, "表A.7 @8518", False),
+    0x601D: ClassDecision(8, 8, "表A.7 @8526", False),
+    0x601E: ClassDecision(11, 11, "表A.7 @8551", False),
+    0x601F: ClassDecision(8, 8, "表A.7 @8559", False),
+    0x6032: ClassDecision(11, 11, "表A.7 @8582", False),
+    0x6033: ClassDecision(8, 8, "表A.7 @8583", False),
+    0x6034: ClassDecision(11, 11, "表A.7 @8597", False),
+    0x6035: ClassDecision(8, 8, "表A.7 @8598", False),
+    0x6040: ClassDecision(8, 8, "表A.7 @8616", False),
+    0x6041: ClassDecision(8, 8, "表A.7 @8618", False),
+    0x6042: ClassDecision(8, 8, "表A.7 @8620", False),
+    0x7001: ClassDecision(8, 8, "表A.8 @8648", False),
+    0x7011: ClassDecision(8, 8, "表A.8 @8679", False),
+    0x7013: ClassDecision(8, 8, "表A.8 @8691", False),
+    0x8000: ClassDecision(8, 13, "表A.9 @8716", True),
+    0x8001: ClassDecision(8, 8, "表A.9 @8756", False),
+    0x8002: ClassDecision(8, 8, "表A.9 @8778", False),
+    0x8003: ClassDecision(11, 11, "表A.9 @8793", False),
+    0x8004: ClassDecision(11, 11, "表A.9 @8810", False),
+    0x8100: ClassDecision(8, 8, "表A.9 @8821", False),
+    0x8101: ClassDecision(8, 8, "表A.9 @8822", False),
+    0x8102: ClassDecision(8, 8, "表A.9 @8824", False),
+    0x8109: ClassDecision(8, 8, "表A.9 @8866", False),
+    0x810A: ClassDecision(8, 8, "表A.9 @8894", False),
+    0x810B: ClassDecision(8, 8, "表A.9 @8903", False),
+    0x810C: ClassDecision(8, 8, "表A.9 @8910", False),
+    0x810D: ClassDecision(8, 8, "表A.9 @8924", False),
+    0x810E: ClassDecision(8, 8, "表A.9 @8931", False),
+    0x810F: ClassDecision(8, 8, "表A.9 @8932", False),
+    0x8110: ClassDecision(8, 8, "表A.9 @8933", False),
+    0xF101: ClassDecision(8, 8, "表A.11 @9083", False),
+    0xF210: ClassDecision(8, 8, "表A.12 @9300", False),
+}
 
 def infer_class(oi: int) -> int:
+    decision = OI_CLASS_DECISIONS.get(oi)
+    if decision:
+        return decision.model
     if oi in OI_CLASS_OVERRIDES:
         return OI_CLASS_OVERRIDES[oi]
     if oi < 0x1000:
@@ -105,6 +210,26 @@ def infer_class(oi: int) -> int:
     if 0xF300 <= oi <= 0xF3FF:
         return 17
     return 0
+
+
+def unexplained_conflicts(ois: list[dict]) -> tuple[list[dict], list[int]]:
+    unexplained = []
+    seen = set()
+    for row in ois:
+        oi = int(row["oi"], 16)
+        decision = OI_CLASS_DECISIONS.get(oi)
+        if decision:
+            seen.add(oi)
+            if not decision.source or decision.parsed != row["parsed_class"]:
+                unexplained.append(row)
+                continue
+            if row["inferred_class"] != decision.model:
+                unexplained.append(row)
+                continue
+        if row["parsed_class"] != row["inferred_class"] and not decision:
+            unexplained.append(row)
+    missing = sorted(set(OI_CLASS_DECISIONS) - seen)
+    return unexplained, missing
 
 
 def parse_classes(lines: list[str]) -> list[dict]:
@@ -281,15 +406,15 @@ def render(classes: list[dict], ois: list[dict]) -> str:
     out.append("> Do not edit by hand. Regenerate after the parsed standard changes.")
     out.append("")
     conflicts = [r for r in ois if r["parsed_class"] != r["inferred_class"]]
+    deferred = sum(1 for decision in OI_CLASS_DECISIONS.values() if decision.deferred)
     out.append(f"Classes: {len(classes)}. OI rows: {len(ois)}. "
-               f"Rows where the parsed IC and the range mapping disagree: {len(conflicts)}.")
+               f"Rows whose parsed IC differs from the chosen class: {len(conflicts)} "
+               f"(OCR corrections and {deferred} deferred object-table rows).")
     out.append("")
-    out.append("`parsed_class` is the IC column as printed in the parsed table. "
-               "`inferred_class` is the range mapping used by the DCU object model. "
-               "Where they differ, the task DCU-D1-01 reconciles the row against 7.3 and "
-               "Appendix A before the row enters code. The parsed table has known OCR "
-               "column shifts in the 3xxx and 6xxx ranges, so neither column is taken as "
-               "final without reconciliation.")
+    out.append("`parsed_class` is the IC column printed in the parsed table; "
+               "`inferred_class` is the class the catalog uses. "
+               "`DCU_698_CLASS_RECONCILIATION.md` cites the source for every row "
+               "where the two differ.")
     out.append("")
     out.append("## Class summary")
     out.append("")
@@ -331,6 +456,38 @@ def render(classes: list[dict], ois: list[dict]) -> str:
     return "\n".join(out) + "\n"
 
 
+def render_reconciliation(ois: list[dict]) -> str:
+    by_oi = {row["oi"]: row for row in ois}
+    resolved = sum(1 for decision in OI_CLASS_DECISIONS.values() if not decision.deferred)
+    deferred = len(OI_CLASS_DECISIONS) - resolved
+    out = [
+        "# DCU 698 class reconciliation",
+        "",
+        "> Generated by `scripts/extract_dcu_698_catalog.py` from `OI_CLASS_DECISIONS`.",
+        "> Do not edit by hand. Regenerate after the decisions change.",
+        "",
+        "Appendix A and `docs/698.pdf` decide each conflict. `parsed` is the printed",
+        "IC; `chosen` is the class the catalog uses. 201E..202C and 4022 are OCR",
+        "misreads: their neighbouring rows and 7.3.6 win. Deferred rows keep the",
+        "product class until the object table is corrected in a separate defect.",
+        "",
+        f"Decisions: {resolved} resolved, {deferred} deferred.",
+        "",
+        "| OI | parsed | chosen | source |",
+        "| --- | --- | --- | --- |",
+    ]
+    for oi in sorted(OI_CLASS_DECISIONS):
+        decision = OI_CLASS_DECISIONS[oi]
+        row = by_oi[f"{oi:04X}"]
+        if decision.deferred:
+            out.append(f"| {row['oi']} | {decision.parsed} | {decision.model} | "
+                       f"{decision.source}；对象表仍用 {decision.model}，另立缺陷 |")
+        else:
+            out.append(f"| {row['oi']} | {decision.parsed} | {decision.model} | "
+                       f"{decision.source} |")
+    return "\n".join(out) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
@@ -360,9 +517,24 @@ def main() -> int:
         print("expected F100 in class 21 (ESAM); it is missing or misfiled", file=sys.stderr)
         return 1
 
+    unexplained, missing = unexplained_conflicts(ois)
+    if missing:
+        print("class decisions for OIs absent from the parsed table:", file=sys.stderr)
+        for oi in missing:
+            print(f"  0x{oi:04X}", file=sys.stderr)
+        return 1
+    if unexplained:
+        print("class conflicts without a recorded decision (DCU-D1-01):", file=sys.stderr)
+        for row in unexplained:
+            print(f"  {row['oi']} parsed={row['parsed_class']} "
+                  f"inferred={row['inferred_class']} @{row['source_line']}", file=sys.stderr)
+        return 1
+
     markdown = render(classes, ois)
     payload = json.dumps({"classes": classes, "ois": ois}, ensure_ascii=False, indent=1) + "\n"
     header = render_header(classes, ois, oi_methods)
+    reconciliation = render_reconciliation(ois)
+    out_recon = reconciliation_path(root)
 
     if args.check:
         stale = []
@@ -372,6 +544,8 @@ def main() -> int:
             stale.append(str(out_json))
         if not out_header.exists() or out_header.read_text(encoding="utf-8") != header:
             stale.append(str(out_header))
+        if not out_recon.exists() or out_recon.read_text(encoding="utf-8") != reconciliation:
+            stale.append(str(out_recon))
         for path in stale:
             print(f"stale: {path}", file=sys.stderr)
         return 1 if stale else 0
@@ -381,6 +555,7 @@ def main() -> int:
     out_md.write_text(markdown, encoding="utf-8")
     out_json.write_text(payload, encoding="utf-8")
     out_header.write_text(header, encoding="utf-8")
+    out_recon.write_text(reconciliation, encoding="utf-8")
     print(f"wrote {out_md.relative_to(root)} ({len(classes)} classes, {len(ois)} OIs)")
     print(f"wrote {out_json.relative_to(root)}")
     print(f"wrote {out_header.relative_to(root)}")

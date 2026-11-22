@@ -473,6 +473,8 @@ def main():
              os.path.join(design, "DCU_698_OI_CATALOG.md")),
             (os.path.join(REPO_ROOT, "docs", "design", "DCU_698_OI_CATALOG.json"),
              os.path.join(design, "DCU_698_OI_CATALOG.json")),
+            (os.path.join(REPO_ROOT, "docs", "design", "DCU_698_CLASS_RECONCILIATION.md"),
+             os.path.join(design, "DCU_698_CLASS_RECONCILIATION.md")),
             (os.path.join(REPO_ROOT, "tests", "fixtures", "dcu_698_catalog_expected.h"),
              os.path.join(fixtures, "dcu_698_catalog_expected.h")),
         ):
@@ -506,6 +508,32 @@ def main():
                 passed_tests += 1
             else:
                 msg = "❌ [REFUTATION_FAIL] check_dcu_698_catalog.py accepted a corrupted catalog"
+                print(msg)
+                failures.append(msg)
+
+    with tempfile.TemporaryDirectory(prefix="dcu698-conflict-") as tmp2:
+        os.makedirs(os.path.join(tmp2, "docs"))
+        parsed_md = os.path.join(tmp2, "docs", "698_parsed.md")
+        shutil.copyfile(os.path.join(REPO_ROOT, "docs", "698_parsed.md"), parsed_md)
+
+        with open(parsed_md, encoding="utf-8") as f:
+            text = f.read()
+        changed = re.sub(r"^30 06\s+24\s", "30 06   3  ", text, count=1, flags=re.M)
+        total_tests += 1
+        if changed == text:
+            msg = "❌ [FIXTURE] 3006 row line changed shape; the conflict fixture no longer applies"
+            print(msg)
+            failures.append(msg)
+        else:
+            with open(parsed_md, "w", encoding="utf-8") as f:
+                f.write(changed)
+            rc_conf, out_conf, err_conf = run_cmd([sys.executable, catalog_guard, "--root", tmp2])
+            if rc_conf != 0 and "without a recorded decision" in (out_conf + err_conf):
+                print("  ✅ [PASS] check_dcu_698_catalog.py (unrecorded conflict rejected)")
+                passed_tests += 1
+            else:
+                msg = ("❌ [REFUTATION_FAIL] catalog gate accepted a class conflict with no "
+                       f"recorded decision:\n{out_conf}\n{err_conf}")
                 print(msg)
                 failures.append(msg)
 
