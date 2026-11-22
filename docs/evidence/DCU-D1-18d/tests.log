@@ -1,0 +1,19 @@
+== 干净构建 + 告警门禁 ==
+build=0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== 全量 ctest（干净构建，336 项）==
+100% tests passed, 0 tests failed out of 336
+
+== ASAN + UBSAN（dcu / dlt698 相关 33 项，串行）==
+100% tests passed, 0 tests failed out of 33
+（并行运行一次 test_dcu_runtime_health 因负载超时失败，单跑与串行全量均通过，与本改动无关）
+
+== GCC -fanalyzer（cmd/dcu）==
+✅ [FANALYZER] 0 known finding(s), no new reports
+
+== 架构守卫 ==
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== git diff --check ==
+干净

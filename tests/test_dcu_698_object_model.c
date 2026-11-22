@@ -7,6 +7,7 @@
 
 #include "dcu_698_object_model.h"
 #include "dcu_discovery.h"
+#include "edge_slave_plane.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
 
@@ -30,7 +31,7 @@ static const uint8_t k_attr_event[] = {4, 11, 12};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_method_127[] = {127};
 static const uint8_t k_method_1_127[] = {1, 127};
-static const uint8_t k_method_8000[] = {1, 127, 128, 129, 130, 131};
+static const uint8_t k_method_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_method_5004[] = {3, 4, 5, 7, 8};
 
 static const expected_object_t k_expected[] = {
@@ -42,9 +43,9 @@ static const expected_object_t k_expected[] = {
      0},
     {(uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), IC_RECORD, DCU_OBJ_SHARED, k_attr_2, 1,
      k_method_5004, 5},
-    {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 6},
+    {OI_REMOTE_CONTROL, IC_CONTROL, DCU_OBJ_SINGLETON, NULL, 0, k_method_8000, 5},
     {OI_ESAM_SECURITY, IC_ESAM, DCU_OBJ_SINGLETON, NULL, 0, k_method_1, 1},
-    {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, k_attr_23, 2, NULL, 0},
+    {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_3, 1, k_method_127, 1},
     {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 3, k_method_1, 1},
@@ -98,7 +99,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
 
     assert_null(dcu_698_find(0x1234));
     assert_int_equal(dcu_698_read(MK_OAD(0x1234, 2), &(uint16_t){0}), -1);
-    assert_int_equal(dcu_698_call(MK_OMD(0x1234, 1), NULL, NULL), -1);
+    assert_int_equal(dcu_698_call(MK_OMD(0x1234, 1), NULL, NULL), EDGE_SLAVE_SRC_NOT_FOUND);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -129,13 +130,58 @@ static void test_mask_rejects_missing_attr_and_method(void **state) {
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 3), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_ARCHIVE, 18), &(uint16_t){0}), -1);
 
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 1), NULL, NULL), -1);
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL), -1);
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 127), NULL, NULL), -1);
-    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL), -1);
+    /* 6000 全部未广告：类定义过的方法号回 DAR 5，未定义的回 DAR 4。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 1), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 2), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 127), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 200), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_METER_ARCHIVE, 6), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     assert_int_equal(dcu_698_read(MK_OAD(OI_DISCOVERY_RESULT, 2), &(uint16_t){0}), -1);
     assert_int_equal(dcu_698_read(MK_OAD(OI_METER_DISCOVERY, 2), &(uint16_t){0}), -1);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_dar_classification_by_class_definition(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller);
+
+    /* 广告位如实回暂时失效或类型错，不伪装执行成功。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 127), NULL, NULL),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 128), NULL, NULL),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 129), NULL, NULL),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    /* Class 13 定义方法 1–7，产品只广告 127–131。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 1), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 7), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_REMOTE_CONTROL, 8), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    /* Class 21 定义方法 1–12，产品只广告方法 1（复位）。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_ESAM_SECURITY, 2), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_ESAM_SECURITY, 13), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    /* Class 22 定义方法 1–2，F200 一个方法都不广告。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_CHANNEL_CONFIG, 1), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_CHANNEL_CONFIG, 3), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -160,7 +206,9 @@ static void test_task_scheduler_reset_and_add(void **state) {
     assert_int_equal(method_res, 0);
     assert_null(dcu_poller_get_scheme(&poller, 7));
 
-    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 128), &scheme, &method_res), -1);
+    /* 6012 未定义方法 128（Class 1 只有 1–2），按规则回 DAR 4。 */
+    assert_int_equal(dcu_698_call(MK_OMD(OI_TASK_SCHEDULER, 128), &scheme, &method_res),
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -195,14 +243,11 @@ static void test_dispatch_read_write_call(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
+    /* F200 没有可落地的串口重配路径，A2/A3/A4 全部不对外。 */
     uint32_t baud = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &baud), 0);
-    assert_int_equal(baud, 9600);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &baud), -1);
     uint32_t new_baud = 2400;
-    assert_int_equal(dcu_698_write(MK_OAD(OI_CHANNEL_CONFIG, 2), &new_baud), 0);
-    baud = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &baud), 0);
-    assert_int_equal(baud, 2400);
+    assert_int_equal(dcu_698_write(MK_OAD(OI_CHANNEL_CONFIG, 2), &new_baud), -1);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -305,7 +350,8 @@ static void test_event_method1_resets_records(void **state) {
     assert_int_equal(evt_3000.last_start_time, 0);
     assert_int_equal(evt_3000.last_end_time, 0);
 
-    assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 2), NULL, NULL), -1);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 2), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -351,6 +397,8 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_mask_rejects_missing_attr_and_method, setup, teardown),
         cmocka_unit_test_setup_teardown(test_task_scheduler_reset_and_add, setup, teardown),
         cmocka_unit_test_setup_teardown(test_discovery_count_is_the_only_exposed_attribute, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_dar_classification_by_class_definition, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_dispatch_read_write_call, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_class24_attr_reads, setup, teardown),

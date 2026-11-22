@@ -128,13 +128,9 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     uint8_t master_challenge[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
     uint8_t esam_response[8] = {0};
 
-    // 验证方法 1 路由调用 (OMD: OI_ESAM_SECURITY 方法 1)
-    ret = dcu_router_action(((uint32_t)OI_ESAM_SECURITY << 16) | 0x0100, master_challenge,
-                            esam_response);
-    assert_int_equal(ret, 0);
-    assert_true(esam.is_authenticated);  // 身份应鉴权成功
-
-    // 比对响应密文
+    /* 鉴权是安全模块的单元能力；OI F100 方法 1 是标准复位，不是鉴权。 */
+    assert_int_equal(dcu_security_authenticate(&esam, master_challenge, esam_response), 0);
+    assert_true(esam.is_authenticated);
     for (int i = 0; i < 8; i++) {
         assert_int_equal(esam_response[i], (uint8_t)(master_challenge[i] ^ 0xA5 ^ (uint8_t)i));
     }
@@ -151,27 +147,20 @@ static void test_dcu_advanced_features_dispatch(void** state) {
 
     uint8_t invalid_mac[4] = {0, 0, 0, 0};
     mac_valid = dcu_security_verify_mac(&esam, test_payload, 4, invalid_mac);
-    assert_false(mac_valid);  // 篡改后的 MAC 应拒绝通过
+    assert_false(mac_valid);
 
-    // ==============================================================================
-    // 3. 验证外设 RS485 参数动态微调 (OI_CHANNEL_CONFIG OAD 读写)
-    // ==============================================================================
+    ret = dcu_router_action(((uint32_t)OI_ESAM_SECURITY << 16) | 0x0100, NULL, NULL);
+    assert_int_equal(ret, 0);
+    assert_false(esam.is_authenticated);
+    for (int i = 0; i < 16; i++) assert_int_equal(esam.session_key[i], 0);
+
+    // 3. F200 的 A2/A3/A4 类已定义但未广告（DAR 5）；没有真实串口重配路径，全部不对外
     uint32_t baudrate = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &baudrate);  // 获取默认波特率 (9600)
-    assert_int_equal(ret, 0);
-    assert_int_equal(baudrate, 9600);
-
+    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200, &baudrate);
+    assert_int_equal(ret, -1);
     uint32_t new_baud = 2400;
-    ret = dcu_router_set_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &new_baud);  // SET 波特率修改为 2400
-    assert_int_equal(ret, 0);
-
-    baudrate = 0;
-    ret = dcu_router_get_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200,
-                              &baudrate);  // 重新 GET 校验修改结果
-    assert_int_equal(ret, 0);
-    assert_int_equal(baudrate, 2400);
+    ret = dcu_router_set_attr(((uint32_t)OI_CHANNEL_CONFIG << 16) | 0x0200, &new_baud);
+    assert_int_equal(ret, -1);
 
     // ==============================================================================
     // 4. 验证下行自动搜表机制 (6002 只暴露计数, 6003 是结构不是对象)

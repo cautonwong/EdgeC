@@ -84,7 +84,7 @@ static void test_dcu_router_dispatch(void** state) {
 
     int method_res = -1;
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x7F00, "20000001", &method_res);
-    assert_int_equal(ret, -1);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(test_inv.count, 0);
 
     // 5. 6012 方法 127 添加方案，方法 1 复位清空方案表
@@ -100,9 +100,9 @@ static void test_dcu_router_dispatch(void** state) {
     assert_null(dcu_poller_get_scheme(&poller, 9));
 
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0200, NULL, NULL);
-    assert_int_equal(ret, -1);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
     ret = dcu_router_action(((uint32_t)OI_METER_ARCHIVE << 16) | 0x0300, NULL, NULL);
-    assert_int_equal(ret, -1);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     float voltage = 0.0f;
     ret = dcu_router_get_attr(OAD_VOLTAGE, &voltage);
@@ -114,16 +114,12 @@ static void test_dcu_router_dispatch(void** state) {
     assert_int_equal(ret, 0);
     assert_int_equal(freq, 5001);
 
-    /* 8. 远程负荷控制 ACTION 8000：**动作明确未实现**（缺 698 ACTION-Request 编码器）。
-     *
-     * 这条断言以前是 `ret == 0` —— 那是在给"假成功"背书：处理函数只把动作值写进
-     * 影子表就返回成功，主站以为拉闸成功，继电器根本没动。
-     * 现在断言 -4：**路由是通的**（不是 -2「方法不存在」），但动作明确拒绝，
-     * 绝不伪装成功。等 698 ACTION-Request 的编码器和报文样例齐了再改成真下发。 */
+    /* 8. 远程负荷控制 ACTION 8000：方法 1 是 Class 13 的复位，产品不广告，
+     * 类已定义但未广告 → DAR 5；绝不拿演示跳合闸冒充复位。 */
     method_res = -1;
     assert_int_equal(dcu_inventory_add(&test_inv, "20000001", "DLT698", 9600, 1), 0);
     ret = dcu_router_action(((uint32_t)OI_REMOTE_CONTROL << 16) | 0x0100, NULL, &method_res);
-    assert_int_equal(ret, -4);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     // 9. 验证影子抓拍引擎 (Generic Snapshot Engine)
     dcu_event_obj_t evt_3000 = {

@@ -66,8 +66,7 @@ static dcu_698_object_t g_objects[] = {
      .class_id = IC_CONTROL,
      .scope = DCU_OBJ_SINGLETON,
      .method = dcu_698_control_execute,
-     .method_mask = {[BYTE(1)] = BIT(1),
-                     [BYTE(DCU_ACTION_METHOD_FIRST)] = BIT(DCU_ACTION_METHOD_FIRST),
+     .method_mask = {[BYTE(DCU_ACTION_METHOD_FIRST)] = BIT(DCU_ACTION_METHOD_FIRST),
                      [BYTE(DCU_ACTION_METHOD_FIRST + 1)] =
                          BIT(DCU_ACTION_METHOD_FIRST + 1) | BIT(DCU_ACTION_METHOD_FIRST + 2) |
                          BIT(DCU_ACTION_METHOD_FIRST + 3) | BIT(DCU_ACTION_METHOD_FIRST + 4)}},
@@ -80,10 +79,7 @@ static dcu_698_object_t g_objects[] = {
 
     {.oi = OI_CHANNEL_CONFIG,
      .class_id = IC_PERIPHERAL,
-     .scope = DCU_OBJ_SINGLETON,
-     .read = dcu_698_security_f200_read,
-     .write = dcu_698_security_f200_write,
-     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3)}},
+     .scope = DCU_OBJ_SINGLETON},
 
     {.oi = OI_METER_DISCOVERY,
      .class_id = IC_ACQUISITION,
@@ -198,6 +194,31 @@ bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
     return false;
 }
 
+/* 附录 A 各接口类自身方法号的上限（OCI 专属的 127+ 方法另算）。 */
+static const struct {
+    uint8_t class_id;
+    uint8_t max_method;
+} k_class_max_method[] = {
+    {1, 2},  {2, 2},  {3, 2},  {4, 2},  {5, 2},  {6, 2},  {7, 5},  {8, 2},  {9, 8},
+    {10, 3}, {11, 2}, {12, 4}, {13, 7}, {14, 4}, {15, 4}, {16, 2}, {17, 6}, {18, 8},
+    {19, 2}, {20, 2}, {21, 12}, {22, 2}, {23, 5}, {24, 5}, {25, 2}, {26, 2},
+};
+
+static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_id) {
+    if (method_id == 0) return false;
+    if (oi == OI_REMOTE_CONTROL && method_id >= DCU_ACTION_METHOD_FIRST &&
+        method_id <= DCU_ACTION_METHOD_LAST) {
+        return true;
+    }
+    if (oi == OI_METER_ARCHIVE && method_id >= 127 && method_id <= 134) return true;
+    for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
+        if (k_class_max_method[i].class_id == class_id) {
+            return method_id <= k_class_max_method[i].max_method;
+        }
+    }
+    return false;
+}
+
 const router_sink_ops_t *dcu_698_internal_sink_ops(void) { return &g_router_sink_ops; }
 
 dcu_inventory_t *dcu_698_internal_inventory(void) { return s_router_inv; }
@@ -238,8 +259,12 @@ int dcu_698_call(uint32_t omd, const void *param, void *result) {
     uint8_t method_id = (uint8_t)((omd >> 8) & 0xFF);
 
     const dcu_698_object_t *obj = dcu_698_find(oi);
-    if (!obj || !obj->method) return -1;
-    if (!dcu_mask_test(obj->method_mask, method_id)) return -1;
+    if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (!obj->method || !dcu_mask_test(obj->method_mask, method_id)) {
+        return _class_defines_method(obj->class_id, obj->oi, method_id)
+                   ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                   : EDGE_SLAVE_SRC_UNDEFINED;
+    }
     return obj->method(obj, method_id, param, result);
 }
 

@@ -170,16 +170,11 @@ static void test_product_accept_set_paths(void **state) {
     init_product_model();
 
     const uint8_t baud[] = {0x06, 0x00, 0x00, 0x09, 0x60}; /* 2400, double-long-unsigned */
+    /* F200 的 A2/A3/A4 没有真实可落地的串口重配路径，全部不对外。 */
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), baud, sizeof(baud)),
-                     0);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     uint32_t got = 0;
-    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), 0);
-    assert_int_equal(got, 2400);
-
-    const uint8_t wrong[] = {0x0A, 0x01, 0x41}; /* visible-string，不是 baudrate */
-    assert_int_equal(
-        dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), wrong, sizeof(wrong)),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), -1);
 
     const uint8_t like_float[] = {0x17, 0x43, 0x67, 0xB3, 0x33};
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2000, 2), like_float, sizeof(like_float)),
@@ -1011,6 +1006,7 @@ static size_t build_action(uint8_t *frame, uint8_t method, const uint8_t *param,
 static const edge_slave_source_ops_t k_action_src = {.accept_action = dcu_north_accept_action};
 
 static uint8_t run_action_dar(uint8_t method, const uint8_t *param, size_t param_len) {
+    init_product_model();
     uint8_t frame[512];
     size_t frame_len = build_action(frame, method, param, param_len);
 

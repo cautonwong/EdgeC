@@ -7,8 +7,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "dcu_698_object_internal.h"
 #include "dcu_inventory.h"
-#include "dcu_router.h"
 #include "dcu_storage.h"
 #include "edge_log.h"
 
@@ -60,14 +60,11 @@ void dcu_heartbeat_tick(dcu_heartbeat_t *hb) {
             if (hb->se) stream_engine_push(hb->se, &trigger);
             hb->demo_freezes++;
 
-            // 💡 [8xxx Protocol Verification] 随机触发跳闸控制，验证控制闭环
             if (i > 0 && i % 200 == 0) {
-                uint32_t relay_omd = (0x8000U << 16) | 0x0100;
                 uint8_t action = (cycle % 2 == 0) ? 1 : 0;  // 0/2 cycle Trip, 1 cycle Restore
-                printf("🎛️ [RELAY] Dev %d: Triggering Action %d (OI 8000 Attr 1)\n", i,
-                       action);
+                printf("🎛️ [RELAY] Dev %d: Triggering Action %d\n", i, action);
                 hb->demo_relays++;
-                dcu_router_action(relay_omd, (void *)(uintptr_t)i, &action);
+                dcu_698_control_legacy_action((uint32_t)i, action);
             }
         }
 
@@ -85,9 +82,8 @@ void dcu_heartbeat_tick(dcu_heartbeat_t *hb) {
 void dcu_heartbeat_control_tick(dcu_heartbeat_t *hb) {
     if (!hb || !hb->demo_mode) return;
     hb->control_triggers++;
-    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering Remote Control ACTION (8000) for Meter 10000001...");
-    uint32_t omd = (0x8000U << 16) | 0x0100;
-    dcu_router_action(omd, NULL, NULL);
+    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering demo relay control for Meter 10000001...");
+    dcu_698_control_legacy_action(0, 1);
 }
 
 static void _freeze_trigger_cb(uv_timer_t *handle) {
