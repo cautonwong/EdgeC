@@ -790,7 +790,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
-| D1-14a | 进行中 | `dcu/D1-14a-be32` | `e461bd96` | `docs/evidence/DCU-D1-14a/` | UBSAN 全量发现驱动 5 处未强转的 `byte << 24` 有符号溢出；抽 `_read_be32` 统一修，补高字节 ≥0x80 用例 |
+| D1-14a | 已合并 | `dcu/D1-14a-be32` | `e2ce657d` | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；`_read_be32` 统一 5 处大端读取；高字节 ≥0x80 用例；合并后 UBSAN 全量 332/332、0 runtime error |
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
 | D1-16 | 未开始 | - | - | - | - |
@@ -833,6 +833,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | 2026-11-22 | D1-08 | 已合并 | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；空列表按表73 无下限改为合法；验收 8 例；平台解析器不支持逐项 DAR/空列表，测试直读 APDU，平台更新另记 |
 | 2026-11-22 | D0-10 | 已合并 | `docs/evidence/DCU-D0-10/` | 合并提交 `28b0363f`；原子写消除 `bus.json` 半截读；并发守卫；合并后验收 2 次绿；复核恢复了 7 条被删的运行约束 |
 | 2026-11-22 | D1-06 | 部分合并 | `docs/evidence/DCU-D1-06/` | 合并提交 `9a7fb7f9`；A.9 参数解码与 DAR 7；129–131 因缺继电器映射回 DAR 2；codec 补 OAD 标签；验收 9 例；组合根台账修正 `57846715` |
+| 2026-11-22 | D1-14a | 已合并 | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；UBSAN 抓到的有符号左移 UB；合并后全量 UBSAN 332/332、0 runtime error；Release 30/30、守卫、验收通过 |
 
 ### 12.4 并行工作树
 
