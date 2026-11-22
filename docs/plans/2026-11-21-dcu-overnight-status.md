@@ -164,3 +164,5 @@ could not be deleted (auto-mode blocked the shared-scratch sweep); they are smal
 | 2026-11-22 | D3-06 | returned to edgec-dev-0 | 4000 A2 SET still RAM-shadow-only with DAR 0: real clock port or read-only; acceptance case `000019` collides, renumber to `000022` |
 | 2026-11-22 | cleanup | 11 merged worktrees removed | d0-11, d1-07, d1-11, d1-16, d1-18a/b/d/e, d2-02, d2-03, d3-05a; `/tmp/dcu-*.log` sweep blocked by auto-mode (small, kept) |
 | 2026-11-22 | plan | `1a689fe9` | §11.1 decisions 9/10 (time zone, unended end encoding), §12.1 queue rewritten, D3-04a/D3-06/D1-20a statuses current |
+| 2026-11-22 | D1-20a | merged `564ff4c5` | non-8000 ACTION routes through the object table; 6012 M127 strict A-XDR; present TimeTag rejected with DAR 7 on 8000/6000/6012; case 000019 runs 北向 (19 cases); post-merge 340/340, ASAN, guards, acceptance |
+| 2026-11-22 | D3-04a | merged `34271061` | device-local civil date_time_s through one helper; unended A6 end = `1C FF×7`; A14 NULL; legacy `event_history` rows never rendered; post-merge 340/340, ASAN, guards, acceptance |

@@ -801,9 +801,9 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
 | D1-11 | 已合并 | `dcu/D1-11-acceptance` | `7f5ce300` | `docs/evidence/DCU-D1-11/` | 合并提交 `7f5ce300`；GET/SET/ACTION/Record/Class20 共 16 例独立验收；修复过期 ACL 对象列表（A11/A12/F200 A4），ACL 属性上限 8→12 |
 | D0-12 | 已合并 | `dcu/D0-12-acceptance-gate` | `e8b242bc` | `docs/evidence/DCU-D0-12/` | 合并提交 `e8b242bc`；`acceptance/run.sh` 记录逐任务退出码，`check_acceptance_tasks.py` 按 tasks 目录核对；正反夹具进守卫自检 |
-| D1-20a | 进行中 | `dcu/D1-20a-action-route` | `dd324d22` | `docs/evidence/DCU-D1-20a/` | 已 rebase 到含 D2-03 的 main；改 6012 方法 127 走严格 A-XDR，补短帧用例，启用 000019 为北向；工作树有未提交改动，等 handback |
+| D1-20a | 已合并 | `dcu/D1-20a-action-route` | `564ff4c5` | `docs/evidence/DCU-D1-20a/` | 合并提交 `564ff4c5`；非 8000 ACTION 走对象表，6012 M127 严格 A-XDR，短帧 DAR 7 不改状态；TimeTag 有值三处统一 DAR 7（不静默忽略）；000019 作北向 19 例；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
 | D3-05a | 已合并 | `dcu/D3-05a-event-records` | `3e291b74` | `docs/evidence/DCU-D3-05a/` | 合并提交 `3e291b74`；A2 关联 OAD 数组、A3 四表计数、A4/A11/A12 真实；A5 配置与 A6/A14 记录因来源不成立撤 mask 回 DAR 5 |
-| D3-04a | 已退回 | `dcu/D3-04a-event-wallclock` | `6d53ede8` | `docs/evidence/DCU-D3-04a/` | 退回补两点：date_time_s 改设备本地公历（单一 helper，测试用 `TZ=CST-8`）；A6 未结束用表 49 非法值（1C FF×7），不编 NULL，A14 仍 NULL；补逐字节用例后 rebase 到 2f502b50 |
+| D3-04a | 已合并 | `dcu/D3-04a-event-wallclock` | `34271061` | `docs/evidence/DCU-D3-04a/` | 合并提交 `34271061`；date_time_s 设备本地公历单 helper（冻结与 A6/A14 共用，测试 `TZ=CST-8`）；A6 未结束编表 49 非法值 1C FF×7，A14 编 NULL；旧 event_history 行不渲染；合并后 340/340、ASAN 12/12、守卫、验收 2/2 |
 | D2-04 | 进行中 | `dcu/D2-04-schemes` | `1488eb4f` | `docs/evidence/DCU-D2-04/` | dcu-dev 执行中；6014/6015 普通采集方案与 CSD 列选择接 poller，未选列不得出现 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
