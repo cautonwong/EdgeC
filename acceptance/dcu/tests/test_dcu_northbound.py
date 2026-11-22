@@ -21,6 +21,7 @@
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 4. SET 3000 A11/A12 合法值回 DAR 0 且可读回；类型不符 DAR 7；未声明属性 DAR 5
 5. Class 20：同一 socket 上预连接 → CONNECT → ACL → RELEASE 全链路
+6. SET 4000 A2 date_time_s 后 GET 回同一 A-XDR（Class 8 参数 RAM 影子）
 
 第 3 条刻意"验失败"：参数结构（标准表 A.9 的 array<structure>）还没实现，
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
@@ -584,6 +585,24 @@ def test_set_event_wrong_type_returns_type_mismatch():
     oad = 0x30000B00
     res = _exchange(_set_request(0x01, oad, bytes([0x0A, 0x01, 0x41]))).apdu
     assert res[7] == 7, f"类型不符应回 DAR 7，收到 {res[7]}（{res.hex()}）"
+
+
+@case(id="D_00_00_02_000019", clause="free: SET 4000 A2 日期时间后 GET 回同一 A-XDR", tags=["北向"])
+@pytest.mark.contract
+def test_set_datetime_round_trip():
+    """Class 8 参数写入是 RAM 影子：SET 成功后同一个 GET 必须把原字节读回。"""
+    oad = 0x40000200
+    when = bytes([0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09])  # 2024-05-06 07:08:09
+    res = _exchange(_set_request(0x01, oad, when)).apdu
+    assert res[0] == 0x86 and res[1] == 0x01, f"不是 SET 响应：{res.hex()}"
+    assert res[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert res[7] == 0, f"合法 SET 应回 DAR 0，收到 {res[7]}（{res.hex()}）"
+
+    apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert apdu[7] == 0x01, f"Get-Result 应为 Data：{apdu.hex()}"
+    assert apdu[8:16] == when, f"读回 {apdu[8:16].hex()}，SET 的是 {when.hex()}"
 
 
 @case(id="D_00_00_02_000014", clause="free: SET 已关闭属性必须回 DAR 5", tags=["北向"])
