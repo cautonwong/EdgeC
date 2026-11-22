@@ -792,7 +792,8 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-10 | 已合并 | `dcu/D1-10-catalog-consistency` | `5a4fda20` | `docs/evidence/DCU-D1-10/` | 合并提交 `5a4fda20`；生成 514 OI + 26 类夹具，表→目录严格对拍、mask 范围、OI 唯一；红色对照 F200 改类；合并后 29/29、目录门禁、守卫、验收全过 |
 | D1-11 | 已合并 | `dcu/D1-11-acceptance` | `7f5ce300` | `docs/evidence/DCU-D1-11/` | 合并提交 `7f5ce300`；GET/SET/ACTION/Record/Class20 共 16 例独立验收；修复过期 ACL 对象列表（A11/A12/F200 A4），ACL 属性上限 8→12 |
 | D0-12 | 已合并 | `dcu/D0-12-acceptance-gate` | `e8b242bc` | `docs/evidence/DCU-D0-12/` | 合并提交 `e8b242bc`；`acceptance/run.sh` 记录逐任务退出码，`check_acceptance_tasks.py` 按 tasks 目录核对；正反夹具进守卫自检 |
-| D1-20a | 进行中 | `dcu/D1-20a-action-route` | `996a09f7` | `docs/evidence/DCU-D1-20a/` | dcu-dev-1 执行中；非 8000 的 ACTION 原样转对象表，消除适配器与对象表两套 DAR |
+| D1-20a | 待合并 | `dcu/D1-20a-action-route` | `f9317b2e` | `docs/evidence/DCU-D1-20a/` | 非 8000 ACTION 已转对象表，但 6012 方法 127 仍按 `dcu_scheme_t*` 解引用；等 D2-03 的原生 A-XDR 解码合并后再 rebase，避免短帧越界 |
+| D3-05a | 进行中 | `dcu/D3-05a-event-records` | `37acddcb` | `docs/evidence/DCU-D3-05a/` | dcu-dev-1 执行中；Class 24 事件属性按真实记录/计数/配置暴露，方法与记录表按存储能力决定 |
 | D1-12 | 已合并 | `dcu/D1-12-axdr-port-adr` | `076e0e04` | `docs/evidence/DCU-D1-12/` | ADR-0013 已合并，状态 Proposed；14 个初始化点全为 designated，无位置初始化；架构签字待补 |
 | D1-13 | 已合并 | `dcu/D1-13-axdr-port` | `68f4de69` | `docs/evidence/DCU-D1-13/` | 合并提交 `68f4de69`；合并后 28/28、守卫、验收 2+4 全过；流式逐项编码，单缓冲复用，无 8×2048；`/no-comments` 删 23 行、DAR 字面量改常量 |
 | D1-14 | 已合并 | `dcu/D1-14-set` | `b5b95f62` | `docs/evidence/DCU-D1-14/` | 合并提交 `b5b95f62`；SET-Request、`accept_axdr` 写入、SET-Response DAR；拒绝非标量回落假成功；LONG64 无 UB；DENIED 3 与 CLASS_MISMATCH 5 分开；合并后告警、28/28、ASAN、守卫、验收全过 |
