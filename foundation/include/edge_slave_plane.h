@@ -150,6 +150,15 @@ typedef struct {
     int (*accept_axdr)(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
 
     /**
+     * @brief 取对象列表类属性的原始字节（ADR-0015）。
+     *
+     * 698 用它取 Class 20 的对象列表做会话 ACL。与 `resolve_axdr` 分开，
+     * 是为了不改变普通取值路径"有 A-XDR 就走 A-XDR、否则回落标量"的判定。
+     * 未实现时为 NULL，驱动据此判定 ACL 不可用并拒绝数据请求。
+     */
+    int (*object_list)(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+
+    /**
      * @brief 记录型对象属性的分页取数端口（ADR-0014）。
      *
      * 三个回调全为 NULL 表示产品不支持记录读取，驱动据此回 DAR 2。

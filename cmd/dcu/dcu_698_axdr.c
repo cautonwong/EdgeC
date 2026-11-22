@@ -1,4 +1,5 @@
 #include "dcu_698_axdr.h"
+#include "dcu_698_appconn.h"
 
 #include <string.h>
 #include <uv.h>
@@ -84,6 +85,12 @@ static int _encode_axdr_value(const dcu_value_t* v, uint8_t* buf, size_t cap, si
 int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
     (void)ctx;
     if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+
+    /* Class 20 属性 2：对象列表是 ACL 的唯一来源（ADR-0015）。 */
+    if (oad == 0x44000200u) {
+        return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0
+                                                               : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    }
 
     dcu_value_t v;
     int rc = dcu_698_value_for_oad(oad, &v);

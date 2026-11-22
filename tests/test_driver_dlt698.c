@@ -194,12 +194,49 @@ typedef struct {
     size_t total;
     int begin_rc;
     bool row_fails;
+    uint8_t acl[128];
+    size_t acl_len;
     size_t fail_index;
     int row_rc;
     int begin_calls;
     int end_calls;
     size_t seen_sel_len;
 } fake_record_t;
+
+static size_t build_acl(uint8_t* buf, const uint16_t* ois, size_t n) {
+    size_t o = 0;
+    buf[o++] = 0x01;
+    buf[o++] = (uint8_t)n;
+    for (size_t i = 0; i < n; i++) {
+        buf[o++] = 0x02;
+        buf[o++] = 0x02;
+        buf[o++] = 0x50;
+        buf[o++] = (uint8_t)(ois[i] >> 8);
+        buf[o++] = (uint8_t)ois[i];
+        buf[o++] = 0x02;
+        buf[o++] = 0x02;
+        buf[o++] = 0x01;
+        buf[o++] = 1;
+        buf[o++] = 0x02;
+        buf[o++] = 0x02;
+        buf[o++] = 0x11;
+        buf[o++] = 2;
+        buf[o++] = 0x16;
+        buf[o++] = 1; /* 只读 */
+        buf[o++] = 0x01;
+        buf[o++] = 0;
+    }
+    return o;
+}
+
+static int fake_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    fake_record_t* f = (fake_record_t*)ctx;
+    if (oad != 0x44000200u) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (f->acl_len > cap) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(buf, f->acl, f->acl_len);
+    *len = f->acl_len;
+    return 0;
+}
 
 static int fake_begin(void* ctx, uint32_t oad, const uint8_t* selection, size_t selection_len,
                       size_t* row_count) {
@@ -261,6 +298,7 @@ static int run_record_case(const uint8_t* apdu, size_t apdu_len, fake_record_t* 
     size_t flen = build_slave_frame(frame, req_apdu, apdu_len + 3);
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
     if (with_port) {
         src.record.begin = fake_begin;
         src.record.row = fake_row;
@@ -269,7 +307,9 @@ static int run_record_case(const uint8_t* apdu, size_t apdu_len, fake_record_t* 
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    return dlt698_driver.req_slave_exchange(priv, NULL, frame, flen, &src, f, out, &consumed);
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    return dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, f, out, &consumed);
 }
 
 static void test_slave_get_record_page(void** state) {
@@ -282,6 +322,8 @@ static void test_slave_get_record_page(void** state) {
     static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
                                   0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 2};
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.begin_calls, 1);
     assert_int_equal(f.end_calls, 1);
@@ -307,6 +349,8 @@ static void test_slave_get_record_unsupported_selector(void** state) {
 
     static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x03};
     fake_record_t f = {.total = 0};
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.begin_calls, 0);
 
@@ -328,6 +372,8 @@ static void test_slave_get_record_begin_failure(void** state) {
     static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
                                   0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 2, .begin_rc = EDGE_SLAVE_SRC_NOT_FOUND};
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.begin_calls, 1);
     assert_int_equal(f.end_calls, 0);
@@ -352,6 +398,8 @@ static void test_slave_get_record_row_failure_aborts_page(void** state) {
     static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
                                   0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 2, .row_fails = true, .fail_index = 1, .row_rc = EDGE_SLAVE_SRC_TEMPORARY};
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.end_calls, 1);
 
@@ -375,6 +423,8 @@ static void test_slave_get_record_port_absent(void** state) {
     static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
                                   0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 1};
+    static const uint16_t ois[] = {0x5004};
+    f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, false, out), 0);
 
     static const uint8_t want[] = {
