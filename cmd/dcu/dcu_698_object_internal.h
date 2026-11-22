@@ -32,6 +32,14 @@ int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t 
 int dcu_698_acq_6002_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
                              void *result);
 
+/**
+ * @brief 按标准表193/194 编码 Class 24 的一整个属性（A-XDR）。
+ *
+ * A2/A3/A5/A6/A14 输出 array/structure；A4/A11/A12 是同路径的标量属性。
+ * 返回 0 或 `EDGE_SLAVE_SRC_*`；buffer 不足返回 TYPE_MISMATCH。
+ */
+int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
+                              size_t *len);
 int dcu_698_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                        void *out_val);
 int dcu_698_event_write(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,

@@ -248,10 +248,10 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     // 断言第 5 秒及以后应在失压对象中生成首条失压事件记录！
     assert_int_equal(evt_3000.record_count, 1);
 
-    // Class 24 把记录表编到 A6-A9；A2 是关联对象属性表，当前关闭，不得再读回记录。
+    // Class 24 把记录表编到 A6-A9；A2 是 OAD 数组，只能走 A-XDR，旧标量入口拒绝。
     dcu_event_record_t first_evt_rec = evt_3000.records[0];
     ret = dcu_router_get_attr(((uint32_t)OI_VOLTAGE_DROP << 16) | 0x0200, &first_evt_rec);
-    assert_int_equal(ret, -1);
+    assert_int_equal(ret, -2);
 
     first_evt_rec = evt_3000.records[0];
     assert_int_equal(first_evt_rec.index, 1);

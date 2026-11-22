@@ -101,6 +101,10 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     if (oi == OI_METER_ARCHIVE || oi == OI_ARCHIVE_UNIT) {
         return dcu_698_archive_encode_axdr(dcu_698_internal_inventory(), oad, buf, cap, len);
     }
+    const dcu_698_object_t *event_obj = dcu_698_find(oi);
+    if (event_obj && event_obj->class_id == IC_SUB_EVENT) {
+        return dcu_698_event_encode_axdr(event_obj, oad, buf, cap, len);
+    }
 
     dcu_value_t v;
     int rc = dcu_698_value_for_oad(oad, &v);

@@ -26,7 +26,7 @@ typedef struct {
 
 static const uint8_t k_attr_3[] = {3};
 static const uint8_t k_attr_23[] = {2, 3};
-static const uint8_t k_attr_event[] = {4, 11, 12};
+static const uint8_t k_attr_event[] = {2, 3, 4, 5, 6, 11, 12, 14};
 static const uint8_t k_method_1[] = {1};
 static const uint8_t k_attr_2_6000[] = {2};
 static const uint8_t k_method_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
@@ -48,8 +48,8 @@ static const expected_object_t k_expected[] = {
     {OI_CHANNEL_CONFIG, IC_PERIPHERAL, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_METER_DISCOVERY, IC_ACQUISITION, DCU_OBJ_SINGLETON, k_attr_3, 1, k_method_127, 1},
     {OI_DISCOVERY_RESULT, IC_ACQUISITION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
-    {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 3, k_method_1, 1},
-    {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 3, k_method_1, 1},
+    {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
+    {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 8, k_method_1, 1},
 };
 
 static int setup(void **state) {
@@ -326,12 +326,20 @@ static void test_event_class7_attr_numbers_are_not_served(void **state) {
     init_model_with_events(&inv, &poller, &evt_3000, &evt_3005);
 
     static const uint16_t ois[] = {OI_VOLTAGE_DROP, OI_OVER_CURRENT};
-    static const uint8_t removed[] = {2, 3, 5, 6, 7, 8, 9, 10, 13, 14};
+    static const uint8_t masked[] = {7, 8, 9, 10, 13};
+    static const uint8_t exposed_but_not_scalar[] = {2, 3, 5, 6, 14};
     for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
-        for (size_t k = 0; k < sizeof(removed) / sizeof(removed[0]); k++) {
+        for (size_t k = 0; k < sizeof(masked) / sizeof(masked[0]); k++) {
             uint64_t buf = 0;
-            assert_int_equal(dcu_698_read(MK_OAD(ois[i], removed[k]), &buf), -1);
-            assert_int_equal(dcu_698_write(MK_OAD(ois[i], removed[k]), &buf), -1);
+            assert_int_equal(dcu_698_read(MK_OAD(ois[i], masked[k]), &buf), -1);
+            assert_int_equal(dcu_698_write(MK_OAD(ois[i], masked[k]), &buf), -1);
+        }
+        /* 复杂属性已暴露，但对象处理器只给 A-XDR，旧标量入口按处理器返回码拒绝。 */
+        for (size_t k = 0; k < sizeof(exposed_but_not_scalar) / sizeof(exposed_but_not_scalar[0]);
+             k++) {
+            uint64_t buf = 0;
+            assert_int_equal(dcu_698_read(MK_OAD(ois[i], exposed_but_not_scalar[k]), &buf), -2);
+            assert_int_equal(dcu_698_write(MK_OAD(ois[i], exposed_but_not_scalar[k]), &buf), -2);
         }
     }
 

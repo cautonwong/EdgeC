@@ -107,7 +107,8 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_event_read,
      .write = dcu_698_event_write,
      .method = dcu_698_event_execute,
-     .attr_mask = {[BYTE(4)] = BIT(4), [BYTE(11)] = BIT(11) | BIT(12)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
+                   [BYTE(11)] = BIT(11) | BIT(12) | BIT(14)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
     {.oi = OI_OVER_CURRENT,
      .class_id = IC_SUB_EVENT,
@@ -115,7 +116,8 @@ static dcu_698_object_t g_objects[] = {
      .read = dcu_698_event_read,
      .write = dcu_698_event_write,
      .method = dcu_698_event_execute,
-     .attr_mask = {[BYTE(4)] = BIT(4), [BYTE(11)] = BIT(11) | BIT(12)},
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6),
+                   [BYTE(11)] = BIT(11) | BIT(12) | BIT(14)},
      .method_mask = {[BYTE(1)] = BIT(1)}},
 };
 
