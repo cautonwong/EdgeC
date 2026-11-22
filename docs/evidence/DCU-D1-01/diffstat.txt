@@ -1,0 +1,6 @@
+ ci/scripts/run_guard_selftest.py          |  28 +++++
+ docs/design/DCU_698_OI_CATALOG.json       | 130 ++++++++++----------
+ docs/design/DCU_698_OI_CATALOG.md         | 150 ++++++++++++------------
+ scripts/extract_dcu_698_catalog.py        | 189 ++++++++++++++++++++++++++++--
+ tests/fixtures/dcu_698_catalog_expected.h | 136 ++++++++++-----------
+ 5 files changed, 418 insertions(+), 215 deletions(-)

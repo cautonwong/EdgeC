@@ -3472,21 +3472,21 @@
    "oi": "3006",
    "name": "电能表断流事件      属性  5（配置参数）∷=structure",
    "parsed_class": 24,
-   "inferred_class": 7,
+   "inferred_class": 24,
    "source_line": 6906
   },
   {
    "oi": "3007",
    "name": "电能表功率反向事件    属性  5（配置参数）∷=structure",
    "parsed_class": 24,
-   "inferred_class": 7,
+   "inferred_class": 24,
    "source_line": 6912
   },
   {
    "oi": "3008",
    "name": "电能表过载事件      属性  5（配置参数）∷=structure",
    "parsed_class": 24,
-   "inferred_class": 7,
+   "inferred_class": 24,
    "source_line": 6917
   },
   {
@@ -4004,140 +4004,140 @@
    "oi": "3303",
    "name": "发现未知电能表事件单元  发现未知电能表事件∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7421
   },
   {
    "oi": "3304",
    "name": "跨台区电能表事件单元   跨台区电能表事件单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7430
   },
   {
    "oi": "3305",
    "name": "功控跳闸记录单元     功控跳闸记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7444
   },
   {
    "oi": "3306",
    "name": "电控跳闸记录单元     电控跳闸记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7460
   },
   {
    "oi": "3307",
    "name": "电控告警事件单元     电控告警事件单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7480
   },
   {
    "oi": "3308",
    "name": "电能表需量超限事件单元  电能表需量超限事件单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7493
   },
   {
    "oi": "3309",
    "name": "停/上电事件记录单元    停/上电事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7508
   },
   {
    "oi": "330A",
    "name": "遥控事件记录单元     遥控事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7526
   },
   {
    "oi": "330B",
    "name": "有功总电能量差动越限事  有功总电能量差动越限事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7538
   },
   {
    "oi": "330C",
    "name": "事件清零事件记录单元    事件清零事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7553
   },
   {
    "oi": "330D",
    "name": "终端对电表校时记录单元   终端对电表校时记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7562
   },
   {
    "oi": "330E",
    "name": "电能表在网状态切换事件   电能表在网状态切换事件单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7572
   },
   {
    "oi": "330F",
    "name": "电能表 数据变更监控记录  电能表数据变更监控记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7585
   },
   {
    "oi": "3310",
    "name": "异常插卡事件记录单元   异常插卡事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7600
   },
   {
    "oi": "3311",
    "name": "退费事件记录单元     退费事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7615
   },
   {
    "oi": "3312",
    "name": "通信模块变更事件单元   通信模块变更事件单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7627
   },
   {
    "oi": "3313",
    "name": "电能表时钟超差记录单元  电能表时钟超差记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7639
   },
   {
    "oi": "3314",
    "name": "电能表 时段表编程事件记  电能表时段表编程事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7655
   },
   {
    "oi": "3315",
    "name": "电能表节假日编程事件记   电能表节假日编程事件记录单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7675
   },
   {
    "oi": "3320",
    "name": "新增上报事件列表    属性  2（新增上报事件列表，只读）∷=    array OAD",
    "parsed_class": 8,
-   "inferred_class": 7,
+   "inferred_class": 8,
    "source_line": 7695
   },
   {
@@ -4802,7 +4802,7 @@
    "oi": "6001",
    "name": "采集档案配置单元   属性 2（Acqui sition document definition）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8165
   },
   {
@@ -4823,7 +4823,7 @@
    "oi": "6004",
    "name": "一个跨台区结果     一个跨台区结果∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8280
   },
   {
@@ -4837,140 +4837,140 @@
    "oi": "6013",
    "name": "任务配置单元       属性  2（任务配置单元）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8312
   },
   {
    "oi": "6014",
    "name": "普通采集方案集     属性 2∷=array 普通采集方案",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8354
   },
   {
    "oi": "6015",
    "name": "普通采集方案     属性     2（普通采集方案）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8372
   },
   {
    "oi": "6016",
    "name": "事件采集方案集     属性  2∷=array  事件采集方案",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8409
   },
   {
    "oi": "6017",
    "name": "事件采集方案      属性   2（事件采集方案    Event acq plan）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8423
   },
   {
    "oi": "6018",
    "name": "透明方案集       属性   2∷=array    透明方案",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8440
   },
   {
    "oi": "6019",
    "name": "透明方案     属性 2（透明方案）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8467
   },
   {
    "oi": "601A",
    "name": "透明方案结果集     属性    2∷=",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8503
   },
   {
    "oi": "601B",
    "name": "一个透明方案结果    一个透明方案结果∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8505
   },
   {
    "oi": "601C",
    "name": "上报方案集       属性    2∷=array 上报方案",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8518
   },
   {
    "oi": "601D",
    "name": "上报方案        属性    2（上报方案   report plan）∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8526
   },
   {
    "oi": "601E",
    "name": "采集规则库      属性 2（采集规则库）∷=array     采集规则",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8551
   },
   {
    "oi": "601F",
    "name": "采集规则       属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8559
   },
   {
    "oi": "6032",
    "name": "采集状态集      属性 2∷=array  一个采集状态",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8582
   },
   {
    "oi": "6033",
    "name": "一个采集状态     一个采集状态∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8583
   },
   {
    "oi": "6034",
    "name": "采集任务监控集     属性  2∷=array 采集任务监控单元",
    "parsed_class": 11,
-   "inferred_class": 10,
+   "inferred_class": 11,
    "source_line": 8597
   },
   {
    "oi": "6035",
    "name": "采集任务监控单元    采集任务监控单元∷=structure",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8598
   },
   {
    "oi": "6040",
    "name": "采集启动时标      属性  2∷=",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8616
   },
   {
    "oi": "6041",
    "name": "采集成功时标      属性  2∷=",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8618
   },
   {
    "oi": "6042",
    "name": "采集存储时标      属性  2∷=",
    "parsed_class": 8,
-   "inferred_class": 10,
+   "inferred_class": 8,
    "source_line": 8620
   },
   {
@@ -4984,7 +4984,7 @@
    "oi": "7001",
    "name": "文件       属性  2：文件",
    "parsed_class": 8,
-   "inferred_class": 11,
+   "inferred_class": 8,
    "source_line": 8648
   },
   {
@@ -4998,7 +4998,7 @@
    "oi": "7011",
    "name": "脚本       属性 2∷=脚本",
    "parsed_class": 8,
-   "inferred_class": 11,
+   "inferred_class": 8,
    "source_line": 8679
   },
   {
@@ -5012,7 +5012,7 @@
    "oi": "7013",
    "name": "一个脚本执行结果    脚本执行结果∷=structure",
    "parsed_class": 8,
-   "inferred_class": 11,
+   "inferred_class": 8,
    "source_line": 8691
   },
   {
@@ -5040,49 +5040,49 @@
    "oi": "8001",
    "name": "保电     属性 2（保电状态，只读）∷=enum{解除（0），保电（1），自动保电（2）}",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8756
   },
   {
    "oi": "8002",
    "name": "催费告警   属性 2（催费告警状态，只读）∷=enum{未告警(0)，告警(1)}",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8778
   },
   {
    "oi": "8003",
    "name": "一般中文信息    属性 2∷=array ChineseInfo",
    "parsed_class": 11,
-   "inferred_class": 13,
+   "inferred_class": 11,
    "source_line": 8793
   },
   {
    "oi": "8004",
    "name": "重要中文信息    属性 2∷=array ChineseInfo",
    "parsed_class": 11,
-   "inferred_class": 13,
+   "inferred_class": 11,
    "source_line": 8810
   },
   {
    "oi": "8100",
    "name": "终端保安定值   终端保安定值∷=long64（单位：W，换算：-1）",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8821
   },
   {
    "oi": "8101",
    "name": "终端功控时段   属性 2（配置参数）∷=array unsigned",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8822
   },
   {
    "oi": "8102",
    "name": "功控告警时间   属性 2（配置参数）∷=array unsigned",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8824
   },
   {
@@ -5131,56 +5131,56 @@
    "oi": "8109",
    "name": "时段功控配置单元   属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8866
   },
   {
    "oi": "810A",
    "name": "厂休控配置单元    属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8894
   },
   {
    "oi": "810B",
    "name": "营业报停控配置单元  属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8903
   },
   {
    "oi": "810C",
    "name": "购电控配置单元    属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8910
   },
   {
    "oi": "810D",
    "name": "月电控配置单元     属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8924
   },
   {
    "oi": "810E",
    "name": "控制对象",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8931
   },
   {
    "oi": "810F",
    "name": "跳闸轮次",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8932
   },
   {
    "oi": "8110",
    "name": "电控定值",
    "parsed_class": 8,
-   "inferred_class": 13,
+   "inferred_class": 8,
    "source_line": 8933
   },
   {
@@ -5215,7 +5215,7 @@
    "oi": "F101",
    "name": "安全模式参数            属性  2（安全模式选择）∷=",
    "parsed_class": 8,
-   "inferred_class": 21,
+   "inferred_class": 8,
    "source_line": 9083
   },
   {
@@ -5313,7 +5313,7 @@
    "oi": "F210",
    "name": "从节点单元     属性 2∷=structure",
    "parsed_class": 8,
-   "inferred_class": 22,
+   "inferred_class": 8,
    "source_line": 9300
   },
   {
