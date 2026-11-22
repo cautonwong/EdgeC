@@ -1,15 +1,5 @@
- cmd/dcu/dcu_698_appconn.c            |  4 +--
- cmd/dcu/dcu_698_class_control.c      | 52 ++++++++++++++-------------
- cmd/dcu/dcu_698_class_security.c     | 49 +++++--------------------
- cmd/dcu/dcu_698_object_internal.h    |  7 ++--
- cmd/dcu/dcu_698_object_model.c       | 41 ++++++++++++++++-----
- cmd/dcu/dcu_heartbeat.c              | 14 +++-----
- docs/evidence/DCU-D1-18d/comments.md | 31 ++++++++++++++++
- docs/evidence/DCU-D1-18d/summary.md  | 64 +++++++++++++++++++++++++++++++++
- docs/evidence/DCU-D1-18d/tests.log   | 19 ++++++++++
- tests/test_dcu_698_axdr.c            | 12 +++----
- tests/test_dcu_698_object_model.c    | 70 ++++++++++++++++++++++++++++--------
- tests/test_dcu_698_value_table.c     | 30 ++++++++--------
- tests/test_dcu_advanced_modules.c    | 41 ++++++++-------------
- tests/test_dcu_router.c              | 10 ++----
- 14 files changed, 285 insertions(+), 159 deletions(-)
+ cmd/dcu/dcu_698_axdr.c              | 40 +++++++++++------------------------
+ docs/evidence/DCU-D1-18d/summary.md |  9 ++++++++
+ docs/evidence/DCU-D1-18d/tests.log  |  9 ++++++++
+ tests/test_dcu_698_axdr.c           | 42 +++++++++++++++++++++++++++++++++++++
+ 4 files changed, 72 insertions(+), 28 deletions(-)

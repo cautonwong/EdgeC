@@ -62,3 +62,12 @@ DAR 分类只在 `dcu_698_call` 一处产生：未广告位先查类定义（`_c
 - `tests/test_dcu_698_value_table.c`：F200 A2/A3/A4 标量取值回 DAR 5，A5 回 DAR 4。
 - `tests/test_dcu_advanced_modules.c`：F100 方法 1 复位清鉴权状态与会话密钥；F200 读写均失败。
 - `tests/test_dcu_router.c`：8000 方法 1 回 DAR 5。
+
+## 后续（同一分支，第二个提交）
+
+D1-18b 把 3000/3005 的 A11（enum）、A12（bool）广告为可写，但北向 SET 的 `_write_kind_for` 仍只认旧的 F200 2/3 与 3000 6/8/9，A11/A12 上线写会回 DAR 7。修复：
+
+- `_write_kind_for` 改为 `{OI_VOLTAGE_DROP, OI_OVER_CURRENT} × {A11 → W_U8, A12 → W_BOOL}`，读类型一致。
+- 删除 F200 2/3 与 3000 6/8/9 死映射；`W_U32`、`W_F32` 随之删除。
+- 处理器返回 `-2`（值不合法，如枚举越界）改为映射 `EDGE_SLAVE_SRC_TYPE_MISMATCH`（DAR 7），不再一律报 DAR 2。
+- 产品级 SET 测试 `test_product_accept_set_event_attrs`：A11 写 enum 1 → 对象改变；A12 写 bool 0 → 对象改变；A11 写 4 → DAR 7 且值不变；F200 A4 与 3000 A6（掩码位）→ DAR 5。

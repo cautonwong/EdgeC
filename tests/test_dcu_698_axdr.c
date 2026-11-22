@@ -101,6 +101,47 @@ static void init_product_model(void) {
         dcu_698_object_model_init(&inv, &poller, sink, NULL, &discovery, NULL, NULL, bus), 0);
 }
 
+static void init_product_model_with_events(void);
+
+/* 标准 7.3.24 表193：A11 enum 上报标识（0–3），A12 bool 有效标识。 */
+static void test_product_accept_set_event_attrs(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model_with_events();
+
+    const uint8_t enum1[] = {0x16, 0x01};
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum1, sizeof(enum1)), 0);
+    uint8_t flag = 0xFF;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
+    assert_int_equal(flag, 1);
+
+    const uint8_t bool_false[] = {0x03, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 12), bool_false,
+                                           sizeof(bool_false)),
+                     0);
+    bool enabled = true;
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 12), &enabled), 0);
+    assert_false(enabled);
+
+    const uint8_t enum4[] = {0x16, 0x04};
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 11), enum4, sizeof(enum4)),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_read(MK_OAD(OI_VOLTAGE_DROP, 11), &flag), 0);
+    assert_int_equal(flag, 1);
+
+    const uint8_t u8_one[] = {0x11, 0x01};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one,
+                                           sizeof(u8_one)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
 static void assert_axdr(uint32_t oad, const uint8_t *want, size_t want_len) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
@@ -1181,6 +1222,7 @@ int main(void) {
         cmocka_unit_test(test_get_normal_encode_type_mismatch_returns_dar),
         cmocka_unit_test(test_normal_list_dar_mapping),
         cmocka_unit_test(test_product_accept_set_paths),
+        cmocka_unit_test(test_product_accept_set_event_attrs),
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),
         cmocka_unit_test(test_set_scalar_fallback),

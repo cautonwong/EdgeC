@@ -17,3 +17,12 @@ build=0
 
 == git diff --check ==
 干净
+
+== 后续提交（A11/A12 可写修复）门禁 ==
+干净构建：build=0，告警门禁 0 违规
+全量 ctest：100% tests passed, 0 tests failed out of 336
+ASAN + UBSAN（dcu/dlt698 33 项，串行）：100% tests passed, 0 tests failed out of 33
+-fanalyzer（cmd/dcu）：0 新报告
+守卫：全部通过
+验收：dcu-acceptance 3/3、dcu-northbound 10/10
+注释审计：新增 2 行均为约束注释，删除 0 行
