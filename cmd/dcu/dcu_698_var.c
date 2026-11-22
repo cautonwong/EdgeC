@@ -14,7 +14,7 @@
 
 typedef struct {
     uint32_t tag;
-    const char *name; /* 北向 metric 名；NULL 表示该元素不上报 */
+    const char *name; /* 仅 attr2 元素有北向名；attr4 元素不参与命名 */
 } var_element_t;
 
 typedef struct {

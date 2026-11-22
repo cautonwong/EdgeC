@@ -16,6 +16,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include "dcu_698_object_model.h"
 #include "dcu_698_var.h"
 #include "dcu_north_source.h"
 #include "dcu_router.h"
@@ -61,7 +62,6 @@ static const dcu_698_object_t* object_for_oi(uint16_t oi) {
     return NULL;
 }
 
-/* 名字必须从变量点表派生；任何一处单独改表都会让这条测试变红。 */
 static void test_names_derive_from_point_model(void** state) {
     (void)state;
     const edge_north_source_ops_t* ops = dcu_north_source_ops();
@@ -79,7 +79,7 @@ static void test_names_derive_from_point_model(void** state) {
 
         const dcu_698_object_t* obj = object_for_oi((uint16_t)(tags[i] >> 16));
         assert_non_null(obj);
-        assert_true((obj->attr_mask[0] & 0x04) != 0); /* 属性 2 已广告 */
+        assert_true(dcu_mask_test(obj->attr_mask, 2));
 
         for (size_t j = 0; j < i; j++) assert_string_not_equal(name, ops->name(NULL, tags[j]));
     }

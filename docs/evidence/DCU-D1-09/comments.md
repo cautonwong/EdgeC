@@ -32,3 +32,13 @@ the two public API contracts in `dcu_698_var.h`, the single-source line in
 mask explanation in the test.
 
 `HOLD`: none.
+
+## verifier 复审计
+
+- `var_element_t.name` 注释改为真话：只有 attr2 元素有北向名，attr4 不参与命名。
+  原文"NULL 表示不上报"会让下一个贡献者以为 NULL 能抑制上报，实际北向会回落成 `tag_<id>`。
+- 删除 `_dcu_north_name` 的转发说明与派生测试头注释（都在复述代码/测试名）。
+- MUST KILL：测试里 `obj->attr_mask[0] & 0x04` 改为 `dcu_mask_test(obj->attr_mask, 2)`，
+  不再需要"属性 2 已广告"的旁白；补 `dcu_698_object_model.h`。
+- `dcu_698_var.h` 的 `metric_name` 只保留 `@brief` 合同，删掉实现理由段。
+- 保留：IEMS `edge_tag_meta_t.name` 命名风格约束、两条公开 API 合同、0x04 相邻的协议说明（未改行）。

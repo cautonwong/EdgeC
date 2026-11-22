@@ -26,7 +26,6 @@ static int _dcu_north_peek(void *ctx, uint32_t tag_id, pipe_msg_t *out) {
     return datahub_read_shadow(hub, tag_id, out);
 }
 
-/** 影子 tag → metric 名。名字随变量点表定义，这里只转发。 */
 static const char *_dcu_north_name(void *ctx, uint32_t tag_id) {
     (void)ctx;
     return dcu_698_var_metric_name(tag_id);
