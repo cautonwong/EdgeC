@@ -8,6 +8,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "dcu_698_object_model.h"
+#include "dcu_clock_port.h"
 #include "dlt698_codec.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
@@ -78,6 +80,7 @@ static dcu_param_t g_params[] = {
 #define PARAM_COUNT (sizeof(g_params) / sizeof(g_params[0]))
 
 static dcu_param_store_t g_store;
+static const dcu_clock_port_t *g_clock;
 
 static const dcu_param_t *_find(uint16_t oi, uint8_t attr) {
     for (size_t i = 0; i < PARAM_COUNT; i++) {
@@ -95,36 +98,21 @@ static dcu_param_t *_find_mut(uint16_t oi, uint8_t attr) {
 
 static int _default_rc(uint16_t oi, uint8_t attr) {
     if (!dcu_698_param_is_oi(oi)) return EDGE_SLAVE_SRC_NOT_FOUND;
-    /* 类 8 定义属性 1/2；属性 1 实例没实现 → 5，属性 3+ 类里没有 → 4。 */
-    return attr == 1 ? EDGE_SLAVE_SRC_CLASS_MISMATCH : EDGE_SLAVE_SRC_UNDEFINED;
+    return dcu_698_class_defines_attr(IC_PARAM, attr) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                      : EDGE_SLAVE_SRC_UNDEFINED;
 }
 
 static void _set_defaults(void) {
-    /* 只清值，不动 oi/attr/kind/count：这些是描述表，reset 不能把行本身抹掉。 */
     for (size_t i = 0; i < PARAM_COUNT; i++) memset(&g_params[i].v, 0, sizeof(g_params[i].v));
-
-    time_t now = time(NULL);
-    struct tm tm_now;
-    memset(&tm_now, 0, sizeof(tm_now));
-#if defined(_WIN32)
-    localtime_s(&tm_now, &now);
-#else
-    localtime_r(&now, &tm_now);
-#endif
-    dcu_param_t *dt = _find_mut(OI_DATETIME, 2);
-    if (dt) {
-        dt->v.when.year = (uint16_t)(tm_now.tm_year + 1900);
-        dt->v.when.month = (uint8_t)(tm_now.tm_mon + 1);
-        dt->v.when.day = (uint8_t)tm_now.tm_mday;
-        dt->v.when.hour = (uint8_t)tm_now.tm_hour;
-        dt->v.when.min = (uint8_t)tm_now.tm_min;
-        dt->v.when.sec = (uint8_t)tm_now.tm_sec;
-    }
 
     dcu_param_t *ct = _find_mut(0x401C, 2);
     if (ct) ct->v.dlu[0] = 1;
     dcu_param_t *pt = _find_mut(0x401D, 2);
     if (pt) pt->v.dlu[0] = 1;
+}
+
+void dcu_698_param_set_clock(const dcu_clock_port_t *clock) {
+    g_clock = clock;
 }
 
 void dcu_698_param_reset(void) {
@@ -327,7 +315,8 @@ static int _decode_value(dcu_param_t *next, const uint8_t *axdr, size_t len) {
             }
             break;
         case P_OCTETS:
-            if (d.tag == DLT698_TAG_OCTET_STRING && d.val.str.len <= next->octet_max && d.val.str.ptr) {
+            if (d.tag == DLT698_TAG_OCTET_STRING && d.val.str.len <= next->octet_max &&
+                d.val.str.ptr) {
                 next->v.octets.len = (uint8_t)d.val.str.len;
                 memcpy(next->v.octets.bytes, d.val.str.ptr, d.val.str.len);
                 rc = 0;
@@ -383,10 +372,12 @@ void dcu_698_param_init(const dcu_param_store_t *store) {
     if (!g_store.load) return;
 
     for (size_t i = 0; i < PARAM_COUNT; i++) {
-        if (g_params[i].oi == OI_DATETIME) continue;
+        if (g_params[i].oi == OI_DATETIME && g_params[i].attr == 2) continue;
         uint8_t blob[P_BLOB_MAX];
         size_t n = 0;
-        if (g_store.load(g_store.ctx, g_params[i].oi, blob, sizeof(blob), &n) != 0 || n == 0) {
+        if (g_store.load(g_store.ctx, g_params[i].oi, g_params[i].attr, blob, sizeof(blob), &n) !=
+                0 ||
+            n == 0) {
             continue;
         }
         dcu_param_t next = g_params[i];
@@ -407,6 +398,22 @@ int dcu_698_param_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *le
     const dcu_param_t *p = _find(oi, attr);
     if (!p) return _default_rc(oi, attr);
 
+    if (oi == OI_DATETIME && attr == 2) {
+        struct tm now;
+        if (!g_clock || !g_clock->now || g_clock->now(g_clock->ctx, &now) != 0) {
+            return EDGE_SLAVE_SRC_TEMPORARY;
+        }
+        dcu_param_t value = *p;
+        value.v.when = (dcu_param_when_t){.year = (uint16_t)(now.tm_year + 1900),
+                                          .month = (uint8_t)(now.tm_mon + 1),
+                                          .day = (uint8_t)now.tm_mday,
+                                          .hour = (uint8_t)now.tm_hour,
+                                          .min = (uint8_t)now.tm_min,
+                                          .sec = (uint8_t)now.tm_sec};
+        if (_encode_value(&value, buf, cap, len) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return 0;
+    }
+
     if (_encode_value(p, buf, cap, len) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     return 0;
 }
@@ -422,18 +429,32 @@ int dcu_698_param_accept_axdr(uint32_t oad, const uint8_t *axdr, size_t len) {
     } else {
         dcu_param_t next = *row;
         rc = _decode_value(&next, axdr, len);
-        if (rc == 0 && oi != OI_DATETIME) {
+        if (rc == 0 && oi == OI_DATETIME && attr == 2) {
+            if (!g_clock || !g_clock->set) {
+                rc = EDGE_SLAVE_SRC_TEMPORARY;
+            } else {
+                struct tm value = {.tm_year = (int)next.v.when.year - 1900,
+                                   .tm_mon = (int)next.v.when.month - 1,
+                                   .tm_mday = next.v.when.day,
+                                   .tm_hour = next.v.when.hour,
+                                   .tm_min = next.v.when.min,
+                                   .tm_sec = next.v.when.sec,
+                                   .tm_isdst = -1};
+                rc = g_clock->set(g_clock->ctx, &value) == 0 ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
+            }
+        } else if (rc == 0) {
             uint8_t blob[P_BLOB_MAX];
             size_t n = 0;
             if (_encode_value(&next, blob, sizeof(blob), &n) != 0) {
                 rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
             } else if (!g_store.save) {
                 rc = EDGE_SLAVE_SRC_TEMPORARY;
-            } else if (g_store.save(g_store.ctx, oi, blob, n) != 0) {
+            } else if (g_store.save(g_store.ctx, oi, attr, blob, n) != 0) {
                 rc = EDGE_SLAVE_SRC_TEMPORARY;
+            } else {
+                *row = next;
             }
         }
-        if (rc == 0) *row = next;
     }
 
     if (rc != 0) {

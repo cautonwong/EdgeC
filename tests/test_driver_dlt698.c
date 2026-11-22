@@ -16,16 +16,30 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
-#include "dlt698_codec.h"
 #include "dcu_698_appconn.h"
 #include "dcu_698_axdr.h"
 #include "dcu_698_param.h"
+#include "dlt698_codec.h"
 #include "driver_dlt698.h"
 #include "edge_driver.h"
 #include "net_buf.h"
 
 extern const edge_driver_t dlt698_driver;
+
+static int slave_clock_now(void* ctx, struct tm* out) {
+    (void)ctx;
+    *out = (struct tm){
+        .tm_year = 124, .tm_mon = 4, .tm_mday = 6, .tm_hour = 7, .tm_min = 8, .tm_sec = 9};
+    return 0;
+}
+
+static int slave_clock_set(void* ctx, const struct tm* in) {
+    (void)ctx;
+    (void)in;
+    return 0;
+}
 
 #define DLT698_SA_LEN 6
 #define APDU_OFF (8 + DLT698_SA_LEN)
@@ -37,8 +51,8 @@ static int prepare_into(uint8_t* priv, const void* desc, size_t desc_len, uint32
 }
 
 /* 只在 prepare 成功时使用；失败时返回 NULL 且调用方应先断言过 rc */
-static net_buf_t* encode_once(net_buf_pool_t* pool, const void* desc, size_t desc_len,
-                              uint32_t oad, bool is_write, double value) {
+static net_buf_t* encode_once(net_buf_pool_t* pool, const void* desc, size_t desc_len, uint32_t oad,
+                              bool is_write, double value) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     if (prepare_into(priv, desc, desc_len, oad, is_write, value) != 0) return NULL;
     net_buf_t* out = net_buf_alloc(pool, 0);
@@ -148,7 +162,8 @@ static void test_set_rejects_bad_input(void** state) {
 
     /* 2. 类型不支持（0x11 unsigned 没有编码器） */
     dlt698_write_desc_t bad_type = {.type = 0x11};
-    assert_int_not_equal(prepare_into(priv, &bad_type, sizeof(bad_type), 0x20000200u, true, 1.0), 0);
+    assert_int_not_equal(prepare_into(priv, &bad_type, sizeof(bad_type), 0x20000200u, true, 1.0),
+                         0);
 
     /* 3. long-unsigned 越界（>65535 / <0）：截断写入比失败更危险 */
     dlt698_write_desc_t lu = {.type = 0x12};
@@ -291,8 +306,7 @@ static void assert_slave_response(const net_buf_t* out, const uint8_t* want, siz
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t* payload = NULL;
     size_t payload_len = 0;
-    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
-                                            &payload_len),
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len),
                      0);
     size_t apdu_len = payload_len + 3;
     assert_int_equal(apdu_len, want_len);
@@ -331,8 +345,8 @@ static void test_slave_get_record_page(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
-                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01,
+                                  0x00, 0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 2};
     static const uint16_t ois[] = {0x5004};
     f.acl_len = build_acl(f.acl, ois, 1);
@@ -342,9 +356,9 @@ static void test_slave_get_record_page(void** state) {
     assert_int_equal(f.seen_sel_len, 7); /* RSD(1) + RCSD 计数(1) + CSD(5)，不含时间标签 */
 
     static const uint8_t want[] = {
-        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
-        0x01, 0x02, 0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00, 0x00, 0x1C, 0x07, 0xE0,
-        0x01, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21,
+        0x02, 0x00, 0x01, 0x02, 0x1C, 0x07, 0xE0, 0x01, 0x14, 0x00, 0x00,
+        0x00, 0x1C, 0x07, 0xE0, 0x01, 0x15, 0x00, 0x00, 0x00, 0x00, 0x00,
     };
     assert_slave_response(out, want, sizeof(want));
 
@@ -366,8 +380,8 @@ static void test_slave_get_record_unsupported_selector(void** state) {
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.begin_calls, 0);
 
-    static const uint8_t want[] = {0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x00,
-                                   0x00, 0x02, 0x00, 0x00};
+    static const uint8_t want[] = {0x85, 0x03, 0x05, 0x50, 0x04, 0x02,
+                                   0x00, 0x00, 0x00, 0x02, 0x00, 0x00};
     assert_slave_response(out, want, sizeof(want));
 
     net_buf_unref(out);
@@ -381,8 +395,8 @@ static void test_slave_get_record_begin_failure(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
-                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01,
+                                  0x00, 0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 2, .begin_rc = EDGE_SLAVE_SRC_NOT_FOUND};
     static const uint16_t ois[] = {0x5004};
     f.acl_len = build_acl(f.acl, ois, 1);
@@ -391,8 +405,8 @@ static void test_slave_get_record_begin_failure(void** state) {
     assert_int_equal(f.end_calls, 0);
 
     static const uint8_t want[] = {
-        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
-        0x00, 0x06, 0x00, 0x00,
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00,
+        0x20, 0x21, 0x02, 0x00, 0x00, 0x06, 0x00, 0x00,
     };
     assert_slave_response(out, want, sizeof(want));
 
@@ -407,17 +421,18 @@ static void test_slave_get_record_row_failure_aborts_page(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
-                                  0x20, 0x21, 0x02, 0x00, 0x00};
-    fake_record_t f = {.total = 2, .row_fails = true, .fail_index = 1, .row_rc = EDGE_SLAVE_SRC_TEMPORARY};
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01,
+                                  0x00, 0x20, 0x21, 0x02, 0x00, 0x00};
+    fake_record_t f = {
+        .total = 2, .row_fails = true, .fail_index = 1, .row_rc = EDGE_SLAVE_SRC_TEMPORARY};
     static const uint16_t ois[] = {0x5004};
     f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, true, out), 0);
     assert_int_equal(f.end_calls, 1);
 
     static const uint8_t want[] = {
-        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
-        0x00, 0x02, 0x00, 0x00,
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00,
+        0x20, 0x21, 0x02, 0x00, 0x00, 0x02, 0x00, 0x00,
     };
     assert_slave_response(out, want, sizeof(want));
 
@@ -432,16 +447,16 @@ static void test_slave_get_record_port_absent(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01, 0x00,
-                                  0x20, 0x21, 0x02, 0x00, 0x00};
+    static const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x01,
+                                  0x00, 0x20, 0x21, 0x02, 0x00, 0x00};
     fake_record_t f = {.total = 1};
     static const uint16_t ois[] = {0x5004};
     f.acl_len = build_acl(f.acl, ois, 1);
     assert_int_equal(run_record_case(req, sizeof(req), &f, false, out), 0);
 
     static const uint8_t want[] = {
-        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00, 0x20, 0x21, 0x02, 0x00,
-        0x00, 0x02, 0x00, 0x00,
+        0x85, 0x03, 0x05, 0x50, 0x04, 0x02, 0x00, 0x01, 0x00,
+        0x20, 0x21, 0x02, 0x00, 0x00, 0x02, 0x00, 0x00,
     };
     assert_slave_response(out, want, sizeof(want));
 
@@ -522,9 +537,8 @@ static void connect_session(uint8_t* session, fake_record_t* f) {
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, f, out,
-                                                      &consumed),
-                     0);
+    assert_int_equal(
+        dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, f, out, &consumed), 0);
     assert_true(out->b.len > 0);
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
@@ -552,9 +566,9 @@ static void feed_report_response(uint8_t* session, uint8_t piid) {
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
     size_t consumed = 0;
-    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, NULL, out,
-                                                      &consumed),
-                     0);
+    assert_int_equal(
+        dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, NULL, out, &consumed),
+        0);
     assert_int_equal(out->b.len, 0);
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
@@ -597,8 +611,7 @@ static void test_report_frame_layout(void** state) {
     uint8_t svc = 0, choice = 0, piid = 0;
     uint8_t* payload = NULL;
     size_t payload_len = 0;
-    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
-                                            &payload_len),
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len),
                      0);
     static const uint8_t want[] = {0x08, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
                                    0x00, 0x01, 0x12, 0x00, 0x01, 0x00};
@@ -735,9 +748,9 @@ static void test_get_maps_source_rc_to_dar(void** state) {
         alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
         memset(priv, 0, sizeof(priv));
         size_t consumed = 0;
-        assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, &f, out,
-                                                          &consumed),
-                         0);
+        assert_int_equal(
+            dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, &f, out, &consumed),
+            0);
 
         struct net_buf_simple nb;
         net_buf_simple_init_with_data(&nb, out->b.data, out->b.len);
@@ -746,11 +759,10 @@ static void test_get_maps_source_rc_to_dar(void** state) {
         uint8_t svc = 0, choice = 0, piid = 0;
         uint8_t* payload = NULL;
         size_t payload_len = 0;
-        assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
-                                                &payload_len),
-                         0);
+        assert_int_equal(
+            dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len), 0);
         assert_int_equal(svc, DLT698_SVC_GET_RES);
-        assert_int_equal(payload[4], 0x00);         /* CHOICE [0] DAR */
+        assert_int_equal(payload[4], 0x00); /* CHOICE [0] DAR */
         assert_int_equal(payload[5], cases[c].dar);
 
         net_buf_unref(out);
@@ -758,8 +770,8 @@ static void test_get_maps_source_rc_to_dar(void** state) {
     }
 }
 
-static int run_slave_apdu(const uint8_t* apdu, size_t apdu_len,
-                          const edge_slave_source_ops_t* src, void* src_ctx, net_buf_t* out) {
+static int run_slave_apdu(const uint8_t* apdu, size_t apdu_len, const edge_slave_source_ops_t* src,
+                          void* src_ctx, net_buf_t* out) {
     uint8_t frame[512];
     size_t flen = build_slave_frame(frame, apdu, apdu_len);
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
@@ -774,8 +786,7 @@ static int run_slave_apdu(const uint8_t* apdu, size_t apdu_len,
 static int product_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
     (void)ctx;
     if (oad != 0x44000200u) return EDGE_SLAVE_SRC_NOT_FOUND;
-    return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0
-                                                           : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return dcu_698_appconn_object_list(buf, cap, len) == 0 ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc) {
@@ -785,19 +796,19 @@ static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc
     dlt698_addr_t sa;
     uint8_t choice = 0, piid = 0;
     size_t payload_len = 0;
-    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, svc, &choice, &piid, payload,
-                                            &payload_len),
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, svc, &choice, &piid, payload, &payload_len),
                      0);
 }
 
-/* 28 个对象的真实产品列表必须能被紧凑 ACL 解析；4000 A2 走参数模块。 */
-static void test_slave_accepts_product_object_list_28(void** state) {
+static void test_slave_accepts_product_object_list_29(void** state) {
     (void)state;
     uint8_t list[2048];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 28);
+    assert_int_equal(list[1], 29);
 
+    static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
+    dcu_698_param_set_clock(&clock);
     dcu_698_param_reset();
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
@@ -823,7 +834,6 @@ static void test_slave_accepts_product_object_list_28(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
-/* 列表内但权限=1（只读）的对象，SET 必须回 DAR 3。 */
 static void test_slave_set_read_only_is_denied(void** state) {
     (void)state;
     net_buf_pool_t pool;
@@ -839,8 +849,7 @@ static void test_slave_set_read_only_is_denied(void** state) {
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
     src.object_list = fake_object_list;
-    static const uint8_t set_5004[] = {0x06, 0x01, 0x05, 0x50, 0x04, 0x02,
-                                       0x00, 0x09, 0x00, 0x00};
+    static const uint8_t set_5004[] = {0x06, 0x01, 0x05, 0x50, 0x04, 0x02, 0x00, 0x09, 0x00, 0x00};
     assert_int_equal(run_slave_apdu(set_5004, sizeof(set_5004), &src, &f, out), 0);
 
     uint8_t* payload = NULL;
@@ -853,19 +862,18 @@ static void test_slave_set_read_only_is_denied(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
-/* 超容量（29 对象）的列表整体拒绝，任何 OI 都按未授权 DAR 3 处理。 */
-static void test_slave_rejects_29_object_list(void** state) {
+static void test_slave_rejects_31_object_list(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    uint16_t ois[29];
-    for (size_t i = 0; i < 29; i++) ois[i] = (uint16_t)(0x2000 + i);
+    uint16_t ois[31];
+    for (size_t i = 0; i < 31; i++) ois[i] = (uint16_t)(0x2000 + i);
     fake_record_t f;
     memset(&f, 0, sizeof(f));
-    f.acl_len = build_acl(f.acl, ois, 29);
+    f.acl_len = build_acl(f.acl, ois, 31);
 
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
@@ -902,9 +910,9 @@ int main(void) {
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
-        cmocka_unit_test(test_slave_accepts_product_object_list_28),
+        cmocka_unit_test(test_slave_accepts_product_object_list_29),
         cmocka_unit_test(test_slave_set_read_only_is_denied),
-        cmocka_unit_test(test_slave_rejects_29_object_list),
+        cmocka_unit_test(test_slave_rejects_31_object_list),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

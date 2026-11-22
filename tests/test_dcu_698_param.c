@@ -22,27 +22,61 @@ typedef struct {
 
 static fake_store_t g_fake;
 
-static int fake_save(void *ctx, uint16_t oi, const uint8_t *buf, size_t len) {
+static int fake_save(void *ctx, uint16_t oi, uint8_t attr, const uint8_t *buf, size_t len) {
     fake_store_t *f = (fake_store_t *)ctx;
     (void)oi;
+    (void)attr;
     (void)buf;
     (void)len;
     f->saves++;
     return f->fail ? EDGE_SLAVE_SRC_TEMPORARY : 0;
 }
 
-static int fake_load(void *ctx, uint16_t oi, uint8_t *buf, size_t cap, size_t *len) {
+static int fake_load(void *ctx, uint16_t oi, uint8_t attr, uint8_t *buf, size_t cap, size_t *len) {
     fake_store_t *f = (fake_store_t *)ctx;
     (void)oi;
+    (void)attr;
     (void)buf;
     (void)cap;
     (void)len;
     (void)f;
-    return 1; /* 无落盘行 */
+    return 1;
+}
+
+typedef struct {
+    struct tm value;
+    int fail_set;
+    int sets;
+} fake_clock_t;
+
+static fake_clock_t g_clock;
+
+static int fake_clock_now(void *ctx, struct tm *out) {
+    fake_clock_t *clock = (fake_clock_t *)ctx;
+    *out = clock->value;
+    return 0;
+}
+
+static int fake_clock_set(void *ctx, const struct tm *in) {
+    fake_clock_t *clock = (fake_clock_t *)ctx;
+    clock->sets++;
+    if (clock->fail_set) return -1;
+    clock->value = *in;
+    return 0;
+}
+
+static void init_fake_clock(void) {
+    g_clock = (fake_clock_t){
+        .value = {
+            .tm_year = 124, .tm_mon = 4, .tm_mday = 6, .tm_hour = 7, .tm_min = 8, .tm_sec = 9}};
+    static const dcu_clock_port_t clock = {
+        .now = fake_clock_now, .set = fake_clock_set, .ctx = &g_clock};
+    dcu_698_param_set_clock(&clock);
 }
 
 static void init_fake_store(int fail) {
     g_fake = (fake_store_t){.saves = 0, .fail = fail};
+    init_fake_clock();
     dcu_param_store_t store = {.ctx = &g_fake, .save = fake_save, .load = fake_load};
     dcu_698_param_init(&store);
 }
@@ -125,8 +159,12 @@ static void test_datetime_attrs_and_ranges(void **state) {
     (void)state;
     init_fake_store(0);
 
-    const uint8_t when[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09};
+    const uint8_t initial[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09};
+    assert_encode(mk_oad(0x4000, 2), initial, sizeof(initial));
+
+    const uint8_t when[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), when, sizeof(when)), 0);
+    assert_int_equal(g_clock.sets, 1);
     assert_encode(mk_oad(0x4000, 2), when, sizeof(when));
 
     const uint8_t mode[] = {0x16, 0x02};
@@ -150,19 +188,24 @@ static void test_datetime_attrs_and_ranges(void **state) {
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_encode(mk_oad(0x4000, 4), precise, sizeof(precise));
 
-    /* 越界 + 尾随字节都按 DAR 7；旧值不动。 */
-    const uint8_t base[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09};
     const uint8_t bad_month[] = {0x1C, 0x07, 0xE8, 0x0D, 0x06, 0x07, 0x08, 0x09};
     const uint8_t bad_hour[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x18, 0x07, 0x08};
-    uint8_t trailing[sizeof(base) + 1];
-    memcpy(trailing, base, sizeof(base));
-    trailing[sizeof(base)] = 0x00;
+    uint8_t trailing[sizeof(when) + 1];
+    memcpy(trailing, when, sizeof(when));
+    trailing[sizeof(when)] = 0x00;
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), bad_month, sizeof(bad_month)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), bad_hour, sizeof(bad_hour)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), trailing, sizeof(trailing)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(g_clock.sets, 1);
+
+    g_clock.fail_set = 1;
+    const uint8_t later[] = {0x1C, 0x07, 0xEA, 0x02, 0x03, 0x04, 0x05, 0x06};
+    assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), later, sizeof(later)),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(g_clock.sets, 2);
     assert_encode(mk_oad(0x4000, 2), when, sizeof(when));
 }
 
@@ -252,7 +295,6 @@ static void test_limit_structure_order(void **state) {
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4020, 2), two, sizeof(two)), 0);
     assert_encode(mk_oad(0x4020, 2), two, sizeof(two));
 
-    /* 字段数不符不得部分写入。 */
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x401F, 2), two, sizeof(two)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_encode(mk_oad(0x401F, 2), three, sizeof(three));
@@ -292,7 +334,7 @@ static void test_dar_5_4_6_7(void **state) {
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
 }
 
-static void test_save_failure_leaves_ram_unchanged(void **state) {
+static void test_save_failure_leaves_value_unchanged(void **state) {
     (void)state;
     init_fake_store(1);
 
@@ -303,11 +345,11 @@ static void test_save_failure_leaves_ram_unchanged(void **state) {
     const uint8_t empty[] = {0x09, 0x00};
     assert_encode(mk_oad(0x4001, 2), empty, sizeof(empty));
 
-    /* 4000 是 RAM 影子，SET 成功且永远不调用保存端口。 */
-    const uint8_t when[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09};
+    const uint8_t when[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), when, sizeof(when)), 0);
     assert_encode(mk_oad(0x4000, 2), when, sizeof(when));
     assert_int_equal(g_fake.saves, 1);
+    assert_int_equal(g_clock.sets, 1);
 
     assert_true(dcu_698_param_is_oi(0x4000));
     assert_true(dcu_698_param_is_oi(0x4021));
@@ -316,12 +358,27 @@ static void test_save_failure_leaves_ram_unchanged(void **state) {
     assert_false(dcu_698_param_has_attr(0x4000, 5));
 }
 
-static int store_save(void *ctx, uint16_t oi, const uint8_t *buf, size_t len) {
-    return dcu_storage_param_save((dcu_storage_t *)ctx, oi, buf, len, "dlt698");
+static void test_datetime_without_clock_port_reports_temporary(void **state) {
+    (void)state;
+    init_fake_store(0);
+    dcu_698_param_set_clock(NULL);
+
+    const uint8_t when[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
+    uint8_t buf[64];
+    size_t len = 0;
+    assert_int_equal(dcu_698_param_encode_axdr(mk_oad(0x4000, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), when, sizeof(when)),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    assert_int_equal(g_clock.sets, 0);
 }
 
-static int store_load(void *ctx, uint16_t oi, uint8_t *buf, size_t cap, size_t *len) {
-    return dcu_storage_param_load((dcu_storage_t *)ctx, oi, buf, cap, len);
+static int store_save(void *ctx, uint16_t oi, uint8_t attr, const uint8_t *buf, size_t len) {
+    return dcu_storage_param_save((dcu_storage_t *)ctx, oi, attr, buf, len, "dlt698");
+}
+
+static int store_load(void *ctx, uint16_t oi, uint8_t attr, uint8_t *buf, size_t cap, size_t *len) {
+    return dcu_storage_param_load((dcu_storage_t *)ctx, oi, attr, buf, cap, len);
 }
 
 static int query_int(sqlite3 *db, const char *sql) {
@@ -349,6 +406,7 @@ static void test_persistence_reload_and_audit(void **state) {
     dcu_storage_t storage;
     assert_int_equal(dcu_storage_init(&storage, loop, path), 0);
     dcu_param_store_t port = {.ctx = &storage, .save = store_save, .load = store_load};
+    init_fake_clock();
     dcu_698_param_init(&port);
 
     const uint8_t abc[] = {0x09, 0x03, 'a', 'b', 'c'};
@@ -358,8 +416,9 @@ static void test_persistence_reload_and_audit(void **state) {
 
     sqlite3_stmt *stmt = NULL;
     assert_int_equal(sqlite3_prepare_v2(storage.db,
-                                        "SELECT old_value, new_value, source FROM dcu_param_audit "
-                                        "WHERE oi = 0x4001 ORDER BY id DESC LIMIT 1;",
+                                        "SELECT old_value, new_value, source, attr FROM "
+                                        "dcu_param_audit WHERE oi = 0x4001 "
+                                        "ORDER BY id DESC LIMIT 1;",
                                         -1, &stmt, NULL),
                      SQLITE_OK);
     assert_int_equal(sqlite3_step(stmt), SQLITE_ROW);
@@ -368,28 +427,46 @@ static void test_persistence_reload_and_audit(void **state) {
     assert_int_equal(sqlite3_column_bytes(stmt, 1), (int)sizeof(de));
     assert_memory_equal(sqlite3_column_blob(stmt, 1), de, sizeof(de));
     assert_string_equal((const char *)sqlite3_column_text(stmt, 2), "dlt698");
+    assert_int_equal(sqlite3_column_int(stmt, 3), 2);
     sqlite3_finalize(stmt);
 
-    const uint8_t when[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x07, 0x08, 0x09};
+    const uint8_t mode[] = {0x16, 0x01};
+    const uint8_t precise[] = {0x02, 0x05, 0x11, 1, 0x11, 2, 0x11, 3, 0x11, 4, 0x11, 5};
+    assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 3), mode, sizeof(mode)), 0);
+    assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 4), precise, sizeof(precise)), 0);
+    assert_int_equal(query_int(storage.db,
+                               "SELECT count(*) FROM dcu_params "
+                               "WHERE oi = 0x4000 AND attr IN (3, 4);"),
+                     2);
+    assert_int_equal(
+        query_int(storage.db, "SELECT count(*) FROM dcu_param_audit WHERE oi = 0x4000;"), 2);
+
+    const uint8_t when[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), when, sizeof(when)), 0);
-    assert_int_equal(query_int(storage.db, "SELECT count(*) FROM dcu_params WHERE oi = 0x4000;"),
+    assert_int_equal(query_int(storage.db,
+                               "SELECT count(*) FROM dcu_params "
+                               "WHERE oi = 0x4000 AND attr = 2;"),
                      0);
     assert_int_equal(
-        query_int(storage.db, "SELECT count(*) FROM dcu_param_audit WHERE oi = 0x4000;"), 0);
+        query_int(storage.db, "SELECT count(*) FROM dcu_param_audit WHERE oi = 0x4000;"), 2);
 
     dcu_698_param_reset();
     dcu_698_param_init(&port);
     assert_encode(mk_oad(0x4001, 2), de, sizeof(de));
+    assert_encode(mk_oad(0x4000, 3), mode, sizeof(mode));
+    assert_encode(mk_oad(0x4000, 4), precise, sizeof(precise));
+    assert_encode(mk_oad(0x4000, 2), when, sizeof(when));
 
     dcu_storage_destroy(&storage);
     dcu_698_param_reset();
 
-    /* 重开数据库文件：值确实落盘，而不是留在进程内。 */
     dcu_storage_t storage2;
     assert_int_equal(dcu_storage_init(&storage2, loop, path), 0);
     dcu_param_store_t port2 = {.ctx = &storage2, .save = store_save, .load = store_load};
     dcu_698_param_init(&port2);
     assert_encode(mk_oad(0x4001, 2), de, sizeof(de));
+    assert_encode(mk_oad(0x4000, 3), mode, sizeof(mode));
+    assert_encode(mk_oad(0x4000, 4), precise, sizeof(precise));
     dcu_storage_destroy(&storage2);
     dcu_698_param_reset();
 
@@ -406,7 +483,8 @@ int main(void) {
         cmocka_unit_test(test_geo_nesting_and_validation),
         cmocka_unit_test(test_limit_structure_order),
         cmocka_unit_test(test_dar_5_4_6_7),
-        cmocka_unit_test(test_save_failure_leaves_ram_unchanged),
+        cmocka_unit_test(test_save_failure_leaves_value_unchanged),
+        cmocka_unit_test(test_datetime_without_clock_port_reports_temporary),
         cmocka_unit_test(test_persistence_reload_and_audit),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

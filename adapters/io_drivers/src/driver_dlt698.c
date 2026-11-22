@@ -271,14 +271,14 @@ static uint8_t _dar_for_action_rc(int rc) {
 
 #define DLT698_OI_CONN 0x4400u
 #define DLT698_OI_CONN_OBJECT_LIST 0x44000200u
-#define DLT698_ACL_MAX_OBJECTS 28
+#define DLT698_ACL_MAX_OBJECTS 30
 #define DLT698_ACL_MAX_ATTRS 16
 #define DLT698_ACL_MAX_METHODS 8
 #define DLT698_ATTR_RIGHT_READ 1u
 #define DLT698_ATTR_RIGHT_WRITE 2u
 #define DLT698_ATTR_RIGHT_RW 3u
 
-/* 28 个对象 × 16 B = 448 B；旧的内联数组（20 × 44 B）在 28 个对象时会超
+/* 30 个对象 × 16 B = 480 B；旧的内联数组（20 × 44 B）在 28 个对象时会超
  * DRIVER_PRIV_SIZE(1024)。属性权限用每位 2 bit 压进 32 位，方法只存已允许的 id。 */
 typedef struct {
     uint16_t oi;
@@ -497,8 +497,7 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
                                void *src_ctx, void *session, net_buf_t *out) {
     /* SET-Request-Normal：payload = OAD(4) | Data(A-XDR) | 时间标签。 */
     if (!sa || !payload || !out || payload_len < 4) return -1;
-    uint32_t oad =
-        _read_be32(payload);
+    uint32_t oad = _read_be32(payload);
 
     if (!_acl_check((dlt698_session_t *)session, src, src_ctx, oad, true, false)) {
         return dlt698_encode_set_response(sa, piid, oad, DLT698_DAR_DENIED, out);
@@ -586,8 +585,8 @@ static int _handle_set_request(const dlt698_addr_t *sa, uint8_t piid, const uint
 /* GetRequestRecord：表74 只有整条结果的 DAR，没有行级 DAR；任何一行失败都丢弃
  * 整页，按产品返回码回 CHOICE [0] DAR（ADR-0014）。 */
 static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *payload,
-                              size_t payload_len, const edge_slave_source_ops_t *src,
-                              void *src_ctx, void *session, net_buf_t *out) {
+                              size_t payload_len, const edge_slave_source_ops_t *src, void *src_ctx,
+                              void *session, net_buf_t *out) {
     uint32_t oad = 0;
     dlt698_record_sel_t sel;
     dlt698_rcsd_t rcsd;
@@ -633,8 +632,8 @@ static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8
             src->record.end(src_ctx, oad);
             out->b.len = (uint16_t)stream.start_len;
             uint8_t dar = (rc != 0) ? _dar_for_source_rc(rc) : DLT698_DAR_TYPE_MISMATCH;
-            return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
-                                                         dar, out);
+            return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count, dar,
+                                                         out);
         }
         if (dlt698_encode_get_record_row(out, s_axdr_buf, row_len) != 0) {
             src->record.end(src_ctx, oad);
@@ -689,15 +688,14 @@ static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t ch
             int rc = (!src || !src->resolve) ? EDGE_SLAVE_SRC_NOT_FOUND
                                              : src->resolve(src_ctx, oad, NULL, 0, &v);
             if (rc != 0) {
-                if (dlt698_encode_get_response_list_item_dar(out, oad,
-                                                             _dar_for_source_rc(rc)) != 0)
+                if (dlt698_encode_get_response_list_item_dar(out, oad, _dar_for_source_rc(rc)) != 0)
                     return -1;
                 continue;
             }
             uint8_t scalar[8];
             if (_encode_axdr_value(&v, scalar, &dlen) != 0) {
-                if (dlt698_encode_get_response_list_item_dar(out, oad,
-                                                             DLT698_DAR_TYPE_MISMATCH) != 0)
+                if (dlt698_encode_get_response_list_item_dar(out, oad, DLT698_DAR_TYPE_MISMATCH) !=
+                    0)
                     return -1;
                 continue;
             }
@@ -894,7 +892,7 @@ static int dlt698_req_tick(void *priv, const edge_north_source_ops_t *north, voi
     size_t blen = 0;
     int rc = slave->report.next(slave->report.ctx, s_axdr_buf, sizeof(s_axdr_buf), &blen);
     if (rc != 0 || blen == 0) return 0;
-    if (blen < 2) return -1;            /* 体至少 CHOICE + PIID */
+    if (blen < 2) return -1; /* 体至少 CHOICE + PIID */
 
     dlt698_addr_t sa = {.len = s->sa_len, .type = 0};
     memcpy(sa.addr, s->sa_addr, s->sa_len);

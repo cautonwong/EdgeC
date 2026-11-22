@@ -1,25 +1,25 @@
-== focused ctest (post-audit) ==
-100% tests passed, 0 tests failed out of 5
+== focused tests (clock-port rework) ==
+test_dcu_698_param: PASS (9/9)
+test_dcu_698_axdr: PASS (28/28)
+test_dcu_698_appconn: PASS
+test_dcu_698_object_model: PASS (13/13)
+test_driver_dlt698: PASS (18/18)
 
-Total Test time (real) =   5.28 sec
+== full ctest (ninja clean + full rebuild) ==
+100% tests passed, 0 tests failed out of 341
 
-== full ctest ==
-100% tests passed, 0 tests failed out of 340
+== ASAN (-DENABLE_ASAN=ON) ==
+5/5 focused targets passed
 
-== ASAN ==
-100% tests passed, 0 tests failed out of 3
-
-Total Test time (real) =   5.27 sec
-
-== warning gate (clean build before audit) ==
+== warning gate (clean build) ==
 ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
-post-audit incremental build warnings:
-0
+0 compiler warnings in the clean build log.
 
 == guards ==
 🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+run_fanalyzer.py --paths cmd/dcu,adapters/io_drivers/src: 0 new reports
 
-== acceptance after audit ==
-3 passed in 3.08s
-19 passed in 0.29s
+== acceptance ==
+3 passed in 3.72s
+19 passed in 0.38s
 ✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.

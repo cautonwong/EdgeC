@@ -16,6 +16,7 @@ add_library(dcu_app_lib STATIC
     dcu_698_class_security.c
     dcu_698_axdr.c
     dcu_698_param.c
+    dcu_clock_port.c
     dcu_698_appconn.c
     dcu_698_var.c
     dcu_698_record.c

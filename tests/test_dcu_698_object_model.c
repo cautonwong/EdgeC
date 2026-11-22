@@ -96,8 +96,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    /* 基线 18 行 + 类 8 白名单 11 行；Class 20 ACL 是 17 → 28 行。 */
-    assert_int_equal(dcu_698_object_count(), 29);
+    assert_int_equal(dcu_698_object_count(), 30);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);

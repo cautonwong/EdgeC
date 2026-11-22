@@ -313,7 +313,11 @@ DCU 等级 `full`，按 OI 白名单。首版实现日期时间、通信地址�
 | 401E/4020 | 2 | structure，2 × double-long-unsigned，换算 −2 |
 | 401F/4021 | 2 | structure，3 × double-long-unsigned，换算 −2，字段顺序按 A.5 |
 
-4001 到 4021 的参数值写 `dcu_params` 并在 `dcu_param_audit` 留 old/new 审计；4000 是本次上电的 RAM 影子，不落盘，重启后 GET 反映系统时钟。对象表只广告属性 2（生成的目录把 Class 8 上限钉在属性 2），4000 的 A3/A4 由参数模块在通用 mask 检查之前处理。方法 127 广播校时保持关闭：驱动的 ACTION 统一走 `dcu_north_adapter.c` 的 `accept_action`，该文件由 D1-20a 持有。
+4000 A2 的 GET/SET 走时钟端口 `dcu_clock_port_t`（`cmd/dcu/dcu_clock_port.c` 的默认实现读 `CLOCK_REALTIME`、写 `clock_settime`，在 `dcu_node.c` 组合根注入）。SET 只在端口返回 0 时回 DAR 0，GET 随后读到新时间；端口缺失或拒绝（EPERM/EINVAL）回 DAR 2，时间保持不变，不做影子写入。4000 A3/A4 与 4001 到 4021 的值写 `dcu_params`（主键 `(oi, attr)`）并在 `dcu_param_audit` 记 old/new 审计。
+
+对象表只广告属性 2（生成的目录把 Class 8 上限钉在属性 2），4000 的 A3/A4 由参数模块在通用 mask 检查之前处理。产品对象表共 30 个 OI（0xF100 ESAM 不在 Class 20 ACL 里），Class 20 ACL 共 29 个对象，超过驱动原来的 28 对象上限；改用每属性 2 bit 的 16 字节紧凑对象后，`DLT698_ACL_MAX_OBJECTS` 抬到 30，属性 id 按 1..16 编码、越界即拒绝（fail-closed），`_Static_assert(sizeof(dlt698_session_t) <= 1024)` 守住会话私有不超 `DRIVER_PRIV_SIZE`。
+
+方法 127 广播校时保持关闭：驱动的 ACTION 统一走 `dcu_north_adapter.c` 的 `accept_action`，该文件由 D1-20a 持有。
 
 ### Class 9 冻结数据接口类
 
