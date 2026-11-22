@@ -10,6 +10,7 @@
 #include "dcu_698_axdr.h"
 #include "dcu_698_appconn.h"
 #include "dcu_698_record.h"
+#include "dcu_698_report.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
@@ -122,6 +123,7 @@ void dcu_north_slave_attach(uv_loop_t* loop, datahub_t* hub, bus_orchestrator_t*
         .record = {.begin = dcu_698_record_begin,
                    .row = dcu_698_record_row,
                    .end = dcu_698_record_end},
+        .report = {.next = dcu_698_report_next},
     };
     bus_orchestrator_set_slave_source(orch, DCU_NORTH_BUS, &src, &g_record_ctx);
 

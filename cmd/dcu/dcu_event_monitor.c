@@ -242,13 +242,9 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 evt->record_count++;
             }
 
-            // 💡 3. 【主动上报推送】如果配置了上报标识，则触发推送告警报文
-            if (evt->report_flag > 0) {
-                printf(
-                    "📣 [REPORT] 主动上报！终端向主站主动推送 3xxx 事件告警帧，OID: %04X, "
-                    "记录序号: %d\n",
-                    evt->oi, new_rec->index);
-            }
+            /* 主动上报等 CHOICE[2] 记录型上报（D1-07）落地后再从这里入队。
+             * 不能报 A4：D1-18b 后 A4 是最大记录数（常量），拿它当当前数上报就是假语义；
+             * A3 的四表结构还没由对象模型暴露，在别处拼会变成第二份真相。 */
         }
         return STAGE_DROP;  // 拦截事件，不继续流往下游
     }

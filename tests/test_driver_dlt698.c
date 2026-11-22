@@ -454,6 +454,238 @@ static void test_slave_get_record_malformed_is_dropped(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+typedef struct {
+    int calls;
+    uint8_t body[32];
+    size_t body_len;
+} fake_report_t;
+
+static int fake_report_next(void* ctx, uint8_t* body, size_t cap, size_t* len) {
+    fake_report_t* r = (fake_report_t*)ctx;
+    r->calls++;
+    if (r->body_len > cap) return -1;
+    memcpy(body, r->body, r->body_len);
+    *len = r->body_len;
+    return 0;
+}
+
+/* CONNECT-Request（表59）：公共连接，版本 0x0010、window>0、apdu_max>0。 */
+static size_t build_connect_apdu(uint8_t* apdu, uint8_t piid) {
+    size_t o = 0;
+    apdu[o++] = 0x02;
+    apdu[o++] = piid;
+    apdu[o++] = 0x00;
+    apdu[o++] = 0x10; /* version */
+    for (int i = 0; i < 8; i++) apdu[o++] = 0;
+    for (int i = 0; i < 16; i++) apdu[o++] = 0;
+    apdu[o++] = 0x00;
+    apdu[o++] = 0x00; /* send max */
+    apdu[o++] = 0x00;
+    apdu[o++] = 0x00; /* recv max */
+    apdu[o++] = 0x01; /* window */
+    apdu[o++] = 0x00;
+    apdu[o++] = 0x05; /* apdu max */
+    for (int i = 0; i < 4; i++) apdu[o++] = 0;
+    apdu[o++] = 0x00; /* mechanism */
+    return o;
+}
+
+/* 走一次 CONNECT，让会话 connected 并记下 SA（build_slave_frame 固定 SA=1 字节 0x01）。 */
+static void connect_session(uint8_t* session, fake_record_t* f) {
+    uint16_t ois[1] = {0x3000};
+    f->acl_len = build_acl(f->acl, ois, 1);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+
+    uint8_t apdu[64];
+    size_t alen = build_connect_apdu(apdu, 0x01);
+    uint8_t frame[96];
+    size_t flen = build_slave_frame(frame, apdu, alen);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    size_t consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, f, out,
+                                                      &consumed),
+                     0);
+    assert_true(out->b.len > 0);
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static int tick_report(uint8_t* session, fake_report_t* r, net_buf_pool_t* pool, net_buf_t** tx) {
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.report.next = fake_report_next;
+    src.report.ctx = r;
+    return dlt698_driver.req_tick(session, NULL, NULL, &src, NULL, pool, tx);
+}
+
+/* 主站回一条 REPORT-Response（PIID 与上报一致），确认不应产生应答帧。 */
+static void feed_report_response(uint8_t* session, uint8_t piid) {
+    uint8_t apdu[4] = {DLT698_SVC_REPORT_RES, DLT698_REPORT_LIST, piid, 0x00};
+    uint8_t frame[32];
+    size_t flen = build_slave_frame(frame, apdu, sizeof(apdu));
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 128, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    size_t consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, NULL, out,
+                                                      &consumed),
+                     0);
+    assert_int_equal(out->b.len, 0);
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void fill_report_body(fake_report_t* r) {
+    static const uint8_t body[] = {
+        0x01, 0x07, 0x01,       /* CHOICE[1] | PIID 7 | 1 项 */
+        0x30, 0x00, 0x04, 0x00, /* OAD 30000400 */
+        0x01, 0x12, 0x00, 0x01, /* Get-Result[1] Data：long-unsigned 1 */
+    };
+    memcpy(r->body, body, sizeof(body));
+    r->body_len = sizeof(body);
+}
+
+static void test_report_frame_layout(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    connect_session(session, &f);
+
+    fake_report_t r;
+    memset(&r, 0, sizeof(r));
+    fill_report_body(&r);
+
+    net_buf_t* tx = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx), 0);
+    assert_int_equal(r.calls, 1);
+    assert_non_null(tx);
+    assert_frame_sealed(tx);
+
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, tx->b.data, tx->b.len);
+    nb.len = tx->b.len;
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t* payload = NULL;
+    size_t payload_len = 0;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
+                                            &payload_len),
+                     0);
+    static const uint8_t want[] = {0x08, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
+                                   0x00, 0x01, 0x12, 0x00, 0x01, 0x00};
+    assert_int_equal(svc, DLT698_SVC_REPORT_NOTIFICATION);
+    assert_int_equal(payload_len + 3, sizeof(want));
+    assert_memory_equal(payload - 3, want, sizeof(want));
+
+    net_buf_unref(tx);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_report_no_session_no_send(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+
+    fake_report_t r;
+    memset(&r, 0, sizeof(r));
+    fill_report_body(&r);
+
+    net_buf_t* tx = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx), 0);
+    assert_null(tx);
+    assert_int_equal(r.calls, 0);
+
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_report_confirm_clears_pending(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    connect_session(session, &f);
+
+    fake_report_t r;
+    memset(&r, 0, sizeof(r));
+    fill_report_body(&r);
+
+    net_buf_t* tx1 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx1), 0);
+    assert_non_null(tx1);
+
+    net_buf_t* tx2 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx2), 0);
+    assert_null(tx2);
+    assert_int_equal(r.calls, 1);
+
+    feed_report_response(session, 0x07);
+    net_buf_t* tx3 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx3), 0);
+    assert_non_null(tx3);
+    assert_int_equal(r.calls, 2);
+
+    net_buf_unref(tx1);
+    net_buf_unref(tx3);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_report_timeout_unblocks(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
+    static uint8_t session[1024];
+    memset(session, 0, sizeof(session));
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    connect_session(session, &f);
+
+    fake_report_t r;
+    memset(&r, 0, sizeof(r));
+    fill_report_body(&r);
+
+    net_buf_t* tx1 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx1), 0);
+    assert_non_null(tx1);
+
+    net_buf_t* tx2 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx2), 0);
+    assert_null(tx2);
+
+    /* 驱动超时取自 uv_hrtime，没有注入点，只能真等过 5s（同 IEC104 t1 慢测）。 */
+    uv_sleep(5100);
+
+    net_buf_t* tx3 = NULL;
+    assert_int_equal(tick_report(session, &r, &pool, &tx3), 0);
+    assert_non_null(tx3);
+    assert_int_equal(r.calls, 2);
+
+    net_buf_unref(tx1);
+    net_buf_unref(tx3);
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
@@ -466,6 +698,10 @@ int main(void) {
         cmocka_unit_test(test_slave_get_record_row_failure_aborts_page),
         cmocka_unit_test(test_slave_get_record_port_absent),
         cmocka_unit_test(test_slave_get_record_malformed_is_dropped),
+        cmocka_unit_test(test_report_frame_layout),
+        cmocka_unit_test(test_report_no_session_no_send),
+        cmocka_unit_test(test_report_confirm_clears_pending),
+        cmocka_unit_test(test_report_timeout_unblocks),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

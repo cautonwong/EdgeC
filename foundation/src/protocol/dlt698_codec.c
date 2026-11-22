@@ -448,6 +448,64 @@ int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_
     return 0;
 }
 
+/* A-ResultNormal 一项的字节数：OAD(4) | Get-Result(1) | DAR 或 Data。 */
+static size_t _report_item_len(const dlt698_get_item_t *it) {
+    return 4 + 1 + (it->dar ? 1 : it->dlen);
+}
+
+int dlt698_encode_report_notification(uint8_t *buf, size_t cap, uint8_t choice, uint8_t piid,
+                                      const dlt698_get_item_t *items, size_t n, size_t *len) {
+    if (!buf || !len || (!items && n > 0)) return -1;
+    if (choice == DLT698_REPORT_RECORD_LIST) return DLT698_REPORT_UNSUPPORTED_RECORD;
+    if (choice != DLT698_REPORT_LIST || n > DLT698_GET_LIST_MAX) return -1;
+
+    /* 先算总长再写：产品给的是裸缓冲，写超界不会像 net_buf 那样有断言兜底。 */
+    size_t need = 3; /* CHOICE | PIID | 个数 */
+    for (size_t i = 0; i < n; i++) {
+        if (items[i].dar == 0 && items[i].dlen > 0 && !items[i].data) return -1;
+        need += _report_item_len(&items[i]);
+    }
+    if (need > cap) return -1;
+
+    size_t off = 0;
+    buf[off++] = DLT698_REPORT_LIST;
+    buf[off++] = piid;
+    buf[off++] = (uint8_t)n;
+    for (size_t i = 0; i < n; i++) {
+        buf[off++] = (uint8_t)(items[i].oad >> 24);
+        buf[off++] = (uint8_t)(items[i].oad >> 16);
+        buf[off++] = (uint8_t)(items[i].oad >> 8);
+        buf[off++] = (uint8_t)items[i].oad;
+        if (items[i].dar) {
+            buf[off++] = 0x00; /* CHOICE [0] DAR */
+            buf[off++] = items[i].dar;
+        } else {
+            buf[off++] = DLT698_GET_RESULT_DATA;
+            if (items[i].dlen > 0) {
+                memcpy(buf + off, items[i].data, items[i].dlen);
+                off += items[i].dlen;
+            }
+        }
+    }
+    *len = off;
+    return 0;
+}
+
+int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, size_t body_len,
+                               net_buf_t *out) {
+    if (!sa || !out || (!body && body_len > 0)) return -1;
+    struct net_buf_simple *b = &out->b;
+    uint8_t *len_ptr = NULL;
+    uint8_t *hcs_ptr = NULL;
+    /* Ctrl=0xC3：DIR=1（服务器→客户机）、PRM=1（服务器发起）。 */
+    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+    net_buf_simple_add_u8(b, DLT698_SVC_REPORT_NOTIFICATION);
+    if (body_len > 0) net_buf_simple_add_mem(b, body, body_len);
+    net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
+    _frame_seal(b, start, len_ptr, hcs_ptr);
+    return 0;
+}
+
 /* 区间值只接受 date_time（0x19）与 date_time_s（0x1C）。 */
 static int _record_date_data(const uint8_t *p, size_t avail, size_t *out_len) {
     if (avail == 0) return -1;

@@ -34,6 +34,7 @@ extern "C" {
 #define DLT698_SVC_SET_RES 0x86
 #define DLT698_SVC_ACTION_REQ 0x07
 #define DLT698_SVC_ACTION_RES 0x87
+#define DLT698_SVC_REPORT_NOTIFICATION 0x08
 #define DLT698_SVC_REPORT_RES 0x88
 
 /* DAR 值（标准 6.3.3.11）。驱动与产品共用，不写字面量。 */
@@ -194,6 +195,34 @@ int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uin
                                          size_t dlen);
 int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8_t dar);
 int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_buf_t *out);
+
+/* REPORT-Notification 的 CHOICE（表94）。 */
+#define DLT698_REPORT_LIST 0x01
+#define DLT698_REPORT_RECORD_LIST 0x02
+/** 记录型上报尚未实现（等 D1-15 记录取数路径接入）；与 -1 缓冲区不足区分。 */
+#define DLT698_REPORT_UNSUPPORTED_RECORD (-4)
+
+/**
+ * @brief 构造 REPORT-Notification 的 APDU **体**（服务标识之后，表95）。
+ *
+ * 输出 `CHOICE | PIID-ACD | 个数 | (OAD | 01 | Data)*`，用于产品侧上报队列。
+ * PIID 由调用方分配，驱动发帧后据 `body[1]` 匹配 REPORT-Response。
+ * 只支持 `choice == DLT698_REPORT_LIST`；`DLT698_REPORT_RECORD_LIST` 返回
+ * `DLT698_REPORT_UNSUPPORTED_RECORD`。缓冲不足返回 -1。
+ *
+ * @param len 输出体长度（不含服务标识、时间标签与帧）
+ */
+int dlt698_encode_report_notification(uint8_t *buf, size_t cap, uint8_t choice, uint8_t piid,
+                                      const dlt698_get_item_t *items, size_t n, size_t *len);
+
+/**
+ * @brief 把上报体封成完整帧：
+ * `68 | L | C3 | SA | CA | HCS | 08 | body | 00(时间标签) | FCS | 16`。
+ *
+ * 服务标识与帧格式留在协议层，产品只给体。
+ */
+int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, size_t body_len,
+                               net_buf_t *out);
 
 /**
  * @brief 记录选择描述符（RSD，标准 6.3.3.7 表30）的解码结果。

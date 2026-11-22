@@ -69,6 +69,21 @@ typedef enum {
 } edge_slave_src_rc_t;
 
 /**
+ * @brief 从站主动上报端口（REPORT-Notification，ADR-0017）。
+ *
+ * `next` 写一帧上报的 **APDU 体**（服务标识之后）：CHOICE | PIID | 个数 | 结果项。
+ * 返回 0 且 `*len == 0` 表示当前没有待上报内容。产品用 codec 组体，驱动补服务
+ * 标识、时间标签并封帧，因此端口里不出现 698 类型。
+ *
+ * `ctx` 是这个端口自己的上下文，**不复用** `slave_src_ctx`：后者是所有取数回调
+ * 共享的点位模型，上报队列是另一个拥有者。
+ */
+typedef struct {
+    int (*next)(void *ctx, uint8_t *body, size_t cap, size_t *len);
+    void *ctx;
+} edge_slave_report_ops_t;
+
+/**
  * @brief 从站取数/收数端口。由 cmd 实现，组合根注入。
  *
  * 北向面（族 A）的取数端口**不在这里**——见 `edge_north_plane.h`。
@@ -173,6 +188,9 @@ typedef struct {
                    size_t *row_len);
         int (*end)(void *ctx, uint32_t oad);
     } record;
+
+    /** @brief 主动上报取数（ADR-0017）；`next` 为 NULL 表示不支持上报。 */
+    edge_slave_report_ops_t report;
 } edge_slave_source_ops_t;
 
 #ifdef __cplusplus
