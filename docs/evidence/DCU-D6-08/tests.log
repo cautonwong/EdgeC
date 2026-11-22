@@ -18,3 +18,8 @@ ThreadSanitizer lines in TSAN log: 0
 
 fanalyzer:
 ✅ [FANALYZER] 3 known finding(s), no new reports
+
+== batch revalidation after D1-16 / D0-11 (main 9b27252e) ==
+ASAN 337/337, 0 failures
+UBSAN 337/337, 0 runtime error
+TSAN 337/337, 0 ThreadSanitizer lines
