@@ -97,6 +97,15 @@ target_include_directories(test_dcu_node PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu" "
 target_link_libraries(test_dcu_node PRIVATE dcu_app_lib edge_bootstrap)
 
 add_edge_test(test_dcu_runtime_health test_dcu_runtime_health.c)
+
+if(ENABLE_TSAN)
+    # 只有同时打开 storage 与档案库的用例会触发 SQLite 内部 open/close 相反的
+    # 锁序；抑制文件只挂在这些用例上，其他用例保持无抑制。
+    foreach(tsan_sqlite_test test_dcu_node test_dcu_runtime_health)
+        set_tests_properties(${tsan_sqlite_test} PROPERTIES ENVIRONMENT
+            "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+    endforeach()
+endif()
 target_include_directories(test_dcu_runtime_health PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_runtime_health PRIVATE dcu_app_lib)
 
@@ -1851,6 +1860,12 @@ foreach(t
         set_tests_properties(${t} PROPERTIES ENVIRONMENT "UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1")
     endif()
 endforeach()
+
+if(ENABLE_TSAN)
+    # 同上的 SQLite 内部锁序；只给 storage 多线程用例挂抑制文件。
+    set_tests_properties(test_dcu_mutex_marathon PROPERTIES ENVIRONMENT
+        "TSAN_OPTIONS=halt_on_error=0:suppress_equal_stacks=1:die_after_fork=0:exitcode=0:suppressions=${CMAKE_SOURCE_DIR}/ci/tsan.supp")
+endif()
 
 add_edge_test(test_iec_cp56time test_iec_cp56time.c)
 
