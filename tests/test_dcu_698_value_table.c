@@ -194,12 +194,12 @@ static void test_object_model_scalar_type_tags(void **state) {
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 11), DCU_698_TAG_ENUM, 1.0);
     assert_value(MK_OAD(OI_VOLTAGE_DROP, 12), DCU_698_TAG_BOOLEAN, 1.0);
     /* 复杂属性已暴露但没有标量表示；仍屏蔽的属性回类不匹配。 */
-    static const uint8_t complex[] = {2, 3, 5, 6, 14};
+    static const uint8_t complex[] = {2, 3, 5};
     for (size_t i = 0; i < sizeof(complex) / sizeof(complex[0]); i++) {
         assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, complex[i]), &v),
                          EDGE_SLAVE_SRC_TYPE_MISMATCH);
     }
-    static const uint8_t masked[] = {8, 9, 10};
+    static const uint8_t masked[] = {6, 8, 9, 10, 14};
     for (size_t i = 0; i < sizeof(masked) / sizeof(masked[0]); i++) {
         assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_VOLTAGE_DROP, masked[i]), &v),
                          EDGE_SLAVE_SRC_CLASS_MISMATCH);

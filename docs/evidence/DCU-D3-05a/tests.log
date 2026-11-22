@@ -1,45 +1,39 @@
-# DCU-D3-05a gate log
-
-## configure
-cmake -S . -B build -GNinja -DCMAKE_BUILD_TYPE=Debug -DENABLE_WEB_BUILD=OFF -> rc=0
+# DCU-D3-05a gate log (follow-up commit, on top of 26ce419e)
 
 ## full build (cmake --build build -j4)
 rc=0; warning/error count: 0
 
 ## targeted ctest
-3/5 Test #30: test_dcu_698_axdr ................   Passed    0.01 sec
-    Start 31: test_dcu_698_record
-4/5 Test #31: test_dcu_698_record ..............   Passed    0.14 sec
-    Start 32: test_dcu_698_value_table
-5/5 Test #32: test_dcu_698_value_table .........   Passed    0.00 sec
-
+ctest -R 'test_dcu_698_axdr|test_dcu_698_object_model|test_dcu_698_value_table|test_dcu_advanced_modules|test_dcu_698_record'
 100% tests passed, 0 tests failed out of 5
-
-Total Test time (real) =   0.18 sec
+CTEST_RC=0
 
 ## full ctest
 100% tests passed, 0 tests failed out of 339
-Total Test time (real) = 198.18 sec
+Total Test time (real) = 208.64 sec
 CTEST_RC=0
+
+## composition root budget
+python3 ci/scripts/check_composition_root_budget.py
+✅ [COMPOSITION_ROOT_BUDGET] clean. 16 root(s).
+rc=0
+
+## diff whitespace
+git diff --check -> rc=0
 
 ## acceptance: ./test.sh --omnis dcu
 任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/dcu-d3-05a/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
-3 passed in 3.12s
+3 passed in 2.68s
 任务 dcu-acceptance 结束,退出码 0
 [dcu] dcu_acceptance 退出码 0
 任务 dcu-northbound(产品 dcu)·设备清单 /tmp/dcu-d3-05a/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
-18 passed in 0.14s
+18 passed in 0.13s
 任务 dcu-northbound 结束,退出码 0
 [dcu] dcu_northbound 退出码 0
 全部合格:2 个验收任务
 ✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+ACCEPT_RC=0
 
 ## guards
-check_build_warnings.py --log build2.log: pass
 check_composition_root_budget.py: pass (16 roots)
-check_iems_stdout_line_buffered.py --root .: pass
-all check_*.py run: pre-existing / environment-only failures:
-  check_acceptance_tasks.py: no tasks/*.yaml in this worktree (environment)
-  check_component_budgets.py: modules/edge_app_host ROM 22627 > 22528 (untouched, pre-existing)
-  check_coverage.py / check_build_warnings.py needed args; build warnings run with --log and passed
-  check_coverage.py: needs --info (no coverage build in this run)
+

@@ -2,10 +2,8 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #include "dcu_698_var.h"
-#include "dlt698_codec.h"
 
 int dcu_698_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                        void *out_val) {
@@ -90,28 +88,6 @@ static int _put_f32(uint8_t *buf, size_t cap, size_t *off, float f) {
     return _put_u32(buf, cap, off, DCU_698_TAG_FLOAT32, bits);
 }
 
-/* 记录时标是纳秒；0 表示未知，发 NULL 而不是 1970 年。 */
-static int _put_time(uint8_t *buf, size_t cap, size_t *off, uint64_t ts_ns) {
-    if (ts_ns == 0) {
-        if (*off + 1 > cap) return -1;
-        buf[(*off)++] = 0x00;
-        return 0;
-    }
-    time_t secs = (time_t)(ts_ns / 1000000000ULL);
-    struct tm tm;
-    if (!gmtime_r(&secs, &tm)) return -1;
-    if (*off > UINT16_MAX || cap > UINT16_MAX) return -1;
-    uint16_t at = (uint16_t)*off;
-    if (dlt698_encode_date_time_s(buf, (uint16_t)cap, &at, (uint16_t)(tm.tm_year + 1900),
-                                  (uint8_t)(tm.tm_mon + 1), (uint8_t)tm.tm_mday,
-                                  (uint8_t)tm.tm_hour, (uint8_t)tm.tm_min,
-                                  (uint8_t)tm.tm_sec) != 0) {
-        return -1;
-    }
-    *off = at;
-    return 0;
-}
-
 int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t *buf, size_t cap,
                               size_t *len) {
     if (!obj || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
@@ -155,27 +131,6 @@ int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t
         if (rc == 0) {
             rc = _put_u16(buf, cap, &off, DCU_698_TAG_LONG_UNSIGNED, (uint16_t)evt->delay_s);
         }
-    } else if (attr_id == 6) {
-        /* 记录单元还要求 n 个关联 Data；dcu_event_record_t 不存这些值，不能拿当前值冒充。 */
-        if (evt->snapshot_count != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        uint16_t count = evt->record_count;
-        if (count > MAX_EVENT_RECORDS) count = MAX_EVENT_RECORDS;
-        rc = _put_head(buf, cap, &off, DCU_698_TAG_ARRAY, (uint8_t)count);
-        for (uint16_t i = 0; rc == 0 && i < count; i++) {
-            const dcu_event_record_t *rec = &evt->records[i];
-            rc = _put_head(buf, cap, &off, DCU_698_TAG_STRUCTURE, 3);
-            if (rc == 0) {
-                rc = _put_u32(buf, cap, &off, DCU_698_TAG_DOUBLE_LONG_UNSIGNED, rec->index);
-            }
-            if (rc == 0) rc = _put_time(buf, cap, &off, rec->start_time);
-            if (rc == 0) rc = _put_time(buf, cap, &off, rec->end_time);
-        }
-    } else if (attr_id == 14) {
-        /* 表194：array{structure{最近发生时间, 最近结束时间}}，未知时间是 NULL。 */
-        rc = _put_head(buf, cap, &off, DCU_698_TAG_ARRAY, 1);
-        if (rc == 0) rc = _put_head(buf, cap, &off, DCU_698_TAG_STRUCTURE, 2);
-        if (rc == 0) rc = _put_time(buf, cap, &off, evt->last_start_time);
-        if (rc == 0) rc = _put_time(buf, cap, &off, evt->last_end_time);
     } else {
         return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }

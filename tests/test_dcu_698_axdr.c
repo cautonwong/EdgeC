@@ -135,10 +135,10 @@ static void test_product_accept_set_event_attrs(void **state) {
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 4), u8_one,
                                            sizeof(u8_one)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    /* A6 现在已暴露；写入值是 unsigned，不是记录数组，类型不匹配。 */
+    /* A6 未暴露：事件时标是单调纳秒，不能编成日历时间；掩码位回类不匹配。 */
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     dcu_698_object_model_reset();
 }
@@ -230,7 +230,7 @@ static void test_product_accept_set_paths(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), baud, sizeof(baud)),
-                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 18), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_UNDEFINED);
 
@@ -802,7 +802,7 @@ static void test_event_class24_attrs_on_the_wire(void **state) {
     dcu_698_object_model_reset();
 }
 
-/* 表194：A2/A3/A5/A6/A14 的线格式；A6 的关联 Data 无存储，快照非空时明确拒绝。 */
+/* 表194：A2/A3/A5 的线格式；A6/A14 因时标来源未定而屏蔽。 */
 static void test_event_class24_complex_attrs(void **state) {
     (void)state;
     init_product_model_with_events();
@@ -832,33 +832,13 @@ static void test_event_class24_complex_attrs(void **state) {
 
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
+    /* 事件时标是 uv_hrtime 单调纳秒，编成 date_time_s 会伪造墙钟；A6/A14 不暴露。 */
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), buf, sizeof(buf), &len),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
-
-    s_evt_3000.snapshot_count = 0;
-    s_evt_3000.record_count = 1;
-    memset(s_evt_3000.records, 0, sizeof(s_evt_3000.records));
-    s_evt_3000.records[0].index = 1;
-    s_evt_3000.records[0].start_time = 1704164645ULL * 1000000000ULL;
-    s_evt_3000.records[0].end_time = 1704165000ULL * 1000000000ULL;
-    const uint8_t a6_one[] = {0x01, 0x01, 0x02, 0x03, 0x06, 0x00, 0x00, 0x00, 0x01,
-                              0x1C, 0x07, 0xE8, 0x01, 0x02, 0x03, 0x04, 0x05,
-                              0x1C, 0x07, 0xE8, 0x01, 0x02, 0x03, 0x0A, 0x00};
-    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 6), a6_one, sizeof(a6_one));
-
-    s_evt_3000.record_count = 0;
-    const uint8_t a6_none[] = {0x01, 0x00};
-    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 6), a6_none, sizeof(a6_none));
-
-    const uint8_t a14_null[] = {0x01, 0x01, 0x02, 0x02, 0x00, 0x00};
-    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 14), a14_null, sizeof(a14_null));
-
-    s_evt_3000.last_start_time = 1704164645ULL * 1000000000ULL;
-    s_evt_3000.last_end_time = 1704165000ULL * 1000000000ULL;
-    const uint8_t a14_times[] = {0x01, 0x01, 0x02, 0x02, 0x1C, 0x07, 0xE8, 0x01, 0x02, 0x03, 0x04,
-                                 0x05, 0x1C, 0x07, 0xE8, 0x01, 0x02, 0x03, 0x0A, 0x00};
-    assert_axdr(MK_OAD(OI_VOLTAGE_DROP, 14), a14_times, sizeof(a14_times));
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 14), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     assert_int_equal(
         dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 7), buf, sizeof(buf), &len),
