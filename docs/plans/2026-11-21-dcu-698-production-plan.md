@@ -793,12 +793,13 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-14a | 已合并 | `dcu/D1-14a-be32` | `e2ce657d` | `docs/evidence/DCU-D1-14a/` | 合并提交 `e2ce657d`；`_read_be32` 统一 5 处大端读取；高字节 ≥0x80 用例；合并后 UBSAN 全量 332/332、0 runtime error |
 | D1-15 | 已合并 | `dcu/D1-15a-record-codec` + `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15a/`、`DCU-D1-15b/` | D1-15a codec 层 GetRecord/RSD/RCSD；D1-15b ADR-0014 记录端口、Selector1、驱动 GET [3]、分页；产品记录取数留 D1-07 |
 | D1-15b | 已合并 | `dcu/D1-15b-record-driver` | `7658967a` | `docs/evidence/DCU-D1-15b/` | 合并提交 `7658967a`；端口三回调协议中立；行失败整条回 DAR；>255 回 DAR 2；不支持选择方法空 RCSD 限制已入 ADR |
-| D1-16 | 进行中 | `dcu/D1-16-report` | `f14fddeb` | `docs/evidence/DCU-D1-16/` | dcu-dev-1 执行中；ADR-0017 上报源端口、REPORT-Notification 编码、事件驱动上报与确认 |
+| D1-16 | 进行中 | `dcu/D1-16-report` | `7687612d` | `docs/evidence/DCU-D1-16/` | dcu-dev-1 执行中；ADR-0017 上报源端口，已实现，正在 rebase 到拆分后的 main；CHOICE[1] 列表已通，记录列表与 SnF 延后 |
+| D1-18c | 进行中 | `dcu/D1-18c-acq-shapes` | `7687612d` | `docs/evidence/DCU-D1-18c/` | edgec-dev-0 执行中；6000/6012/6002/6003 按标准形状与 A.7 方法号诚实化 |
 | D1-17 | 已合并 | `dcu/D1-17-appconn` | `5494f506` | `docs/evidence/DCU-D1-17/` | 合并提交 `5494f506`；ADR-0015 会话与 ACL；CONNECT/RELEASE 无 CHOICE 解析；未授权 DAR 3；预连接窗口按产品列表；32/32、ASAN、守卫、验收通过 |
 | D1-18 | 审计完成 | 只读 | `4f864e29` | `docs/design/DCU_698_OAD_STATUS.md` | 56 个已暴露位：0 real、37 partial、12 stub、3 unimplemented、4 masked-but-undefined；按 P0/P1 拆成 D1-18a 到 D1-18d |
 | D1-18a | 已合并 | `dcu/D1-18a-variable-shapes` | `8acf47fe` | `docs/evidence/DCU-D1-18a/` | 合并提交 `8acf47fe`；Class 1/3/4 attr2 标准数组、attr3 Scaler_Unit、整数类型、元素索引选槽位；修正错误 tag 常量；合并后 32/32、ASAN、守卫、验收通过 |
 | D1-18b | 已合并 | `dcu/D1-18b-event-class24` | `e5906b65` | `docs/evidence/DCU-D1-18b/` | 合并提交 `e5906b65`；3000/3005 attrs 收为 {4,11,12}，A11 enum、A12 bool 真实；未暴露的类定义属性回 DAR 5，越类回 DAR 4；reset 真实清记录 |
-| D1-19 | 进行中 | `dcu/D1-19-split` | `e5906b65` | `docs/evidence/DCU-D1-19/` | edgec-dev-0 执行中；对象模型按变量/事件/采集/控制/安全拆五个类族文件，纯重构，公开 API 不变 |
+| D1-19 | 已合并 | `dcu/D1-19-split` | `7687612d` | `docs/evidence/DCU-D1-19/` | 合并提交 `7687612d`；对象模型拆为 object_model 279 行 + acq/event/control/security 四个类族文件；公开 API 不变；合并后 32/32、守卫、验收通过 |
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
