@@ -470,6 +470,31 @@ static void test_clear_persists_across_reload(void **state) {
     _bench_free(&bench);
 }
 
+static void test_reset_action_via_raw_entry(void **state) {
+    (void)state;
+    task_bench_t bench;
+    assert_int_equal(_bench_init(&bench), 0);
+    assert_int_equal(_add_one(&bench, 7, 0, 60, 0), 0);
+    dcu_task_unit_t *t = (dcu_task_unit_t *)dcu_poller_task_find(&bench.poller, 7);
+    t->cursor_meter_idx = 9;
+    t->monitor.success_meters = 3;
+
+    const uint8_t null_param[] = {DLT698_TAG_NULL};
+    assert_int_equal(
+        dcu_698_accept_action_axdr(MK_OMD(OI_TASK_SCHEDULER, 1), null_param, sizeof(null_param)),
+        0);
+    assert_int_equal(t->cursor_meter_idx, 0);
+    assert_int_equal(t->monitor.success_meters, 0);
+    assert_non_null(dcu_poller_task_find(&bench.poller, 7));
+
+    const uint8_t wrong[] = {DLT698_TAG_UNSIGNED, 1};
+    assert_int_equal(
+        dcu_698_accept_action_axdr(MK_OMD(OI_TASK_SCHEDULER, 1), wrong, sizeof(wrong)),
+        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    _bench_free(&bench);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_add_task_changes_plan_and_persists),
@@ -486,6 +511,7 @@ int main(void) {
         cmocka_unit_test(test_task_id_zero_denied),
         cmocka_unit_test(test_unsupported_field_returns_2),
         cmocka_unit_test(test_clear_persists_across_reload),
+        cmocka_unit_test(test_reset_action_via_raw_entry),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

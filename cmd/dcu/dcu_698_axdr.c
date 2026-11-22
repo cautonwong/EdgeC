@@ -249,6 +249,12 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
 
     uint16_t oi = (uint16_t)(omd >> 16);
     uint8_t method = (uint8_t)((omd >> 8) & 0xFF);
+    if (oi == OI_TASK_SCHEDULER && method == 1) {
+        /* Class 10 复位无参数：线上就是一个 NULL，形状不符仍是 DAR 7。 */
+        if (!axdr || axdr_len != 1 || axdr[0] != DLT698_TAG_NULL)
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_call(omd, NULL, NULL);
+    }
     if (oi != OI_TASK_SCHEDULER) {
         /* 本票只定义 6012 任务的线格式；其它 OI 的处理器不读参数。 */
         return dcu_698_call(omd, NULL, NULL);
