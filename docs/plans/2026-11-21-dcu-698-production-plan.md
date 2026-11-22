@@ -785,7 +785,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 | D1-07 | 已合并 | `dcu/D1-07-record-storage` | `2ee06750` | `docs/evidence/DCU-D1-07/` | 合并提交 `2ee06750`；5004 记录端口接存储，Selector1/2 与 RCSD 列编码，UTC 时间基；合并后 33/33、ASAN、守卫、验收通过（一次控制帧 flake，重跑通过） |
 | D1-18d | 已合并 | `dcu/D1-18d-control-security` | `f0ec96fe` | `docs/evidence/DCU-D1-18d/` | 合并提交 `f0ec96fe`；8000 方法号归位，F100 reset 真实，F200 假配置撤下，A11/A12 SET 真实；DAR 5/4 统一；合并后 35/35、守卫、验收通过 |
 | D2-02 | 已合并 | `dcu/D2-02-class10` | `42516ae6` | `docs/evidence/DCU-D2-02/` | 合并提交 `42516ae6`；6000 A2 数组、127-134 持久化、6001 单元、ACL 16→20；合并后 36/36、守卫、验收 2 任务通过；40 表全量 A2 仍受 2048 缓冲限回 DAR 2 |
-| D2-03 | 进行中 | `dcu/D2-03-tasks` | `4233a7c0` | `docs/evidence/DCU-D2-03/` | dcu-dev 执行中；6012/6013 任务增删改查接 poller 与计划，改周期/删任务有验收 |
+| D2-03 | 已合并 | `dcu/D2-03-tasks` | `b4bb8829` | `docs/evidence/DCU-D2-03/` | 合并提交 `b4bb8829`；6012 M1/127/128/129/130 与 6013 A2 真实，严格 A-XDR 解码，SQLite 持久化与回滚；ACL 18 对象；验收 2 任务 3+18 例；ACTION 验收待 D1-20a 接线后启用 |
 | D3-06 | 进行中 | `dcu/D3-06-params` | `4233a7c0` | `docs/evidence/DCU-D3-06/` | edgec-dev-0 执行中；Class 8 参数白名单，SET 持久化、GET 回读、越权 DAR 3 |
 | D1-08 | 已合并 | `dcu/D1-08-normal-list` | `c291f3e7` | `docs/evidence/DCU-D1-08/` | 合并提交 `c291f3e7`；混合成败、空列表（表73 无下限）、重复 OAD、验收未知 OI 逐项 DAR；修正 codec 对 n==0 的旧拒绝 |
 | D1-09 | 未开始 | - | - | - | - |
