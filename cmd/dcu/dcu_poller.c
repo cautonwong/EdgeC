@@ -648,6 +648,56 @@ dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t* poller, uint32_t scheme_id) {
     return NULL;
 }
 
+int dcu_poller_upsert_scheme(dcu_poller_t* poller, const dcu_scheme_t* scheme) {
+    if (!poller || !scheme) return -1;
+    dcu_scheme_t* existing = dcu_poller_get_scheme(poller, scheme->scheme_id);
+    if (existing) {
+        *existing = *scheme;
+        return 0;
+    }
+    if (poller->scheme_count >= MAX_SCHEMES) return -1;
+    poller->schemes[poller->scheme_count++] = *scheme;
+    return 0;
+}
+
+int dcu_poller_remove_scheme(dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return -1;
+    for (int i = 0; i < poller->scheme_count; i++) {
+        if (poller->schemes[i].scheme_id != scheme_id) continue;
+        memmove(&poller->schemes[i], &poller->schemes[i + 1],
+                sizeof(poller->schemes[0]) * (size_t)(poller->scheme_count - i - 1));
+        poller->scheme_count--;
+        return 0;
+    }
+    return -1;
+}
+
+int dcu_poller_clear_schemes(dcu_poller_t* poller) {
+    if (!poller) return -1;
+    memset(poller->schemes, 0, sizeof(poller->schemes));
+    poller->scheme_count = 0;
+    return 0;
+}
+
+bool dcu_poller_scheme_referenced(const dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return false;
+    for (int i = 0; i < poller->task_count; i++) {
+        const dcu_task_unit_t* t = &poller->tasks[i];
+        if (t->status != DCU_TASK_STATUS_FREE && t->scheme_id == scheme_id) return true;
+    }
+    return false;
+}
+
+bool dcu_poller_scheme_masked(const dcu_poller_t* poller, uint32_t scheme_id) {
+    if (!poller) return false;
+    for (int i = 0; i < poller->task_count; i++) {
+        const dcu_task_unit_t* t = &poller->tasks[i];
+        if (t->status != DCU_TASK_STATUS_FREE && t->scheme_id == scheme_id && t->item_mask != 0)
+            return true;
+    }
+    return false;
+}
+
 void dcu_poller_destroy(dcu_poller_t* poller) {
     (void)poller;
 }
