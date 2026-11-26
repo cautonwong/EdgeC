@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "description": "Refutation: a target declared only in a macro body is a parse gap, not external.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

@@ -188,8 +188,39 @@ int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port) 
 #define IEMS_SAFETY_PCS_SLAVE 1
 #define IEMS_SAFETY_PCS_PROTO "ModbusRTU"
 
-int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t tag_id,
-                        double value, const char *proto) {
+/* 镜像聚合的唯一写入口：先写 (device_id, tag_id) 槽（可选按设备做时间戳守卫），
+ * 再派生 device 0 的 tag 级视图（视图有自己的时间戳守卫）。
+ * per-device 只进影子不进 ring：北向按 tag 读 ring，一条 tag 只能有一条值。
+ * 返回 0 成功（含旧采样被丢弃），-1 参数或写入失败。 */
+static int _iems_node_store_sample(iems_node_t *node, uint32_t device_id, uint32_t tag_id,
+                                   double value, uint64_t sample_ts, bool guard_device) {
+    pipe_msg_t msg;
+    pipe_msg_init_scalar(&msg, tag_id, value, sample_ts);
+
+    if (device_id != 0) {
+        int idx = iems_tag_map_fn(tag_id, device_id);
+        if (idx < 0) idx = (int)tag_id; /* 与 publish 的槽位回退一致 */
+        if (guard_device) {
+            pipe_msg_t dev_cur;
+            if (datahub_read_shadow_device(node->hub, tag_id, device_id, &dev_cur) != 0) return -1;
+            if (dev_cur.ts > sample_ts) return 0;
+        }
+        msg.device_id = device_id;
+        /* 设备槽写失败（容量/参数）要可见：不写视图，交给调用方报错。 */
+        if (datahub_write_shadow_idx(node->hub, idx, &msg) != 0) return -1;
+    }
+
+    pipe_msg_t view_cur;
+    if (datahub_read_shadow(node->hub, tag_id, &view_cur) != 0) return -1;
+    if (view_cur.ts > sample_ts) return 0; /* 视图比这笔样本新：保留视图 */
+    pipe_msg_t view = msg;
+    view.device_id = 0;
+    return datahub_publish(node->hub, &view);
+}
+
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t device_id,
+                        uint32_t tag_id, double value, const char *proto, iems_write_done_fn on_done,
+                        void *on_done_user) {
     if (!node || !node->execution.write_tag) return -1;
 
     if (tag_id == IEMS_TAG_PCS_CONTROL) {
@@ -197,19 +228,23 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32
         int rc = iems_node_dispatch_power(node, value, &actual_kw);
         if (rc < 0) {
             /* 安全拒绝不能只是“什么都不做”：主动把零功率写下去，
-             * 否则设备会保持上一条设定值。 */
+             * 否则设备会保持上一条设定值。拒绝路径的结果没有意义，不带回调。 */
             (void)node->execution.write_tag(node->execution.ctx, bus_id, slave_id, tag_id, 0.0,
-                                            proto);
+                                            proto, NULL, NULL);
             return rc;
         }
         value = actual_kw;
     } else if (node->hub) {
-        pipe_msg_t ctrl_msg = {0};
-        pipe_msg_init_scalar(&ctrl_msg, tag_id, value, uv_hrtime());
-        datahub_publish(node->hub, &ctrl_msg);
+        /* 控制写以提交时刻为准：设备槽不设守卫；视图仍按 ts 守卫。
+         * 影子写失败只记录，不拦截下发——镜像容量故障不能挡住控制动作。 */
+        if (_iems_node_store_sample(node, device_id, tag_id, value, uv_hrtime(), false) != 0) {
+            LOG_WARN(LOG_CAT_CORE, "IEMS control write: shadow store failed (tag %u device %u)",
+                     tag_id, device_id);
+        }
     }
 
-    return node->execution.write_tag(node->execution.ctx, bus_id, slave_id, tag_id, value, proto);
+    return node->execution.write_tag(node->execution.ctx, bus_id, slave_id, tag_id, value, proto,
+                                     on_done, on_done_user);
 }
 
 int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_actual_kw) {
@@ -309,7 +344,7 @@ int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
     if (node->execution.write_tag) {
         (void)node->execution.write_tag(node->execution.ctx, IEMS_SAFETY_PCS_BUS,
                                         IEMS_SAFETY_PCS_SLAVE, IEMS_TAG_PCS_CONTROL, 0.0,
-                                        IEMS_SAFETY_PCS_PROTO);
+                                        IEMS_SAFETY_PCS_PROTO, NULL, NULL);
     }
     _iems_node_record_cycle(node, t_start);
     return 0;
@@ -338,22 +373,16 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
     return rc;
 }
 
-int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value,
+int iems_node_ingest_sample(iems_node_t *node, uint32_t device_id, uint32_t tag_id, double value,
                             uint64_t sample_ts) {
     if (!node || !node->hub || tag_id == 0) return -1;
     /* sample_ts 是采样(读帧编码发出)时刻,不是结果完成时刻。控制写在提交南向帧
      * 之前就用 uv_hrtime 乐观写 shadow;若轮询读帧先于控制写编码、结果却晚到,
-     * 它的采样更旧,必须丢弃,否则旧值覆盖新控制值。
+     * 它的采样更旧,必须丢弃,否则旧值覆盖新控制值。设备槽与视图各用各的 ts:
+     * 设备自己的新采样仍要落槽,即使视图被另一台设备更新得更晚。
      * 守卫只放在 IEMS ingest 边界:DataHub 是各写入方(CLI 毫秒 ts、反腐蚀 ts=0)
      * 共用的入口,在那里比较新旧会误拒合法写入。 */
-    pipe_msg_t cur;
-    if (datahub_read_shadow(node->hub, tag_id, &cur) != 0) return -1;
-    if (cur.ts > sample_ts) return 0;
-    pipe_msg_t msg;
-    /* shortcut: 镜像按 tag 全局(device_id 留 0),与所有读者用的 read_shadow 一致;
-     * 多机共用同一 tag 时需要读者一起改成按设备读。 */
-    pipe_msg_init_scalar(&msg, tag_id, value, sample_ts);
-    return datahub_publish(node->hub, &msg);
+    return _iems_node_store_sample(node, device_id, tag_id, value, sample_ts, true);
 }
 
 int iems_node_set_watchdog_budget(iems_node_t *node, uint64_t budget_us) {

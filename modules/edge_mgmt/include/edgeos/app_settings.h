@@ -33,6 +33,16 @@ int edge_app_settings_validate_json(const char *settings_json, char *reason, siz
 char *edge_app_settings_normalize_json(const char *settings_json, char *reason, size_t reason_size);
 
 /**
+ * Check that new_json can replace old_json without orphaning stored values.
+ * A removed field, a field whose type changed, or a new field without a
+ * default is incompatible. old_json NULL means first install. new_json is
+ * required; pass an empty fields object when the manifest declares no
+ * settings. Returns 0, or -1 with a field-level reason.
+ */
+int edge_app_settings_check_upgrade(const char *old_json, const char *new_json, char *reason,
+                                    size_t reason_size);
+
+/**
  * Validate value_json against key in a canonical settings schema.
  * Returns 0, or -1 with one of: unknown_key, readonly, type_mismatch,
  * out_of_range, invalid_value.

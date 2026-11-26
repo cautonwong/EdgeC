@@ -1,0 +1,13 @@
+✅ [FORMAL] 2 shard(s), 5 row(s), 21s; CBMC 5.12 (cbmc-5.12), 1013 properties, 2 aux run(s); TLA+ 2026.11.15.002146, 84083 states
+
+=== build/formal/dcu/run-manifest.tsv
+artifact	mode	status	count	seconds
+formal/cbmc/dcu_probe.c	proof	PASS	1	0
+
+=== build/formal/dcu/dcu_probe.proof.log (tail)
+** Results:
+/tmp/iems-formal/wt/formal/cbmc/dcu_probe.c function main
+[main.assertion.1] line 3 dcu probe: SUCCESS
+
+** 0 of 1 failed (1 iterations)
+VERIFICATION SUCCESSFUL

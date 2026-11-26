@@ -1,0 +1,55 @@
+=== BEFORE FIX: test_dcu_698_appconn ===
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[       OK ] test_object_list_shape_and_capacity
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[  ERROR   ] --- acl.seen[6] && acl.rights[6] == 1 is not true
+[   LINE   ] --- /tmp/edgec-land/fix4-event-acl-write/tests/test_dcu_698_appconn.c:192: error: Failure!
+[  FAILED  ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[  ERROR   ] --- -22 != -25
+[   LINE   ] --- /tmp/edgec-land/fix4-event-acl-write/tests/test_dcu_698_appconn.c:202: error: Failure!
+[  FAILED  ] test_event_set_dar_by_attribute
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 1 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_event_acl_advertises_only_a11_a12_writable
+[  FAILED  ] test_event_set_dar_by_attribute
+
+ 2 FAILED TEST(S)
+
+=== AFTER FIX: affected DCU tests (ctest) ===
+Test project /tmp/edgec-land/fix4-event-acl-write/build
+    Start 25: test_dcu_698_object_model
+1/5 Test #25: test_dcu_698_object_model ........   Passed    0.01 sec
+    Start 30: test_dcu_698_axdr
+2/5 Test #30: test_dcu_698_axdr ................   Passed    0.01 sec
+    Start 33: test_dcu_698_value_table
+3/5 Test #33: test_dcu_698_value_table .........   Passed    0.01 sec
+    Start 92: test_dlt698_appconn
+4/5 Test #92: test_dlt698_appconn ..............   Passed    0.00 sec
+    Start 93: test_dcu_698_appconn
+5/5 Test #93: test_dcu_698_appconn .............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.05 sec
+
+=== AFTER FIX: ASAN build ===
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[       OK ] test_object_list_shape_and_capacity
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+=== BUILD WARNING GATE ===
+[1/5] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_appconn.c.o
+[2/5] Building C object tests/CMakeFiles/test_dcu_698_appconn.dir/test_dcu_698_appconn.c.o
+[3/5] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_axdr.c.o
+[4/5] Linking C static library cmd/dcu/libdcu_app_lib.a
+[5/5] Linking C executable tests/test_dcu_698_appconn
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

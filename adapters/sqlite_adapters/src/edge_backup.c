@@ -7,7 +7,6 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <openssl/evp.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,20 +27,6 @@
 static int fail(char *reason, size_t size, const char *text) {
     if (reason && size) snprintf(reason, size, "%s", text);
     return -1;
-}
-
-/* Backups contain the whole platform database. Create them 0600 from the
- * start so a umask 022 host never exposes a readable bundle. */
-static FILE *fopen_private(const char *path, const char *mode) {
-    int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-    if (fd < 0) return NULL;
-    if (fchmod(fd, 0600) != 0) {
-        close(fd);
-        return NULL;
-    }
-    FILE *f = fdopen(fd, mode);
-    if (!f) close(fd);
-    return f;
 }
 
 static void fsync_parent(const char *path) {
@@ -98,170 +83,6 @@ static int tar_write_file(FILE *out, const char *name, const char *src_path) {
     }
     fclose(src);
     return write_padding(out, (size_t)size);
-}
-
-typedef struct {
-    char name[100];
-    char mode[8];
-    char uid[8];
-    char gid[8];
-    char size[12];
-    char mtime[12];
-    char checksum[8];
-    char typeflag;
-    char linkname[100];
-    char magic[6];
-    char version[2];
-    char uname[32];
-    char gname[32];
-    char devmajor[8];
-    char devminor[8];
-    char prefix[155];
-    char pad[12];
-} tar_read_header_t;
-
-typedef struct {
-    FILE *f;
-    char name[101];
-    unsigned long long size;
-    long data_offset;
-} tar_entry_t;
-
-static int tar_next(tar_entry_t *entry) {
-    tar_read_header_t header;
-    if (fread(&header, 1, sizeof(header), entry->f) != sizeof(header)) return 1;
-    int all_zero = 1;
-    const unsigned char *raw = (const unsigned char *)&header;
-    for (size_t i = 0; i < sizeof(header); i++) {
-        if (raw[i] != 0) {
-            all_zero = 0;
-            break;
-        }
-    }
-    if (all_zero) return 1;
-
-    char recorded[9];
-    memcpy(recorded, header.checksum, 8);
-    recorded[8] = '\0';
-    memset(header.checksum, ' ', sizeof(header.checksum));
-    unsigned int sum = 0;
-    raw = (const unsigned char *)&header;
-    for (size_t i = 0; i < sizeof(header); i++) sum += raw[i];
-    if (strtoul(recorded, NULL, 8) != sum) return -1;
-
-    snprintf(entry->name, sizeof(entry->name), "%s", header.name);
-    entry->size = strtoull(header.size, NULL, 8);
-    long data_offset = ftell(entry->f);
-    if (data_offset < 0) return -1;
-    entry->data_offset = data_offset;
-    if (fseeko(entry->f, (off_t)(entry->size + ((TAR_BLOCK - entry->size % TAR_BLOCK) % TAR_BLOCK)),
-               SEEK_CUR) != 0)
-        return -1;
-    return 0;
-}
-
-static int read_member(const char *path, const char *wanted, unsigned char **data, size_t *len,
-                       char sha[65]) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    tar_entry_t entry = {.f = f};
-    int found = 0;
-    int rc;
-    while ((rc = tar_next(&entry)) == 0) {
-        if (strcmp(entry.name, wanted) != 0) continue;
-        if (entry.size > MANIFEST_MAX && strcmp(wanted, "edge.db") != 0) break;
-        unsigned char *buf = malloc(entry.size ? (size_t)entry.size : 1);
-        if (!buf) break;
-        if (fseek(f, entry.data_offset, SEEK_SET) != 0 ||
-            fread(buf, 1, (size_t)entry.size, f) != (size_t)entry.size) {
-            free(buf);
-            break;
-        }
-        EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-        unsigned char digest[EVP_MAX_MD_SIZE];
-        unsigned int digest_len = 0;
-        int ok = ctx && EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) == 1 &&
-                 EVP_DigestUpdate(ctx, buf, (size_t)entry.size) == 1 &&
-                 EVP_DigestFinal_ex(ctx, digest, &digest_len) == 1;
-        EVP_MD_CTX_free(ctx);
-        if (!ok || digest_len != 32) {
-            free(buf);
-            break;
-        }
-        for (unsigned int i = 0; i < digest_len; i++) snprintf(sha + i * 2, 3, "%02x", digest[i]);
-        *data = buf;
-        *len = (size_t)entry.size;
-        found = 1;
-        break;
-    }
-    fclose(f);
-    return found ? 0 : -1;
-}
-
-static int hash_member(const char *path, const char *wanted, char sha[65],
-                       unsigned long long *size_out) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    tar_entry_t entry = {.f = f};
-    int rc;
-    int ok = -1;
-    while ((rc = tar_next(&entry)) == 0) {
-        if (strcmp(entry.name, wanted) != 0) continue;
-        if (fseek(f, entry.data_offset, SEEK_SET) != 0) break;
-        EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-        unsigned char digest[EVP_MAX_MD_SIZE];
-        unsigned int digest_len = 0;
-        char buf[512];
-        unsigned long long left = entry.size;
-        int good = ctx && EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) == 1;
-        while (good && left > 0) {
-            size_t chunk = left > sizeof(buf) ? sizeof(buf) : (size_t)left;
-            if (fread(buf, 1, chunk, f) != chunk || EVP_DigestUpdate(ctx, buf, chunk) != 1) {
-                good = 0;
-                break;
-            }
-            left -= chunk;
-        }
-        if (good) good = EVP_DigestFinal_ex(ctx, digest, &digest_len) == 1 && digest_len == 32;
-        EVP_MD_CTX_free(ctx);
-        if (!good) break;
-        for (unsigned int i = 0; i < digest_len; i++) snprintf(sha + i * 2, 3, "%02x", digest[i]);
-        if (size_out) *size_out = entry.size;
-        ok = 0;
-        break;
-    }
-    fclose(f);
-    return ok;
-}
-
-static int copy_member(const char *path, const char *wanted, const char *dest) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    tar_entry_t entry = {.f = f};
-    int rc;
-    int done = -1;
-    while ((rc = tar_next(&entry)) == 0) {
-        if (strcmp(entry.name, wanted) != 0) continue;
-        FILE *out = fopen_private(dest, "wb");
-        if (!out) break;
-        if (fseek(f, entry.data_offset, SEEK_SET) != 0) {
-            fclose(out);
-            break;
-        }
-        char buf[512];
-        unsigned long long left = entry.size;
-        while (left > 0) {
-            size_t chunk = left > sizeof(buf) ? sizeof(buf) : (size_t)left;
-            if (fread(buf, 1, chunk, f) != chunk || fwrite(buf, 1, chunk, out) != chunk) break;
-            left -= chunk;
-        }
-        int ok = left == 0 && fflush(out) == 0 && fsync(fileno(out)) == 0;
-        if (fclose(out) != 0) ok = 0;
-        if (ok) done = 0;
-        break;
-    }
-    fclose(f);
-    return done;
 }
 
 static int parse_schema_version(const char *db_path) {
@@ -352,7 +173,7 @@ int edge_backup_create(const char *db_path, const char *out_path, char *reason,
 
     char manifest_path[512];
     snprintf(manifest_path, sizeof(manifest_path), "%s.manifest.tmp", out_path);
-    FILE *mf = fopen_private(manifest_path, "wb");
+    FILE *mf = edge_tar_fopen_private(manifest_path, "wb");
     size_t manifest_len = strlen(manifest_text);
     if (!mf || fwrite(manifest_text, 1, manifest_len, mf) != manifest_len) {
         if (mf) fclose(mf);
@@ -364,7 +185,7 @@ int edge_backup_create(const char *db_path, const char *out_path, char *reason,
     fclose(mf);
     free(manifest_text);
 
-    FILE *out = fopen_private(bundle, "wb");
+    FILE *out = edge_tar_fopen_private(bundle, "wb");
     if (!out) {
         unlink(snapshot);
         unlink(manifest_path);
@@ -397,11 +218,12 @@ int edge_backup_verify(const char *bundle_path, char *reason, size_t reason_size
     unsigned char *manifest_data = NULL;
     size_t manifest_len = 0;
     char manifest_sha[65] = {0};
-    if (read_member(bundle_path, "manifest.json", &manifest_data, &manifest_len, manifest_sha) != 0) {
+    if (edge_tar_read_member(bundle_path, "manifest.json", MANIFEST_MAX, &manifest_data,
+                             &manifest_len, manifest_sha) != 0) {
         return fail(reason, reason_size, "manifest missing or unreadable");
     }
     char db_sha[65] = {0};
-    int db_ok = hash_member(bundle_path, "edge.db", db_sha, NULL) == 0;
+    int db_ok = edge_tar_hash_member(bundle_path, "edge.db", db_sha, NULL) == 0;
 
     cJSON *manifest = cJSON_ParseWithLength((const char *)manifest_data, manifest_len);
     free(manifest_data);
@@ -471,7 +293,7 @@ int edge_backup_restore(const char *bundle_path, const char *db_path, char *reas
             (int)sizeof(previous)) {
         return fail(reason, reason_size, "path too long");
     }
-    if (copy_member(bundle_path, "edge.db", tmp) != 0) {
+    if (edge_tar_copy_member(bundle_path, "edge.db", tmp) != 0) {
         unlink(tmp);
         return fail(reason, reason_size, "database extract failed");
     }

@@ -1,0 +1,102 @@
+[
+  {
+    "group": "groupA",
+    "devices": [
+      {
+        "mp": "LC1",
+        "mpd": "cabinetA",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "pcsA"
+      },
+      {
+        "mp": "LC1",
+        "mpd": "cabinetA",
+        "type": "BMS",
+        "subtype": "BCU",
+        "no": "BMS",
+        "name": "bmsA"
+      }
+    ]
+  },
+  {
+    "group": "groupB",
+    "devices": [
+      {
+        "mp": "LC2",
+        "mpd": "cabinetB",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "pcsB"
+      },
+      {
+        "mp": "LC2",
+        "mpd": "cabinetB",
+        "type": "BMS",
+        "subtype": "BCU",
+        "no": "BMS",
+        "name": "bmsB"
+      }
+    ]
+  },
+  {
+    "group": "groupC",
+    "devices": [
+      {
+        "mp": "LC3",
+        "mpd": "cabinetC",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "pcsC"
+      },
+      {
+        "mp": "LC3",
+        "mpd": "cabinetC",
+        "type": "BMS",
+        "subtype": "BCU",
+        "no": "BMS",
+        "name": "bmsC"
+      }
+    ]
+  },
+  {
+    "group": "groupD",
+    "devices": [
+      {
+        "mp": "LC4",
+        "mpd": "cabinetD",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "pcsD"
+      },
+      {
+        "mp": "LC4",
+        "mpd": "cabinetD",
+        "type": "BMS",
+        "subtype": "BCU",
+        "no": "BMS",
+        "name": "bmsD"
+      }
+    ]
+  },
+  {
+    "group": "groupE",
+    "devices": [
+      {
+        "mp": "LC5",
+        "mpd": "cabinetE",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "pcsE"
+      },
+      {
+        "mp": "LC5",
+        "mpd": "cabinetE",
+        "type": "BMS",
+        "subtype": "BCU",
+        "no": "BMS",
+        "name": "bmsE"
+      }
+    ]
+  }
+]

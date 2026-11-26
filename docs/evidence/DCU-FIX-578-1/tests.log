@@ -1,0 +1,128 @@
+=== BEFORE FIX: tests/test_dcu_698_record (Release, assert compiled out) ===
+[==========] tests: Running 8 test(s).
+[ RUN      ] test_record_all_rows_two_columns
+[       OK ] test_record_all_rows_two_columns
+[ RUN      ] test_record_range_is_half_open
+[       OK ] test_record_range_is_half_open
+[ RUN      ] test_record_empty_range
+[       OK ] test_record_empty_range
+[ RUN      ] test_record_slot_selects_meter
+[       OK ] test_record_slot_selects_meter
+[ RUN      ] test_record_selector1_date_time_layout
+[       OK ] test_record_selector1_date_time_layout
+[ RUN      ] test_record_rcsd_zero_means_all_columns
+[       OK ] test_record_rcsd_zero_means_all_columns
+[ RUN      ] test_record_missing_column_fails_row
+[       OK ] test_record_missing_column_fails_row
+[ RUN      ] test_record_page_overflow_returns_dar2
+[  ERROR   ] --- out.b.len <= OVERFLOW_CAP is not true
+[   LINE   ] --- /tmp/edgec-land/fix1-getrecord-overflow/tests/test_dcu_698_record.c:375: error: Failure!
+[  FAILED  ] test_record_page_overflow_returns_dar2
+[==========] tests: 8 test(s) run.
+[  PASSED  ] 7 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_record_page_overflow_returns_dar2
+
+ 1 FAILED TEST(S)
+
+=== AFTER FIRST FIX: adjacent DLT698 tests ===
+Test project /tmp/edgec-land/fix1-getrecord-overflow/build
+    Start  9: test_dlt698_axdr
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+    Start 11: test_dlt698_get_list
+2/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+    Start 30: test_dcu_698_axdr
+3/6 Test #30: test_dcu_698_axdr ................   Passed    0.07 sec
+    Start 32: test_dcu_698_record
+4/6 Test #32: test_dcu_698_record ..............   Passed    0.85 sec
+    Start 36: test_dlt698_conformance_suite
+5/6 Test #36: test_dlt698_conformance_suite ....   Passed    0.01 sec
+    Start 91: test_driver_dlt698
+6/6 Test #91: test_driver_dlt698 ...............   Passed    5.11 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Total Test time (real) =   6.08 sec
+
+=== FIX ROUND 2: new boundary test at previous tip f0a1b1ec (fails) ===
+[ RUN      ] test_record_page_trailer_boundary_returns_dar2
+[  ERROR   ] --- -1 != 0
+[   LINE   ] --- /tmp/edgec-land/fix1-getrecord-overflow/tests/test_dcu_698_record.c:450: error: Failure!
+[  FAILED  ] test_record_page_trailer_boundary_returns_dar2
+[  PASSED  ] 8 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_record_page_trailer_boundary_returns_dar2
+ 1 FAILED TEST(S)
+
+=== FIX ROUND 2: after trailer reserve (Release) ===
+Test project /tmp/edgec-land/fix1-getrecord-overflow/build
+    Start  9: test_dlt698_axdr
+1/6 Test  #9: test_dlt698_axdr .................   Passed    0.01 sec
+    Start 11: test_dlt698_get_list
+2/6 Test #11: test_dlt698_get_list .............   Passed    0.01 sec
+    Start 30: test_dcu_698_axdr
+3/6 Test #30: test_dcu_698_axdr ................   Passed    0.03 sec
+    Start 32: test_dcu_698_record
+4/6 Test #32: test_dcu_698_record ..............   Passed    0.62 sec
+    Start 36: test_dlt698_conformance_suite
+5/6 Test #36: test_dlt698_conformance_suite ....   Passed    0.00 sec
+    Start 91: test_driver_dlt698
+6/6 Test #91: test_driver_dlt698 ...............   Passed    5.10 sec
+
+100% tests passed, 0 tests failed out of 6
+
+Total Test time (real) =   5.80 sec
+
+=== AFTER FIRST FIX: ASAN build ===
+Test project /tmp/edgec-land/fix1-getrecord-overflow/build-asan
+    Start 32: test_dcu_698_record
+1/1 Test #32: test_dcu_698_record ..............   Passed    0.99 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   1.02 sec
+
+=== FIX ROUND 2: ASAN build ===
+Test project /tmp/edgec-land/fix1-getrecord-overflow/build-asan
+    Start 32: test_dcu_698_record
+1/1 Test #32: test_dcu_698_record ..............   Passed    0.76 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.79 sec
+
+=== BEFORE FIRST FIX: ASAN build ===
+[==========] tests: Running 8 test(s).
+[ RUN      ] test_record_all_rows_two_columns
+[       OK ] test_record_all_rows_two_columns
+[ RUN      ] test_record_range_is_half_open
+[       OK ] test_record_range_is_half_open
+[ RUN      ] test_record_empty_range
+[       OK ] test_record_empty_range
+[ RUN      ] test_record_slot_selects_meter
+[       OK ] test_record_slot_selects_meter
+[ RUN      ] test_record_selector1_date_time_layout
+[       OK ] test_record_selector1_date_time_layout
+[ RUN      ] test_record_rcsd_zero_means_all_columns
+[       OK ] test_record_rcsd_zero_means_all_columns
+[ RUN      ] test_record_missing_column_fails_row
+[       OK ] test_record_missing_column_fails_row
+[ RUN      ] test_record_page_overflow_returns_dar2
+[  ERROR   ] --- out.b.len <= OVERFLOW_CAP is not true
+[   LINE   ] --- /tmp/edgec-land/fix1-getrecord-overflow/tests/test_dcu_698_record.c:375: error: Failure!
+[  FAILED  ] test_record_page_overflow_returns_dar2
+[==========] tests: 8 test(s) run.
+[  PASSED  ] 7 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_record_page_overflow_returns_dar2
+
+ 1 FAILED TEST(S)
+
+=== BUILD WARNING GATE ===
+[1/6] Building C object tests/CMakeFiles/test_dcu_698_record.dir/test_dcu_698_record.c.o
+[2/6] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_dlt698.c.o
+[3/6] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+[4/6] Linking C static library foundation/libedge_codec.a
+[5/6] Linking C static library adapters/io_drivers/libedge_io_drivers.a
+[6/6] Linking C executable tests/test_dcu_698_record
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

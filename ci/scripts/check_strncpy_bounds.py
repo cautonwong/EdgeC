@@ -24,7 +24,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
 
 GUARD_NAME = "STRNCPY_BOUNDS_GUARD"
-SKIP_DIRS = {".git", "build", "third-party", "node_modules", ".local", "web", ".venv"}
+from c_source_scan import SHARED_PRUNE_DIRS, rel_scan_parts
+
+SKIP_DIRS = {".git", "build", "third-party", "node_modules", ".local", "web", ".venv"} | SHARED_PRUNE_DIRS
 CALL_RE = re.compile(r"\bstrncpy\s*\(")
 LITERAL_RE = re.compile(r'^\s*"((?:[^"\\]|\\.)*)"\s*$')
 NUMERIC_RE = re.compile(r"^\s*(0x[0-9a-fA-F]+|[0-9]+)\s*$")
@@ -67,7 +69,6 @@ def calls(text):
 
 def scan(root):
     violations = []
-    inside_fixtures = os.path.join("tests", "guards", "fixtures") in root
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith("build")]
         for name in filenames:
@@ -75,7 +76,7 @@ def scan(root):
                 continue
             path = os.path.join(dirpath, name)
             # Fixtures intentionally contain the violating shapes.
-            if not inside_fixtures and os.path.join("tests", "guards", "fixtures") in path:
+            if "fixtures" in rel_scan_parts(dirpath, root):
                 continue
             try:
                 with open(path, "r", encoding="utf-8", errors="replace") as handle:

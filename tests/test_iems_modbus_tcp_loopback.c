@@ -80,6 +80,8 @@ typedef struct {
     unsigned ack_qty;
     unsigned read_count;
     uint16_t read_regs[2];
+    uint16_t write_regs[4];    /* FC16 合法负载的寄存器序列 */
+    unsigned write_n;
     bool frame_bad;
     bool responded;
     bool timed_out;
@@ -197,7 +199,7 @@ static void _on_slave_tick(uv_timer_t *handle) {
     uint8_t fc = c->req[7];
     c->fc_seen = fc;
     c->frame_ok = proto == MODBUS_TCP_PROTOCOL_ID &&
-                  len == (fc == MODBUS_FC_WRITE_MULTIPLE_REGS ? 11u : 6u) &&
+                  len == (fc == MODBUS_FC_WRITE_MULTIPLE_REGS ? 7u + 2u * qty : 6u) &&
                   c->req[6] == TCP_SLAVE &&
                   (fc == MODBUS_FC_READ_HOLDING_REGS || fc == MODBUS_FC_WRITE_SINGLE_REG ||
                    fc == MODBUS_FC_WRITE_MULTIPLE_REGS) &&
@@ -226,12 +228,15 @@ static void _on_slave_tick(uv_timer_t *handle) {
     }
 
     if (fc == MODBUS_FC_WRITE_MULTIPLE_REGS) {
-        /* FC16 写 32 位量：count=2、byte count=4、ABCD 两寄存器 */
-        c->write_ok = qty == 2 && c->req[12] == 4 && c->req[13] == 0x12 && c->req[14] == 0x34 &&
-                      c->req[15] == 0x56 && c->req[16] == 0x78;
+        /* FC16 写 N 个寄存器：count=N、byte count=2N，负载按描述编码 */
+        c->write_ok = qty == c->write_n && c->req[12] == (uint8_t)(2 * qty);
+        for (unsigned i = 0; c->write_ok && i < qty; i++) {
+            uint16_t got = (uint16_t)((c->req[13 + 2 * i] << 8) | c->req[14 + 2 * i]);
+            if (got != c->write_regs[i]) c->write_ok = false;
+        }
         if (!c->write_ok) {
             c->frame_bad = true;
-            _dump_frame(c, "unexpected write32 payload");
+            _dump_frame(c, "unexpected write payload");
             return;
         }
         uint8_t ack[12] = {c->req[0],
@@ -332,7 +337,7 @@ static void _on_reconnect_tick(uv_timer_t *handle) {
     if (c->second_sent) return;
     if (c->accept_count < 2 || c->wiring.state[0] != BUS_STATE_CONNECTED) return;
     c->second_sent = true;
-    c->second_rc = edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE,
+    c->second_rc = edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0,
                                         MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG, TCP_SCALE, NULL,
                                         0, ARBITER_PRIO_NORMAL, _on_read_done, c);
     if (c->second_rc != 0) uv_stop(&c->loop);
@@ -348,6 +353,9 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     c->read_regs[0] = TCP_RAW;
     c->ack_addr = TCP_REG;
     c->ack_qty = 2;
+    c->write_n = 2;
+    c->write_regs[0] = 0x1234;
+    c->write_regs[1] = 0x5678;
 
     c->listen_fd = socket(AF_INET, SOCK_STREAM, 0);
     assert_true(c->listen_fd >= 0);
@@ -394,6 +402,8 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     assert_int_equal(setenv("OMNIS_BUS_0_DEV", dev, 1), 0);
 
     int configured = 0;
+    assert_int_equal(uv_timer_init(&c->loop, &c->watchdog), 0);
+    c->watchdog.data = c;
     /* 重连用例要求退避在 20/40ms 内完成，否则默认 1s 起步会让用例变慢 */
     iems_tcp_link_config_t link_cfg = {.backoff_base_ms = 20, .backoff_cap_ms = 40};
     iems_southbound_connect_in(&c->loop, &c->hub, c->orch, c->wiring.state, c->wiring.link,
@@ -401,6 +411,12 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     unsetenv("OMNIS_BUS_0_DEV");
 
     assert_true(configured >= 1);
+    assert_int_equal(uv_timer_start(&c->watchdog, _on_watchdog, 3000, 0), 0);
+    while (!c->timed_out && c->wiring.state[0] == BUS_STATE_CONNECTING) {
+        uv_run(&c->loop, UV_RUN_ONCE);
+    }
+    uv_timer_stop(&c->watchdog);
+    c->timed_out = false;
     assert_int_equal(c->wiring.state[0], BUS_STATE_CONNECTED);
 
     assert_int_equal(uv_timer_init(&c->loop, &c->slave_tick), 0);
@@ -410,8 +426,6 @@ static int setup_common(void **state, const char *protocol, bool rtu_frames) {
     assert_int_equal(uv_timer_init(&c->loop, &c->reconnect_tick), 0);
     c->reconnect_tick.data = c;
 
-    assert_int_equal(uv_timer_init(&c->loop, &c->watchdog), 0);
-    c->watchdog.data = c;
     assert_int_equal(uv_timer_start(&c->watchdog, _on_watchdog, 3000, 0), 0);
 
     *state = c;
@@ -426,7 +440,7 @@ static void test_modbus_tcp_read_over_loopback(void **state) {
     tcp_ctx_t *c = (tcp_ctx_t *)*state;
 
     assert_int_equal(
-        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
                              TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
 
@@ -456,7 +470,7 @@ static void test_modbus_tcp_reconnects_after_peer_close(void **state) {
     tcp_ctx_t *c = (tcp_ctx_t *)*state;
 
     assert_int_equal(
-        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
                              TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
     uv_run(&c->loop, UV_RUN_DEFAULT);
@@ -474,7 +488,7 @@ static void test_modbus_tcp_reconnects_after_peer_close(void **state) {
     /* 引擎在事务完成后会停读；对端关闭要等下一笔命令重新开读才可见
      * （写失败或 EOF 都行）。这笔探针命令预期失败，只用来触发链路错误。 */
     assert_int_equal(
-        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
                              TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
     c->timed_out = false;
@@ -533,7 +547,7 @@ static void test_modbus_rtu_over_tcp_read(void **state) {
     tcp_ctx_t *c = (tcp_ctx_t *)*state;
 
     assert_int_equal(
-        edge_api_read_tag_ex(0, "ModbusRTU", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1),
+        edge_api_read_tag_ex(0, "ModbusRTU", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 1),
                              RTU_TCP_RESULT_TAG, TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL,
                              _on_read_done, c),
         0);
@@ -576,6 +590,63 @@ static void test_modbus_tcp_write32_over_loopback(void **state) {
     assert_int_equal(c->cb_status, 0);
 }
 
+/* 写描述（u32 CDAB）：同一值按字序交换两寄存器上线，不是 ABCD。 */
+static void test_modbus_tcp_write_desc_u32_cdab_over_loopback(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+    c->write_n = 2;
+    c->write_regs[0] = 0x5678;
+    c->write_regs[1] = 0x1234;
+    modbus_write_desc_t desc = {.type = MODBUS_WRITE_U32, .order = MODBUS_WORD_ORDER_CDAB};
+
+    assert_int_equal(edge_api_write_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 2),
+                                           0x12345678, &desc, sizeof(desc), _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out || c->cb_status != 0 || !c->write_ok)
+        _dump_frame(c, "write u32 cdab did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->req_frames, 1);
+    assert_true(c->frame_ok);
+    assert_int_equal(c->fc_seen, MODBUS_FC_WRITE_MULTIPLE_REGS);
+    assert_true(c->write_ok);
+    assert_int_equal(c->req_len, 17);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+}
+
+/* 4 寄存器 u64 写：MBAP length=15、byte count=8，从站回显地址+数量 4。 */
+static void test_modbus_tcp_write_u64_over_loopback(void **state) {
+    tcp_ctx_t *c = (tcp_ctx_t *)*state;
+    c->write_n = 4;
+    c->write_regs[0] = 0x0001;
+    c->write_regs[1] = 0x2345;
+    c->write_regs[2] = 0x6789;
+    c->write_regs[3] = 0xABCD;
+    c->ack_qty = 4;
+    modbus_write_desc_t desc = {.type = MODBUS_WRITE_U64, .order = MODBUS_WORD_ORDER_ABCD};
+
+    assert_int_equal(edge_api_write_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 4),
+                                           0x123456789ABCD, &desc, sizeof(desc), _on_read_done, c),
+                     0);
+
+    uv_run(&c->loop, UV_RUN_DEFAULT);
+
+    if (c->timed_out || c->cb_status != 0 || !c->write_ok)
+        _dump_frame(c, "write u64 did not round-trip");
+
+    assert_false(c->timed_out);
+    assert_int_equal(c->req_frames, 1);
+    assert_true(c->frame_ok);
+    assert_int_equal(c->fc_seen, MODBUS_FC_WRITE_MULTIPLE_REGS);
+    assert_true(c->write_ok);
+    assert_int_equal(c->req_len, 21);
+    assert_int_equal(c->cb_count, 1);
+    assert_int_equal(c->cb_status, 0);
+}
+
 /* TCP 多寄存器读按 ABCD 合包：修复前只回 raw[0]，100000 会读成 0 */
 static void test_modbus_tcp_read_two_regs_combined(void **state) {
     tcp_ctx_t *c = (tcp_ctx_t *)*state;
@@ -583,7 +654,7 @@ static void test_modbus_tcp_read_two_regs_combined(void **state) {
     c->read_regs[0] = 0x0001;
     c->read_regs[1] = 0x86A0;
 
-    assert_int_equal(edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 2),
+    assert_int_equal(edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 2),
                                          1004, 1.0, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
                      0);
 
@@ -606,7 +677,7 @@ static void test_modbus_tcp_read_split_response(void **state) {
     c->split_resp = true;
 
     assert_int_equal(
-        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
+        edge_api_read_tag_ex(0, "ModbusTCP", TCP_SLAVE, 0, MODBUS_NATIVE(TCP_REG, 1), TCP_RESULT_TAG,
                              TCP_SCALE, NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
 
@@ -876,6 +947,9 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write_over_loopback, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_over_loopback, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_write_desc_u32_cdab_over_loopback, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_modbus_tcp_write_u64_over_loopback, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_read_split_response, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_ack_qty_mismatch, setup, teardown),
         cmocka_unit_test_setup_teardown(test_modbus_tcp_write32_ack_addr_mismatch, setup, teardown),

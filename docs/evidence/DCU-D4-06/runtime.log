@@ -1,0 +1,37 @@
+== build (clean, HEAD 5eef4736) ==
+cmake --build build --clean-first -j4 -> rc=0; first-party warnings: 0
+
+== counts / budget ==
+rc=0 len=5806 count_byte=118
+object rows 131; ACL 118 (107 handwritten + 11 param)
+framed object list 5828 B < slave pool usable 10432 B (10496 - 64 headroom)
+
+== mutation guard ==
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d4-06-file/build ===
+
+[MUTATION] DCU-D4-06-file-oi-methods (cmd/dcu/dcu_698_object_model.c)
+  [mutate] cmd/dcu/dcu_698_object_model.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_object_model.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D4-06-file-oi-methods: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+
+== guards ==
+check_build_warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_build_freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/d4-06-file
+check_doc_references: 
+check_no_dynamic_memory: ✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_public_structs: ✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+check_stack_usage: ✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== targeted suite ==
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  25.65 sec
+
+== acceptance ==
+run1: 35 passed in 22.70s
+run2: 35 passed in 22.73s
+run3: 35 passed in 22.64s

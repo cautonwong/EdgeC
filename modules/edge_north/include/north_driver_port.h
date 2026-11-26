@@ -28,9 +28,14 @@ typedef struct {
     void (*detach)(void *ctx, north_driver_t *driver);
 
     /* 编码一条点位值。返回的指针由端口持有，有效期到下一次 encode 或
-     * detach；调用方必须在下一次编码前完成 publish。 */
+     * detach；调用方必须在下一次编码前完成 publish。
+     *
+     * ts_us 是发送边界采样一次的记录墙钟 (epoch 微秒, CLOCK_REALTIME)；SnF
+     * 补发时是库里的 wall_ts_us。驱动用它作为报文时间戳，不要自己取当前时间。
+     * 0 表示未知，驱动可回落到当前墙钟。 */
     int (*encode_value)(void *ctx, north_driver_t *driver, uint32_t tag_id, double value,
-                        const char *name, const uint8_t **out_data, size_t *out_len);
+                        uint64_t ts_us, const char *name, const uint8_t **out_data,
+                        size_t *out_len);
 
     /* 编码周期帧（NBIRTH/状态帧）。语义同上。 */
     int (*encode_tick)(void *ctx, north_driver_t *driver,

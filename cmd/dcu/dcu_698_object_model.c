@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "dcu_comm_info.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
 #include "dcu_698_var.h"
@@ -61,6 +62,85 @@ static dcu_698_object_t g_objects[] = {
      .scope = DCU_OBJ_SHARED,
      .attr_mask = {[BYTE(2)] = BIT(2)}},
 
+    {.oi = OI_EVENT_SCHEME,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_6016_execute,
+     .method_mask = {[BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130)}},
+    {.oi = OI_EVENT_SCHEME_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_TRANSPARENT_SCHEME,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_6018_execute,
+     .method_mask = {[BYTE(127)] = BIT(127),
+                     [BYTE(128)] = BIT(128) | BIT(129) | BIT(130) | BIT(131)}},
+    {.oi = OI_TRANSPARENT_SCHEME_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_TRANSPARENT_RESULT,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_TRANSPARENT_RESULT_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_REPORT_SCHEME,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_601C_execute,
+     .method_mask = {[BYTE(127)] = BIT(127), [BYTE(128)] = BIT(128) | BIT(129)}},
+    {.oi = OI_REPORT_SCHEME_UNIT,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_RULE_LIBRARY,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)},
+     .method = dcu_698_acq_601E_execute,
+     .method_mask = {[BYTE(127)] = BIT(127), [BYTE(128)] = BIT(128) | BIT(129)}},
+    {.oi = OI_RULE,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ACQ_STATUS_SET,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ACQ_STATUS,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_TASK_MONITOR_SET,
+     .class_id = IC_COLLECTION,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_TASK_MONITOR,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ACQ_START_TIME,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ACQ_SUCCESS_TIME,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ACQ_STORE_TIME,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+
     {.oi = (uint16_t)((OAD_ACTIVE_ENERGY >> 16) & 0xFFFF),
      .class_id = IC_ENERGY,
      .scope = DCU_OBJ_PER_METER,
@@ -104,28 +184,226 @@ static dcu_698_object_t g_objects[] = {
     {.oi = 0x200D, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
     {.oi = 0x200E, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
 
+    /* 2100–2104/2110–2114/2120–2124：Class 14/15/16 没有统计生产者，空掩码
+     * 让 resolver 按类定义如实回 DAR 5，不伪造统计值。 */
+    {.oi = 0x2100, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2101, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2102, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2103, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2104, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2110, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2111, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2112, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2113, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2114, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2120, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2121, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2122, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2123, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x2124, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+
+    /* 2401：Class 12 脉冲计量没有脉冲量来源，空掩码让 resolver 按类定义
+     * 如实回 DAR 5，不返回空数组或伪造脉冲量。 */
+    {.oi = OI_PULSE_METER, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+
+    /* 2301–2308：Class 23 总加组。产品没有总加配置/总加值/滑差/功控来源，空掩码
+     * 让 resolver 按类定义如实回 DAR 5；总加与功控方法没有处理器，绝不执行。 */
+    {.oi = OI_GROUP_FIRST, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 1, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 2, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 3, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 4, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 5, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_FIRST + 6, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_GROUP_LAST, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+
+    /* F000/F001/F002：Class 18 文件传输。产品没有文件存储/DFU 激活/校验/回滚来源，
+     * 空掩码让 resolver 按类定义如实回 DAR 5；传输/校验/上传/下载方法没有处理器，
+     * 绝不接收分块、不校验、不激活、不回滚。 */
+    {.oi = OI_FILE_FRAME, .class_id = IC_FILE_TRANSFER, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_FILE_CHUNK, .class_id = IC_FILE_TRANSFER, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_FILE_EXT, .class_id = IC_FILE_TRANSFER, .scope = DCU_OBJ_SINGLETON},
+
+    /* 4300/4307–4309：Class 19 设备管理。产品没有设备描述/版本/复位/初始化端口，
+     * 空掩码让 resolver 按类定义如实回 DAR 5；复位与初始化方法没有处理器，
+     * 绝不真正重启或清数据。 */
+    {.oi = OI_DEVICE_ELECTRIC, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_DEVICE_WATER, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_DEVICE_GAS, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_DEVICE_HEAT, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
+
+    /* 4500/4501 与 4510–4517：Class 25/26 通信模块。产品没有 APN/ICCID/IMSI/
+     * 信号/端口配置来源；平台只给第一个以太网口的 MAC，所以只广告 4510 A5，
+     * 其余空掩码让 resolver 按类定义如实回 DAR 5，不伪造通信参数。 */
+    {.oi = OI_WIRELESS_COMM_FIRST, .class_id = IC_WIRELESS_PUBLIC, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_WIRELESS_COMM_LAST, .class_id = IC_WIRELESS_PUBLIC, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST,
+     .class_id = IC_ETHERNET,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(5)] = BIT(5)}},
+    {.oi = OI_ETHERNET_COMM_FIRST + 1, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST + 2, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST + 3, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST + 4, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST + 5, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_FIRST + 6, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_ETHERNET_COMM_LAST, .class_id = IC_ETHERNET, .scope = DCU_OBJ_SINGLETON},
+
+    /* F300/F301：Class 17 显示没有显示配置来源，空掩码让 resolver 按类定义
+     * 如实回 DAR 5，不伪造轮显表或显示参数。 */
+    {.oi = 0xF300, .class_id = IC_DISPLAY, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0xF301, .class_id = IC_DISPLAY, .scope = DCU_OBJ_SINGLETON},
+
     /* 5004 只走 GetRecord（D1-07）：A2 是冻结数据数组而不是条数，把条数当属性值
      * 就是假语义。属性与方法一律不暴露，类内定义交给 class_defines_* 决定 DAR。 */
+    {.oi = 0x5000,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5001,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5002,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5003,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
     {.oi = (uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF),
      .class_id = IC_RECORD,
-     .scope = DCU_OBJ_SHARED},
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5005,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5006,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5007,
+     .class_id = IC_RECORD,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(3)] = BIT(3)},
+     .method = dcu_698_freeze_execute,
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5) | BIT(7), [BYTE(8)] = BIT(8)}},
+    {.oi = 0x5008, .class_id = IC_RECORD, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x5009, .class_id = IC_RECORD, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x500A, .class_id = IC_RECORD, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x500B, .class_id = IC_RECORD, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x5011, .class_id = IC_RECORD, .scope = DCU_OBJ_SHARED},
 
+    /* A.9：8000 的 A2/A4/A5 是配置/告警/命令状态；产品没有继电器输出通道，
+     * GET 走 resolve 统一回 DAR 2，不伪造状态位。 */
     {.oi = OI_REMOTE_CONTROL,
      .class_id = IC_CONTROL,
      .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4) | BIT(5)},
      .method = dcu_698_control_execute,
      .method_mask = {[BYTE(DCU_ACTION_METHOD_FIRST)] = BIT(DCU_ACTION_METHOD_FIRST),
                      [BYTE(DCU_ACTION_METHOD_FIRST + 1)] =
                          BIT(DCU_ACTION_METHOD_FIRST + 1) | BIT(DCU_ACTION_METHOD_FIRST + 2) |
                          BIT(DCU_ACTION_METHOD_FIRST + 3) | BIT(DCU_ACTION_METHOD_FIRST + 4)}},
 
-    {.oi = OI_ESAM_SECURITY,
-     .class_id = IC_ESAM,
-     .scope = DCU_OBJ_SINGLETON,
-     .method = dcu_698_security_f100_execute,
-     .method_mask = {[BYTE(1)] = BIT(1)}},
+    {.oi = OI_POWER_SAVE,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5)}},
+    {.oi = OI_TERMINAL_SECURITY,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_POWER_CTRL_PERIOD,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_POWER_CTRL_ALARM,
+     .class_id = IC_PARAM,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_DAILY_POWER_CTRL,
+     .class_id = IC_CONTROL,
+     .scope = DCU_OBJ_SHARED,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    /* A.9 列出 810E/810F/8110，但没有定义属性/方法：只保留对象存在性。 */
+    {.oi = OI_CONTROL_OBJECT, .class_id = IC_PARAM, .scope = DCU_OBJ_SHARED},
+    {.oi = OI_TRIP_ROUND, .class_id = IC_PARAM, .scope = DCU_OBJ_SHARED},
+    {.oi = OI_ELEC_CTRL_VALUE, .class_id = IC_PARAM, .scope = DCU_OBJ_SHARED},
 
-    {.oi = OI_CHANNEL_CONFIG, .class_id = IC_PERIPHERAL, .scope = DCU_OBJ_SINGLETON},
+    /* F100：Class 21 ESAM。产品没有 ESAM 硬件/会话来源，软件 ESAM 模拟只留 C API；
+     * 698 面空掩码，GET 属性与方法按类定义如实回 DAR 5，不伪造序列号/会话/MAC。 */
+    {.oi = OI_ESAM_SECURITY, .class_id = IC_ESAM, .scope = DCU_OBJ_SINGLETON},
+
+    /* A.12 的 Class 22 只读属性没有产品来源：如实广告，resolver 回 DAR 2。 */
+    {.oi = OI_CHANNEL_CONFIG,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_RS485_PORT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_INFRARED_PORT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_DIGITAL_INPUT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4)}},
+    {.oi = OI_DC_ANALOG,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4)}},
+    {.oi = OI_RELAY_OUTPUT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_ALARM_OUTPUT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4)}},
+    {.oi = OI_MULTI_TERMINAL,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_AC_SAMPLING,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_LOCAL_MODULE,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(5) | BIT(6)}},
+    {.oi = OI_PULSE_INPUT,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_BLUETOOTH,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2)}},
+    {.oi = OI_WIRELESS_PRIVATE,
+     .class_id = IC_PERIPHERAL,
+     .scope = DCU_OBJ_SINGLETON,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(4) | BIT(5)}},
 
     {.oi = OI_METER_DISCOVERY,
      .class_id = IC_COLLECTION,
@@ -135,6 +413,9 @@ static dcu_698_object_t g_objects[] = {
      /* A2 结果数组、A3 当前元素个数、A6 记录数、A10 空闲/搜表中。 */
      .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(6), [BYTE(10)] = BIT(10)},
      .method_mask = {[BYTE(127)] = BIT(127), [BYTE(128)] = BIT(128) | BIT(129)}},
+
+    {.oi = OI_FILE_SET, .class_id = IC_COLLECTION, .scope = DCU_OBJ_SINGLETON},
+    {.oi = OI_SCRIPT_SET, .class_id = IC_COLLECTION, .scope = DCU_OBJ_SINGLETON},
 
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_SUB_EVENT,
@@ -188,6 +469,10 @@ int dcu_698_object_model_init(dcu_inventory_t *inv, dcu_poller_t *poller,
     for (size_t i = 0; i < OBJECT_COUNT; i++) g_objects[i].instance = NULL;
     g_initialized = true;
 
+    dcu_comm_info_t comm_info;
+    dcu_comm_info_read(&comm_info);
+    dcu_comm_info_install(&comm_info);
+
     _set_instance(OI_METER_ARCHIVE, inv);
     _set_instance(OI_ARCHIVE_UNIT, inv);
     _set_instance(OI_TASK_SCHEDULER, poller);
@@ -205,6 +490,7 @@ void dcu_698_object_model_reset(void) {
     g_router_bus_ops = (router_bus_ops_t){0};
     g_router_sink_ops = (router_sink_ops_t){0};
     s_router_inv = NULL;
+    dcu_comm_info_reset();
     dcu_698_param_reset();
 }
 
@@ -246,12 +532,18 @@ bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
 }
 
 /* 附录 A 的实例属性上限：7.3 类表没有这些号，但它们仍由标准为该 OI 定义。
- * 6002 的 A5..A10 在表 A.7，不在 7.3.11。 */
+ * 6002 的 A5..A10 在表 A.7，不在 7.3.11；F209/F20C 的 A5/A6 在表 A.13；
+ * F000 的 A4/A5、F001/F002 的 A4 在表 A.11。 */
 static const struct {
     uint16_t oi;
     uint8_t max_attr;
 } k_oi_max_attr[] = {
     {OI_METER_DISCOVERY, 10},
+    {OI_LOCAL_MODULE, 6},
+    {OI_WIRELESS_PRIVATE, 5},
+    {OI_FILE_FRAME, 5},
+    {OI_FILE_CHUNK, 4},
+    {OI_FILE_EXT, 4},
 };
 
 bool dcu_698_oi_defines_attr(uint16_t oi, uint8_t class_id, uint8_t attr_id) {
@@ -269,8 +561,19 @@ static const struct {
     uint8_t max_method;
 } k_class_max_method[] = {
     {1, 2},  {2, 2},  {3, 2},   {4, 2},  {5, 2},  {6, 2},  {7, 5},  {8, 2},  {9, 8},
-    {10, 3}, {11, 2}, {12, 4},  {13, 7}, {14, 4}, {15, 4}, {16, 2}, {17, 6}, {18, 8},
-    {19, 2}, {20, 2}, {21, 12}, {22, 2}, {23, 5}, {24, 5}, {25, 2}, {26, 2},
+    {10, 3}, {11, 2}, {12, 4},  {13, 7}, {14, 4}, {15, 4}, {16, 4}, {17, 6}, {18, 8},
+    {19, 6}, {20, 2}, {21, 12}, {22, 2}, {23, 5}, {24, 5}, {25, 1}, {26, 1},
+};
+
+/* A.12/A.8 与 Class 19 子设备的 OI 专属方法（127 起）；类表只到各类自身的方法号。 */
+static const struct {
+    uint16_t oi;
+    uint8_t max_method;
+} k_oi_max_method[] = {
+    {OI_CHANNEL_CONFIG, 127}, {OI_RS485_PORT, 127},    {OI_INFRARED_PORT, 127},
+    {OI_RELAY_OUTPUT, 127},   {OI_MULTI_TERMINAL, 127}, {OI_LOCAL_MODULE, 128},
+    {OI_BLUETOOTH, 127},      {OI_FILE_SET, 129},       {OI_SCRIPT_SET, 130},
+    {OI_DEVICE_WATER, 129},   {OI_DEVICE_GAS, 129},     {OI_DEVICE_HEAT, 129},
 };
 
 static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_id) {
@@ -283,6 +586,13 @@ static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_
     if (oi == OI_METER_ARCHIVE && method_id >= 127 && method_id <= 134) return true;
     if (oi == OI_METER_DISCOVERY && method_id >= 127 && method_id <= 129) return true;
     if (oi == OI_TASK_SCHEDULER && method_id >= 127 && method_id <= 130) return true;
+    /* 表A.11：F001 分块传输另有方法 9（读文件）、10（软件比对），号段在 127 以下。 */
+    if (oi == OI_FILE_CHUNK && method_id >= 9 && method_id <= 10) return true;
+    if (method_id >= 127) {
+        for (size_t i = 0; i < sizeof(k_oi_max_method) / sizeof(k_oi_max_method[0]); i++) {
+            if (k_oi_max_method[i].oi == oi) return method_id <= k_oi_max_method[i].max_method;
+        }
+    }
     for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
         if (k_class_max_method[i].class_id == class_id) {
             return method_id <= k_class_max_method[i].max_method;

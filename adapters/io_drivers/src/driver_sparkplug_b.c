@@ -34,7 +34,14 @@ typedef struct {
     uint32_t tag_id;
     char name[64];
     double value;
+    uint64_t ts_us; /**< 发送边界的记录墙钟 (epoch µs)；0 = 未知，回落到当前墙钟 */
 } spb_req_t;
+
+static uint64_t _realtime_ms(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
+}
 
 /**
  * @brief 编码一个 Metric 子消息 (Protobuf Nested)
@@ -117,6 +124,7 @@ static int spb_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
 
     req->tag_id = point_id;
     req->value = value;
+    req->ts_us = 0;
 
     /* metric 名由北向端口经 point_desc 传进来（NUL 结尾字符串）。
      * 没给就回落成数字标识——不猜、也不去反查 datahub 元数据。 */
@@ -129,11 +137,19 @@ static int spb_req_prepare(void *priv_v, uint32_t slave_id, uint32_t point_id,
     return 0;
 }
 
+static void spb_req_set_ts_us(void *priv_v, uint64_t ts_us) {
+    spb_req_t *req = (spb_req_t *)priv_v;
+    if (req) req->ts_us = ts_us;
+}
+
 static int spb_req_encode(void *priv_v, void *session, net_buf_t *out) {
     spb_req_t *req = (spb_req_t *)priv_v;
     spb_ctx_t *s = (spb_ctx_t *)session;
     if (!req || !s || !out) return -1;
-    _spb_encode_payload(s, req->name, req->value, uv_hrtime() / 1000000, false, out);
+    /* Sparkplug 时间戳是 epoch 毫秒。实时路径与 SnF 补发都用调用方给的墙钟，
+     * 绝不退回 uv_hrtime（那是开机以来单调纳秒）。 */
+    uint64_t ts_ms = req->ts_us ? req->ts_us / 1000ULL : _realtime_ms();
+    _spb_encode_payload(s, req->name, req->value, ts_ms, false, out);
     return 0;
 }
 
@@ -149,12 +165,15 @@ static int spb_req_tick(void *priv_v, const edge_north_source_ops_t *north, void
     spb_ctx_t *priv = (spb_ctx_t *)priv_v;
     if (!priv || !pool || !out_tx) return -1;
 
-    if (priv->birth_sent) return -1;
-    *out_tx = net_buf_alloc(pool, 0);
-    if (!*out_tx) return -1;
-    _spb_encode_payload(priv, NULL, 0, uv_hrtime() / 1000000, true, *out_tx);
-    priv->birth_sent = true;
-    return 0;
+    if (!priv->birth_sent) {
+        *out_tx = net_buf_alloc(pool, 0);
+        if (!*out_tx) return -1;
+        /* 周期帧/NBIRTH 用当前公历毫秒，不受补发记录的墙钟影响。 */
+        _spb_encode_payload(priv, NULL, 0, _realtime_ms(), true, *out_tx);
+        priv->birth_sent = true;
+        return 0;
+    }
+    return -1;
 }
 
 /**
@@ -178,6 +197,7 @@ const edge_driver_t sparkplug_b_driver = {
     .req_priv_size = sizeof(spb_req_t),   /* 请求 scratch 只放这一个 metric */
     .on_init = spb_on_init,
     .req_prepare = spb_req_prepare,
+    .req_set_ts_us = spb_req_set_ts_us,
     .req_encode = spb_req_encode,
     .req_tick = spb_req_tick,
     .req_session_reset = spb_req_session_reset,

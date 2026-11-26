@@ -1,0 +1,11 @@
+{
+  "families": [
+    {
+      "name": "device",
+      "schema": "device.schema.json",
+      "patterns": [
+        "device_config.json"
+      ]
+    }
+  ]
+}

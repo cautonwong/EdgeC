@@ -13,8 +13,6 @@ typedef struct {
     uint32_t slot;
 } known_point_t;
 
-/* 期望值来自 iems_driver_adapter.c 的 14 条元数据与 iems_tag_map_fn 静态表，
- * 不从被测表反推。 */
 static const known_point_t k_known[] = {
     {"VOLTAGE_PHASE_A", 1001, 0},   {"CURRENT_PHASE_A", 1002, 1}, {"GRID_POWER", 1003, 2},
     {"GRID_FREQUENCY", 1004, 3},    {"ADC_RAW_DATA", 2001, 4},    {"ADC_VOLTAGE_RMS", 2002, 5},

@@ -1,0 +1,318 @@
+{
+  "dev_cfg": {
+    "can": {
+      "attr": [
+        {
+          "baud": 500000,
+          "filter": [
+            {
+              "id": "0x019901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x029901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x039901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x049901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x059901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x069901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x079901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x089901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x099901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x129901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x00000001",
+              "mask": "0x00000000"
+            }
+          ],
+          "name": "CAN0"
+        },
+        {
+          "baud": 500000,
+          "filter": [
+            {
+              "id": "0x019901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x029901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x039901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x049901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x059901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x069901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x079901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x089901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x099901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x129901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x00000001",
+              "mask": "0x00000000"
+            }
+          ],
+          "name": "CAN1"
+        }
+      ]
+    },
+    "di": {
+      "attr": [
+        {
+          "disp_name": "DI1",
+          "name": "DI1",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI2",
+          "name": "DI2",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI3",
+          "name": "DI3",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI4",
+          "name": "DI4",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI5",
+          "name": "DI5",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI6",
+          "name": "DI6",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI7",
+          "name": "DI7",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI8",
+          "name": "DI8",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI9",
+          "name": "DI9",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI10",
+          "name": "DI10",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI11",
+          "name": "DI11",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI12",
+          "name": "DI12",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI13",
+          "name": "DI13",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI14",
+          "name": "DI14",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI15",
+          "name": "DI15",
+          "ncno": 0
+        },
+        {
+          "disp_name": "DI16",
+          "name": "DI16",
+          "ncno": 0
+        }
+      ]
+    },
+    "do": {
+      "attr": [
+        {
+          "disp_name": "DO1",
+          "name": "DO1"
+        },
+        {
+          "disp_name": "DO2",
+          "name": "DO2"
+        },
+        {
+          "disp_name": "DO3",
+          "name": "DO3"
+        },
+        {
+          "disp_name": "DO4",
+          "name": "DO4"
+        },
+        {
+          "disp_name": "DO5",
+          "name": "DO5"
+        },
+        {
+          "disp_name": "DO6",
+          "name": "DO6"
+        },
+        {
+          "disp_name": "NC1",
+          "name": "NC1"
+        },
+        {
+          "disp_name": "NC2",
+          "name": "NC2"
+        }
+      ]
+    },
+    "lan": {
+      "attr": [
+        {
+          "ip": "10.0.0.254",
+          "mask": "255.255.255.0",
+          "name": "lan"
+        }
+      ]
+    },
+    "uart": {
+      "attr": [
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_1",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_2",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_3",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_4",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_5",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_6",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_7",
+          "parity": "N",
+          "stop_bit": 1
+        },
+        {
+          "baud": 9600,
+          "data_bit": 8,
+          "name": "RS485_8",
+          "parity": "N",
+          "stop_bit": 1
+        }
+      ]
+    },
+    "wan": {
+      "attr": [
+        {
+          "gateway": "10.0.0.2",
+          "ip": "10.0.0.37",
+          "mask": "255.255.255.0",
+          "metric": "100",
+          "name": "wan1",
+          "type": "static"
+        },
+        {
+          "gateway": "10.0.0.1",
+          "ip": "10.0.0.36",
+          "mask": "255.255.255.0",
+          "metric": "80",
+          "name": "wan2",
+          "type": "dhcp"
+        }
+      ]
+    }
+  },
+  "schema_version": "1.0.0"
+}

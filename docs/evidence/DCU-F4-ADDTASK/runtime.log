@@ -1,0 +1,21 @@
+== build (clean, HEAD 93877f9e) ==
+cmake --build build --clean-first -j4 -> rc=0
+first-party warnings: 0 (only third-party open62541 unused-parameter)
+[1269/1270] Linking C executable tests/test_datahub_subscription_capacity
+[1270/1270] Linking C executable tests/test_iems_cli_write
+
+== guards ==
+build-warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+build-freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/f4-addtask-targeted
+catalog: [DCU_698_CATALOG] catalog matches docs/698_parsed.md
+docrefs: exit 0
+
+== poller suite (36 cases: 35 existing + 1 new) ==
+[==========] tests: 36 test(s) run.
+[  PASSED  ] 36 test(s).
+
+== targeted suite ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 101.97 sec

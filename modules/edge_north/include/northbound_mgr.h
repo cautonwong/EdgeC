@@ -5,12 +5,15 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <time.h>
 #include <uv.h>
 
 #include "edge_request.h"
 #include "pipe_msg.h"
 #include "snf_manager.h"
 #include "north_driver_port.h"
+#include "north_ipc_port.h"
+#include "north_result_queue.h"
 
 // 💡 [Golang 原则] 使用者定义传输契约
 typedef struct {
@@ -82,6 +85,12 @@ typedef struct {
     int (*subscribe_notify)(void* ctx, void (*on_data)(void* user), void* user);
 } nb_source_ops_t;
 
+/**
+ * @brief 墙钟源：返回 epoch 微秒。默认 CLOCK_REALTIME；测试可注入固定值来精确
+ * 断言"发送边界采样的记录时间"，避免驱动回落到自身时钟而掩盖采样错误。
+ */
+typedef uint64_t (*nb_now_us_fn)(void* ctx);
+
 /** 最多挂几路北向传输：云端 MQTT + 本地 SCADA OPC UA + 预留 */
 #define NB_MAX_TRANSPORTS 4
 
@@ -110,6 +119,10 @@ typedef struct {
     void* user_data;
     const snf_store_port_t* store;
     struct snf_manager_s* snf;
+
+    /* 发送边界的墙钟源；NULL 用 CLOCK_REALTIME。测试注入固定值以精确断言。 */
+    nb_now_us_fn now_us_fn;
+    void* now_us_ctx;
 
     char product_name[64];
     int rest_port;
@@ -141,6 +154,12 @@ typedef struct {
      * 组合根可能在 start 之后才注入北向端口，那时也该订得上。 */
     bool downlink_subscribed;
 
+    /* 现场 MQTT binaryFlow：端口由组合根注入，端点表由产品持有。
+     * 只订一条 `ipc/{sn}/#`，收到后按渲染出的精确主题过滤。 */
+    north_ipc_port_t ipc_port;
+    char ipc_sn[NORTH_IPC_SN_MAX];
+    bool ipc_subscribed;
+
     north_driver_port_t driver_port;
     north_driver_t* nb_driver;
     /* [ADR-002] 北向生产者端口：由组合根注入，驱动不碰 datahub。
@@ -150,7 +169,31 @@ typedef struct {
 
     struct uv__queue req_queue;
     uv_mutex_t req_lock;
+
+    /* accepted / result 回执统一走独立模块的线程安全队列：生产者在总线/传输
+     * 回调线程入队，编码/发布只在北向 loop 线程发生。 */
+    north_result_queue_t receipts;
+
+    /* 启动/停止握手：所有 async handle 初始化完才发布 loop_ready；
+     * stop 在 lifecycle_lock 内认领唯一 join 权，未 ready 时由线程自己收尾。 */
+    uv_mutex_t lifecycle_lock;
+    bool loop_ready;
+    bool stop_requested;
+    bool stop_claimed;
 } northbound_mgr_t;
+
+/** 发送边界默认墙钟：epoch 微秒 (CLOCK_REALTIME)。 */
+static inline uint64_t northbound_mgr_default_now_us(void) {
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
+}
+
+/** 取发送边界墙钟：注入源优先，否则用 CLOCK_REALTIME。 */
+static inline uint64_t northbound_mgr_now_us(const northbound_mgr_t* mgr) {
+    if (mgr && mgr->now_us_fn) return mgr->now_us_fn(mgr->now_us_ctx);
+    return northbound_mgr_default_now_us();
+}
 
 typedef struct {
     edge_req_t* req;
@@ -169,12 +212,24 @@ int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const 
 void northbound_mgr_set_driver_port(northbound_mgr_t* mgr, north_driver_port_t port);
 
 /**
+ * @brief 注入发送边界的墙钟源（epoch 微秒）。默认 CLOCK_REALTIME。
+ *
+ * 实时直发与 publish_ack 都通过它取记录时间；SnF 重放用库里的 wall_ts_us，
+ * 不经过这里。测试注入固定值即可精确断言编码出的时间戳。
+ */
+void northbound_mgr_set_wall_clock(northbound_mgr_t* mgr, nb_now_us_fn now_us, void* ctx);
+
+/**
  * @brief 再挂一路传输（多路并存）。
  *
  * `init_ex` 已经挂了第一路；要同时上云和给本地 SCADA 就再调这个。
  * 超过 `NB_MAX_TRANSPORTS` 返回 -1。
  */
 int northbound_mgr_add_transport(northbound_mgr_t* mgr, nb_transport_ops_t transport);
+
+/** 发给所有在线传输；任一路入队成功即算成功。 */
+int northbound_mgr_publish_all(northbound_mgr_t* mgr, const char* topic, const uint8_t* payload,
+                               size_t len);
 
 /**
  * @brief 配地址规则与节点身份。
@@ -210,8 +265,22 @@ int northbound_mgr_set_protocol(northbound_mgr_t* mgr, const char* protocol_name
 int northbound_mgr_render_address(northbound_mgr_t* mgr, const char* kind, const char* point,
                                   char* out, size_t out_sz);
 
+/**
+ * @brief 启动北向 loop 线程。重复 start（未 stop）返回 -1。
+ */
 int northbound_mgr_start(northbound_mgr_t* mgr);
+
+/**
+ * @brief 停止北向 loop 并 join 线程（线程安全）。
+ *
+ * 并发 stop 只有一个调用者认领 join 并返回时保证 loop 已收尾，其余调用立即返回；
+ * 必须先有成功的 start。start 后立刻 stop 也安全：线程在 loop 完全初始化后才发布
+ * ready，未 ready 时由线程自己看到 stop_requested 并收尾。stop 之前应先清空
+ * 在途回执上下文（产品侧 iems_north_results_reset）。
+ */
 void northbound_mgr_stop(northbound_mgr_t* mgr);
+
+/** @brief 释放内部锁。必须在 stop 之后、且无生产者时调用。 */
 void northbound_mgr_destroy(northbound_mgr_t* mgr);
 
 int northbound_mgr_submit_req(northbound_mgr_t* mgr, edge_req_t* req);
@@ -232,22 +301,72 @@ void northbound_mgr_set_rest_server(northbound_mgr_t* mgr, void* rest_srv);
  * @param ctx 传给 ops 的上下文
  */
 /**
- * @brief 发布一条下行回执：metric 名 `<name>.ack`，值 1=执行成功 / 0=失败。
+ * @brief 同步发布一条下行 accepted 回执：`<name>.ack`，1=已接受 / 0=失败。
  *
- * 为什么必须有：主站发了命令，如果只有"设备没回应"和"设备执行了但没吭声"两种可能，
- * 现场就只能靠猜。回执把"收到了但拒绝了"与"根本没收到"分开。
- *
- * 两个刻意的选择：
- *   - **不走 SnF**：断网时缓存一条三天前的"执行成功"回执照样发出去，比不发更糟。
- *     发不出去就是发不出去，主站按超时处理。
- *   - **走驱动的 native 编码**（不是拼 JSON）：回执和遥测走同一条编码路径，
- *     Sparkplug 与裸 JSON 各自编成自己该有的样子，编排层不认识协议。
+ * **兼容入口**：在调用方线程直接编码/发布，只给没有 loop 的场景（例如注入墙钟的
+ * 精确时间戳单测）。产品下行必须走 northbound_mgr_publish_ack_async，保证所有
+ * 编码都在北向 loop 线程，不并发驱动里的非原子会话状态。
  *
  * @param tag_id 该命令对应的点位（用于回落命名，可为 0）
  * @param name   点位名（NULL 时回执名为 `ack.<tag_id>`）
  * @return 0 已交给传输；<0 未连接或编码失败
  */
-int northbound_mgr_publish_ack(northbound_mgr_t* mgr, uint32_t tag_id, const char* name, bool ok);
+static inline int northbound_mgr_publish_ack(northbound_mgr_t* mgr, uint32_t tag_id,
+                                             const char* name, bool ok) {
+    return mgr ? north_result_queue_publish_accepted_now(&mgr->receipts, tag_id, name, ok) : -1;
+}
+
+/**
+ * @brief 线程安全地投递一条 accepted 回执（任意线程可调）。
+ *
+ * 只入队 + uv_async_send；北向 loop 线程 drain 后按 `<name>.ack` 编码发布。
+ * @return 0 已入队；<0 未启动/已停止/队列满
+ */
+static inline int northbound_mgr_publish_ack_async(northbound_mgr_t* mgr, uint32_t tag_id,
+                                                   const char* name, bool ok) {
+    return mgr ? north_result_queue_post_accepted(&mgr->receipts, tag_id, name, ok) : -1;
+}
+
+/**
+ * @brief 线程安全地投递一条执行结果回执（任意线程可调，通常是总线/IO 线程）。
+ *
+ * 只入队 + uv_async_send；北向 loop 线程 drain 后按 `<name>.result`
+ * 走与遥测相同的地址模板/编码路径（name 为空回落 `result.<tag_id>`）。
+ *
+ * @param status 0=OK / 1=FAILED / 2=TIMEOUT（nb_result_status_t，线路值 1/0/2）
+ * @return 0 已入队；<0 管理器未启动/已停止，或队列满（丢弃并告警，不阻塞）
+ *
+ * 线程边界：返回 0 只代表已交给北向 loop，不代表已发布。停止后调用一律返回 -1，
+ * 且不会触碰已关闭的 async handle。
+ */
+static inline int northbound_mgr_publish_result_ack_async(northbound_mgr_t* mgr, uint32_t tag_id,
+                                                          const char* name, int status) {
+    return mgr ? north_result_queue_post_result(&mgr->receipts, tag_id, name, status) : -1;
+}
+
+/**
+ * @brief 注入现场 MQTT binaryFlow 端点端口。
+ *
+ * sn 为空、含 `[A-Za-z0-9_.-]` 之外的字符或长度 >= NORTH_IPC_SN_MAX，
+ * 或端口缺 endpoint_count/endpoint_at/on_frame 时关闭该功能并告警，不截断。
+ * 端口每次注入都清订阅状态，下一次 poll 重订。
+ */
+void northbound_mgr_set_ipc_port(northbound_mgr_t* mgr, north_ipc_port_t port, const char* sn);
+
+/**
+ * @brief 发布一条 binaryFlow 响应：主题由端点与动词渲染。
+ *
+ * 只接受 NORTH_IPC_SET_RESP / NORTH_IPC_GET_RESP。返回 0 = 至少一路 transport
+ * 已入队，不代表已送达。
+ */
+int northbound_mgr_publish_ipc(northbound_mgr_t* mgr, const north_ipc_endpoint_t* ep,
+                               north_ipc_verb_t verb, const uint8_t* payload, size_t len);
+
+void north_ipc_set_port(northbound_mgr_t* mgr, north_ipc_port_t port, const char* sn);
+void north_ipc_ensure_subscribed(northbound_mgr_t* mgr);
+void north_ipc_dispatch(void* user, const char* topic, const uint8_t* payload, size_t len);
+int north_ipc_publish(northbound_mgr_t* mgr, const north_ipc_endpoint_t* ep,
+                      north_ipc_verb_t verb, const uint8_t* payload, size_t len);
 
 void northbound_mgr_set_north_source(northbound_mgr_t* mgr,
                                      const struct edge_north_source_ops_s* ops, void* ctx);

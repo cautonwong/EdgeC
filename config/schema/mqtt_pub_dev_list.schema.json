@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mqtt_pub_dev_list",
+  "description": "P6-04a round 2. Covers mqtt_pub_dev_list.json (cloud screen tag whitelist). pub_dev_list must be a non-empty array; each entry needs type and tags (src/mqtt_emms2/mqtt_emms2.c:379-407). Tag existence is checked only when a template root is given (B1).",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "pub_dev_list"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "pub_dev_list": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "tags"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^.+$"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^.+$"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

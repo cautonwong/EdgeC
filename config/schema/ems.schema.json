@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ems_cfg",
+  "description": "P6-04a round 1. Covers ems_cfg.json. The five old key names are accepted as deprecated; the current reader keys are listed so converted configs can use them. P1-03b injects schema_version.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "Pmlmax": {
+      "type": "integer"
+    },
+    "K1": {
+      "type": "integer"
+    },
+    "K2": {
+      "type": "integer"
+    },
+    "pv_mode": {
+      "type": "integer"
+    },
+    "EnProtectDOD": {
+      "type": "integer"
+    },
+    "EnBmsAlarm": {
+      "type": "integer"
+    },
+    "SOCmax": {
+      "type": "integer"
+    },
+    "SOCmin": {
+      "type": "integer"
+    },
+    "Pset": {
+      "type": "integer"
+    },
+    "cab_power": {
+      "type": "integer"
+    },
+    "Adjpreriod": {
+      "type": "integer"
+    },
+    "EnPcsRpComp": {
+      "type": "integer"
+    },
+    "SleepMode": {
+      "type": "integer"
+    },
+    "SetPcsPowerFactor": {
+      "type": "number"
+    },
+    "EnSocKeepMode": {
+      "type": "integer"
+    },
+    "SocKeepActiveSOC": {
+      "type": "number"
+    },
+    "SocKeepMargin": {
+      "type": "number"
+    },
+    "SocKeepChargePower": {
+      "type": "number"
+    },
+    "PvMode": {
+      "type": "integer"
+    },
+    "CabPower": {
+      "type": "integer"
+    },
+    "ENRPComp": {
+      "type": "integer"
+    },
+    "SetPowerFactor": {
+      "type": "number"
+    },
+    "SocKeepModeEnable": {
+      "type": "integer"
+    },
+    "tou": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "properties": {
+          "StHour": {
+            "type": "integer"
+          },
+          "StMin": {
+            "type": "integer"
+          },
+          "EnHour": {
+            "type": "integer"
+          },
+          "EnMin": {
+            "type": "integer"
+          },
+          "Power": {
+            "type": "integer"
+          },
+          "RePower": {
+            "type": "integer"
+          },
+          "SOCUpperLimit": {
+            "type": "integer"
+          },
+          "SOCLowerLimit": {
+            "type": "integer"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "x-deprecated": [
+    "pv_mode",
+    "cab_power",
+    "EnPcsRpComp",
+    "SetPcsPowerFactor",
+    "EnSocKeepMode"
+  ]
+}

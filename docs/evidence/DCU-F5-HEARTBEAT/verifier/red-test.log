@@ -1,0 +1,49 @@
+[==========] tests: Running 4 test(s).
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[2026-11-26 13:40:55][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 13:40:55][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 13:40:55][WARN][BUS] FIFO create failed: File exists
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-26 13:40:56][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[2026-11-26 13:40:56][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=0)
+[2026-11-26 13:40:56][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-26 13:40:56][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[2026-11-26 13:41:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 13:41:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 13:41:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 201)
+[2026-11-26 13:41:03][INFO][BUS] 🏁 [TEST] Triggering demo relay control for Meter 10000001...
+[2026-11-26 13:41:03][WARN][CORE] DCU control: 聚合根拒绝/下发失败 dev=000000000001 action=1 rc=-4
+[2026-11-26 13:41:03][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+🎛️ [RELAY] Dev 200: Triggering Action 1
+[2026-11-26 13:41:03][WARN][CORE] DCU control: 聚合根拒绝/下发失败 dev=000000000201 action=1 rc=-4
+[2026-11-26 13:41:03][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-26 13:41:03][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[2026-11-26 13:41:03][INFO][SCHED] 🏁 [TEST] Marathon Completed. Self-terminating...
+[       OK ] test_demo_mode_restores_bench_behavior
+[ RUN      ] test_node_lifecycle_runs_on_one_thread
+[2026-11-26 13:41:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 13:41:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 13:41:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[       OK ] test_node_lifecycle_runs_on_one_thread
+[ RUN      ] test_demo_freeze_trigger_uses_slot_identity
+[2026-11-26 13:41:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 13:41:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 13:41:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 3)
+[2026-11-26 13:41:03][INFO][CORE] WASM: Secure Runtime initialized
+[2026-11-26 13:41:03][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+[  ERROR   ] --- 0 != 3
+[   LINE   ] --- /tmp/edgec-land/heartbeat-slot/tests/test_dcu_runtime_health.c:305: error: Failure!
+[  FAILED  ] test_demo_freeze_trigger_uses_slot_identity
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 3 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_demo_freeze_trigger_uses_slot_identity
+
+ 1 FAILED TEST(S)

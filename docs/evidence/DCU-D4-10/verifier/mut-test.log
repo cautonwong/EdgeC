@@ -1,0 +1,30 @@
+[==========] tests: Running 7 test(s).
+[ RUN      ] test_comm_info_scan_prefers_eth0
+[       OK ] test_comm_info_scan_prefers_eth0
+[ RUN      ] test_comm_info_scan_rejects_multicast_only
+[  ERROR   ] --- info.mac_present is not false
+[   LINE   ] --- /tmp/edgec-land/d4-10-comm/tests/test_dcu_698_axdr.c:735: error: Failure!
+[  FAILED  ] test_comm_info_scan_rejects_multicast_only
+[ RUN      ] test_comm_info_scan_skips_multicast_for_physical
+[  ERROR   ] --- Memory is not equal:
+
+- [00000000] 01 00 5e 00 00 02                                   ..^...
++ [00000000] 02 00 00 00 00 03                                   ......
+
+[   LINE   ] --- /tmp/edgec-land/d4-10-comm/tests/test_dcu_698_axdr.c:711: error: Failure!
+[  FAILED  ] test_comm_info_scan_skips_multicast_for_physical
+[ RUN      ] test_comm_info_scan_skips_en_named_bridge
+[       OK ] test_comm_info_scan_skips_en_named_bridge
+[ RUN      ] test_comm_info_scan_rejects_wireless_and_non_ethernet
+[       OK ] test_comm_info_scan_rejects_wireless_and_non_ethernet
+[ RUN      ] test_comm_info_scan_rejects_all_zero_mac
+[       OK ] test_comm_info_scan_rejects_all_zero_mac
+[ RUN      ] test_comm_info_scan_rejects_veth_named_eth0
+[       OK ] test_comm_info_scan_rejects_veth_named_eth0
+[==========] tests: 7 test(s) run.
+[  PASSED  ] 5 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_comm_info_scan_rejects_multicast_only
+[  FAILED  ] test_comm_info_scan_skips_multicast_for_physical
+
+ 2 FAILED TEST(S)

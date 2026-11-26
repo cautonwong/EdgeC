@@ -1,0 +1,110 @@
+===== RED: source b90aaa38 (parent of test commit), tests 5cd6c390 =====
+$ ctest --test-dir build -R dcu_poller --output-on-failure
+[==========] tests: Running 33 test(s).
+[2026-11-26 10:15:54][ERROR][IO] 🚨 [DCU-Poller] Meter 40000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[2026-11-26 10:15:54][ERROR][IO] 🚨 [DCU-Poller] Meter 85000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[2026-11-26 10:15:54][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[2026-11-26 10:15:54][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 6 >= threshold: 5)
+[2026-11-26 10:15:54][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[ RUN      ] test_scheme_change_mid_batch_reopens_execution
+[  ERROR   ] --- poller.tasks[1].monitor.exec_gen != old_gen is not true
+[   LINE   ] --- /tmp/edgec-land/f4-pending-capacity/tests/test_dcu_poller.c:1463: error: Failure!
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+[ RUN      ] test_new_exec_mid_batch_failure_not_tainted
+[  ERROR   ] --- 0 != 1
+[   LINE   ] --- /tmp/edgec-land/f4-pending-capacity/tests/test_dcu_poller.c:1580: error: Failure!
+[  FAILED  ] test_new_exec_mid_batch_failure_not_tainted
+[==========] tests: 33 test(s) run.
+[  PASSED  ] 31 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+[  FAILED  ] test_new_exec_mid_batch_failure_not_tainted
+ 2 FAILED TEST(S)
+The following tests FAILED:
+
+===== GREEN: source 815ab262, tests 5cd6c390 =====
+$ ctest --test-dir build -R dcu_poller -V
+141: Test command: /tmp/edgec-land/f4-pending-capacity/build/tests/test_dcu_poller
+141: Working Directory: /tmp/edgec-land/f4-pending-capacity/build/tests
+141: Test timeout computed to be: 180
+141: [==========] tests: Running 33 test(s).
+141: [ RUN      ] test_task_and_scheme_add
+141: [       OK ] test_task_and_scheme_add
+141: [ RUN      ] test_add_scheme_bounds
+141: [       OK ] test_add_scheme_bounds
+141: [ RUN      ] test_chain_visits_each_meter_once
+141: [       OK ] test_chain_visits_each_meter_once
+141: [ RUN      ] test_success_counts_only_due_enabled_tasks
+141: [       OK ] test_success_counts_only_due_enabled_tasks
+141: [ RUN      ] test_success_counts_across_non_due_tick
+141: [       OK ] test_success_counts_across_non_due_tick
+141: [ RUN      ] test_dedup_overlapping_tasks
+141: [       OK ] test_dedup_overlapping_tasks
+141: [ RUN      ] test_submit_failure_does_not_stall
+141: [       OK ] test_submit_failure_does_not_stall
+141: [ RUN      ] test_breaker_skips_meter
+141: [2026-11-26 10:19:25][ERROR][IO] 🚨 [DCU-Poller] Meter 40000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+141: [       OK ] test_breaker_skips_meter
+141: [ RUN      ] test_channels_progress_independently
+141: [       OK ] test_channels_progress_independently
+141: [ RUN      ] test_gc_retires_deleted_meter
+141: [       OK ] test_gc_retires_deleted_meter
+141: [ RUN      ] test_execution_polls_each_meter_once
+141: [       OK ] test_execution_polls_each_meter_once
+141: [ RUN      ] test_pending_capacity_starves_second_task
+141: [       OK ] test_pending_capacity_starves_second_task
+141: [ RUN      ] test_shared_tag_dedup_across_batches
+141: [       OK ] test_shared_tag_dedup_across_batches
+141: [ RUN      ] test_capacity_batches_across_steps
+141: [       OK ] test_capacity_batches_across_steps
+141: [ RUN      ] test_capacity_batch_failure_fails_whole_meter
+141: [       OK ] test_capacity_batch_failure_fails_whole_meter
+141: [ RUN      ] test_transient_disable_does_not_reload
+141: [       OK ] test_transient_disable_does_not_reload
+141: [ RUN      ] test_reopen_drops_stale_pending
+141: [       OK ] test_reopen_drops_stale_pending
+141: [ RUN      ] test_mixed_visit_does_not_count_success
+141: [       OK ] test_mixed_visit_does_not_count_success
+141: [ RUN      ] test_breaker_cooldown_half_open
+141: [2026-11-26 10:19:25][ERROR][IO] 🚨 [DCU-Poller] Meter 85000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+141: [       OK ] test_breaker_cooldown_half_open
+141: [ RUN      ] test_breaker_cooldown_probe_failure_rearms
+141: [2026-11-26 10:19:25][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+141: [2026-11-26 10:19:25][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 6 >= threshold: 5)
+141: [       OK ] test_breaker_cooldown_probe_failure_rearms
+141: [ RUN      ] test_reopen_resnapshots_and_ignores_stale_callbacks
+141: [       OK ] test_reopen_resnapshots_and_ignores_stale_callbacks
+141: [ RUN      ] test_mask_change_reopens_execution
+141: [       OK ] test_mask_change_reopens_execution
+141: [ RUN      ] test_overlapping_tasks_settle_on_shared_visit
+141: [       OK ] test_overlapping_tasks_settle_on_shared_visit
+141: [ RUN      ] test_reset_circuit_breaker_closes
+141: [2026-11-26 10:19:25][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+141: [       OK ] test_reset_circuit_breaker_closes
+141: [ RUN      ] test_reopen_late_callback_wrong_address
+141: [       OK ] test_reopen_late_callback_wrong_address
+141: [ RUN      ] test_late_callback_uses_submit_protocol_for_scale
+141: [       OK ] test_late_callback_uses_submit_protocol_for_scale
+141: [ RUN      ] test_late_failure_does_not_retry_shifted_index
+141: [SRC-ERR] reason=read-fail meter=0 tag=20000200 extra=-2
+141: [       OK ] test_late_failure_does_not_retry_shifted_index
+141: [ RUN      ] test_late_callback_before_revision_observed
+141: [       OK ] test_late_callback_before_revision_observed
+141: [ RUN      ] test_late_callback_shift_does_not_fail_meter
+141: [       OK ] test_late_callback_shift_does_not_fail_meter
+141: [ RUN      ] test_spare_retry_dropped_after_slot_reuse
+141: [       OK ] test_spare_retry_dropped_after_slot_reuse
+141: [ RUN      ] test_spare_retry_allowed_when_revision_unchanged
+141: [SRC-ERR] reason=spare-retry meter=0 tag=20000200 extra=57005
+141: [       OK ] test_spare_retry_allowed_when_revision_unchanged
+141: [ RUN      ] test_scheme_change_mid_batch_reopens_execution
+141: [       OK ] test_scheme_change_mid_batch_reopens_execution
+141: [ RUN      ] test_new_exec_mid_batch_failure_not_tainted
+141: [       OK ] test_new_exec_mid_batch_failure_not_tainted
+141: [==========] tests: 33 test(s) run.
+141: [  PASSED  ] 33 test(s).
+
+===== TARGETED: ctest --test-dir build -R "dcu|dlt698" (final tree) =====
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  59.80 sec

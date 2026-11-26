@@ -67,15 +67,9 @@ WRITE_PATH_RULES = [
 # aggregate roots: they carry no cross-field invariants enforced by their owning module.
 TRANSPARENT_VALUE_TYPES = {"net_buf", "net_buf_simple"}
 
-def _scanning_fixture(target_dir: str) -> bool:
-    """True when the scan target itself lives under tests/guards/fixtures.
 
-    The previous heuristic keyed off a ``good_*`` / ``bad_*`` directory-name
-    prefix, so any other fixture (e.g. ``fixtures/injection/i01_*``) was skipped
-    silently: the refutation run passed without ever reading the probe file.
-    """
-    return "/fixtures" in target_dir.replace("\\", "/")
 
+from c_source_scan import SHARED_PRUNE_DIRS, skip_subtree
 
 PRUNE_DIRS = {
     ".git",
@@ -89,7 +83,7 @@ PRUNE_DIRS = {
     "docs",
     "web",
     "docker",
-}
+} | SHARED_PRUNE_DIRS
 
 STRUCT_DEF_RE = re.compile(r"^\s*struct\s+(\w+)\s*\{", re.M)
 INCLUDE_RE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
@@ -249,9 +243,7 @@ def check_directory(target_dir):
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
         is_fixture = os.path.basename(target_dir).startswith(("good_", "bad_"))
-        if "fixtures" in root and not (is_fixture or _scanning_fixture(target_dir)):
-            continue
-        if "tests" in root and "guards" not in root:
+        if skip_subtree(root, target_dir):
             continue
         for name in files:
             if not name.endswith((".c", ".h")):

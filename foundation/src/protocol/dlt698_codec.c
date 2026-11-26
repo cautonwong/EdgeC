@@ -94,6 +94,18 @@ static void _frame_seal(struct net_buf_simple *b, uint8_t *start, uint8_t *len_p
                         (size_t)(hcs_ptr - b->data));
 }
 
+/* 一帧除 APDU 之外的字节：68 | L(2) | ctrl | 地址(1+sa) | CA | HCS(2) | FCS(2) | END。 */
+static size_t _frame_overhead(const dlt698_addr_t *sa) {
+    return 11u + (size_t)sa->len;
+}
+
+/* 放不下就拒绝：net_buf 的 assert 在 NDEBUG 下不存在，不能当防线。 */
+static bool _fits(struct net_buf_simple *b, const dlt698_addr_t *sa, size_t apdu_fixed,
+                  size_t dlen) {
+    size_t room = net_buf_simple_tailroom(b);
+    return dlen <= room && apdu_fixed + dlen + _frame_overhead(sa) <= room;
+}
+
 int dlt698_encode_set_request(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
                               const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;
@@ -142,6 +154,8 @@ int dlt698_encode_get_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
                                const uint8_t *data, size_t dlen, net_buf_t *out) {
     if (!sa || !out || (dlen > 0 && !data)) return -1;
     struct net_buf_simple *b = &out->b;
+    /* APDU 固定头 10 B：svc|choice|piid|OAD(4)|Data 存在|跟随上报|时间标签。 */
+    if (!_fits(b, sa, 10u, dlen)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
@@ -165,6 +179,7 @@ int dlt698_encode_get_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32
                                    net_buf_t *out) {
     if (!sa || !out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 11u, 0u)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -373,6 +388,14 @@ int dlt698_encode_get_response_list(const dlt698_addr_t *sa, uint8_t piid,
     if (!sa || !out || (!items && n > 0) || n > DLT698_GET_LIST_MAX) return -1;
 
     struct net_buf_simple *b = &out->b;
+    size_t need = 4u + 2u; /* svc|choice|piid|n + 跟随上报|时间标签 */
+    for (size_t i = 0; i < n; i++) {
+        if (!items[i].dar && items[i].dlen > 0 && !items[i].data) return -1;
+        size_t item = 5u + (items[i].dar ? 1u : items[i].dlen);
+        if (item > SIZE_MAX - need) return -1;
+        need += item;
+    }
+    if (!_fits(b, sa, need, 0u)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
@@ -406,6 +429,7 @@ int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dl
     if (!stream || !sa || !out || n > DLT698_GET_LIST_MAX) return -1;
 
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 4u, 0u)) return -1;
     stream->start_len = b->len;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
@@ -420,10 +444,16 @@ int dlt698_encode_get_response_list_begin(dlt698_list_stream_t *stream, const dl
     return 0;
 }
 
+/* 列表项之后固定追加的字节：FollowReport + 时间标签 + FCS + END。项编码必须先
+ * 预留它，否则最后一项写满后 end 必然失败，留下未封口的半帧。 */
+#define DLT698_GET_LIST_TRAILER_LEN 5
+
 int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uint8_t *data,
                                          size_t dlen) {
     if (!out || (dlen > 0 && !data)) return -1;
     struct net_buf_simple *b = &out->b;
+    size_t room = net_buf_simple_tailroom(b);
+    if (dlen > room || 5u + dlen + DLT698_GET_LIST_TRAILER_LEN > room) return -1;
     net_buf_simple_add_be32(b, oad);
     net_buf_simple_add_u8(b, DLT698_GET_RESULT_DATA);
     if (dlen > 0) net_buf_simple_add_mem(b, data, dlen);
@@ -433,6 +463,7 @@ int dlt698_encode_get_response_list_item(net_buf_t *out, uint32_t oad, const uin
 int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8_t dar) {
     if (!out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (6u + DLT698_GET_LIST_TRAILER_LEN > net_buf_simple_tailroom(b)) return -1;
     net_buf_simple_add_be32(b, oad);
     net_buf_simple_add_u8(b, 0x00); /* CHOICE [0] DAR */
     net_buf_simple_add_u8(b, dar);
@@ -442,6 +473,7 @@ int dlt698_encode_get_response_list_item_dar(net_buf_t *out, uint32_t oad, uint8
 int dlt698_encode_get_response_list_end(const dlt698_list_stream_t *stream, net_buf_t *out) {
     if (!stream || !out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (net_buf_simple_tailroom(b) < 5u) return -1; /* 跟随上报|时间标签 + FCS|END */
     net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
     net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
     _frame_seal_offsets(b, stream->start_len, stream->len_off, stream->hcs_off);
@@ -495,6 +527,7 @@ int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, siz
                                net_buf_t *out) {
     if (!sa || !out || (!body && body_len > 0)) return -1;
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 2u, body_len)) return -1; /* svc + 时间标签 */
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     /* Ctrl=0xC3：DIR=1（服务器→客户机）、PRM=1（服务器发起）。 */
@@ -510,9 +543,9 @@ int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, siz
 static int _record_date_data(const uint8_t *p, size_t avail, size_t *out_len) {
     if (avail == 0) return -1;
     size_t need = 0;
-    if (p[0] == 0x19) {
+    if (p[0] == 0x19) { /* date_time：无 DLT698_TAG_* 常量 */
         need = 11;
-    } else if (p[0] == 0x1C) {
+    } else if (p[0] == DLT698_TAG_DATE_TIME_S) {
         need = 8;
     } else {
         return DLT698_RECORD_UNSUPPORTED_DATA;
@@ -526,9 +559,9 @@ static int _record_date_data(const uint8_t *p, size_t avail, size_t *out_len) {
 static int _record_interval_data(const uint8_t *p, size_t avail, size_t *out_len) {
     if (avail == 0) return -1;
     size_t need = 0;
-    if (p[0] == 0x00) {
+    if (p[0] == DLT698_TAG_NULL) {
         need = 1;
-    } else if (p[0] == 0x54) {
+    } else if (p[0] == DLT698_TAG_TI) {
         need = 4;
     } else {
         return DLT698_RECORD_UNSUPPORTED_DATA;
@@ -654,6 +687,19 @@ static int _add_rcsd(struct net_buf_simple *b, const dlt698_csd_t *rcsd, size_t 
     return 0;
 }
 
+/* 记录行之后固定追加的字节：FollowReport + 时间标签 + FCS + END。 */
+#define DLT698_GET_RECORD_TRAILER_LEN 5
+
+/* net_buf 的容量 assert 在 Release（-DNDEBUG）被编译掉，写入前必须自己查 tailroom。 */
+static size_t _get_record_prefix_len(const dlt698_addr_t *sa, const dlt698_csd_t *rcsd, size_t n) {
+    size_t total = 8 + sa->len + 3 + 4 + 1;
+    for (size_t i = 0; i < n; i++) {
+        total += 5;
+        if (rcsd[i].kind == DLT698_CSD_ROAD) total += 1 + (size_t)rcsd[i].related_count * 4;
+    }
+    return total;
+}
+
 int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, const dlt698_addr_t *sa,
                                             uint8_t piid, uint32_t oad, const dlt698_csd_t *rcsd,
                                             size_t n, size_t record_count, net_buf_t *out) {
@@ -661,6 +707,7 @@ int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, cons
 
     struct net_buf_simple *b = &out->b;
     stream->start_len = b->len;
+    if (net_buf_simple_tailroom(b) < _get_record_prefix_len(sa, rcsd, n) + 2) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     (void)_frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -679,6 +726,7 @@ int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, cons
 
 int dlt698_encode_get_record_row(net_buf_t *out, const uint8_t *row, size_t row_len) {
     if (!out || !row || row_len == 0) return -1;
+    if (row_len + DLT698_GET_RECORD_TRAILER_LEN > net_buf_simple_tailroom(&out->b)) return -1;
     net_buf_simple_add_mem(&out->b, row, row_len);
     return 0;
 }
@@ -686,6 +734,7 @@ int dlt698_encode_get_record_row(net_buf_t *out, const uint8_t *row, size_t row_
 int dlt698_encode_get_record_response_end(const dlt698_record_stream_t *stream, net_buf_t *out) {
     if (!stream || !out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (net_buf_simple_tailroom(b) < DLT698_GET_RECORD_TRAILER_LEN) return -1;
     net_buf_simple_add_u8(b, DLT698_NO_FOLLOW_REPORT);
     net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
     _frame_seal_offsets(b, stream->start_len, stream->len_off, stream->hcs_off);
@@ -697,6 +746,7 @@ int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid,
                                           net_buf_t *out) {
     if (!sa || !out || (n > 0 && !rcsd)) return -1;
     struct net_buf_simple *b = &out->b;
+    if (net_buf_simple_tailroom(b) < _get_record_prefix_len(sa, rcsd, n) + 7) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -896,7 +946,7 @@ int dlt698_encode_long_unsigned(uint8_t *buf, uint16_t len, uint16_t *offset, ui
         return -1;
     }
 
-    buf[(*offset)++] = 18;                            // 写入 long-unsigned 类型标识 Tag = 18
+    buf[(*offset)++] = DLT698_TAG_LONG_UNSIGNED;      // 写入 long-unsigned 类型标识 Tag = 18
     buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);  // 高字节大端序写入
     buf[(*offset)++] = (uint8_t)(val & 0xFF);         // 低字节大端序写入
 
@@ -913,7 +963,7 @@ int dlt698_decode_long_unsigned(const uint8_t *buf, uint16_t len, uint16_t *offs
     }
 
     // 类型校验
-    if (buf[*offset] != 18) {
+    if (buf[*offset] != DLT698_TAG_LONG_UNSIGNED) {
         return -2;  // 类型 Tag 匹配错误
     }
     (*offset)++;  // 跳过 Tag 字节
@@ -934,7 +984,7 @@ int dlt698_encode_double_long(uint8_t *buf, uint16_t len, uint16_t *offset, int3
         return -1;
     }
 
-    buf[(*offset)++] = 5;                              // 写入 double-long 类型标识 Tag = 5
+    buf[(*offset)++] = DLT698_TAG_DOUBLE_LONG;         // 写入 double-long 类型标识 Tag = 5
     buf[(*offset)++] = (uint8_t)((val >> 24) & 0xFF);  // 大端序高字节
     buf[(*offset)++] = (uint8_t)((val >> 16) & 0xFF);
     buf[(*offset)++] = (uint8_t)((val >> 8) & 0xFF);
@@ -951,7 +1001,7 @@ int dlt698_decode_double_long(const uint8_t *buf, uint16_t len, uint16_t *offset
         return -1;
     }
 
-    if (buf[*offset] != 5) {
+    if (buf[*offset] != DLT698_TAG_DOUBLE_LONG) {
         return -2;  // 类型 Tag 不匹配
     }
     (*offset)++;
@@ -974,7 +1024,7 @@ int dlt698_encode_date_time_s(uint8_t *buf, uint16_t len, uint16_t *offset, uint
         return -1;
     }
 
-    buf[(*offset)++] = 28;                             // 写入 date_time_s 类型标识 Tag = 28
+    buf[(*offset)++] = DLT698_TAG_DATE_TIME_S;         // 写入 date_time_s 类型标识 Tag = 28
     buf[(*offset)++] = (uint8_t)((year >> 8) & 0xFF);  // 年 (高字节)
     buf[(*offset)++] = (uint8_t)(year & 0xFF);         // 年 (低字节)
     buf[(*offset)++] = month;                          // 月
@@ -996,7 +1046,7 @@ int dlt698_decode_date_time_s(const uint8_t *buf, uint16_t len, uint16_t *offset
         return -1;
     }
 
-    if (buf[*offset] != 28) {
+    if (buf[*offset] != DLT698_TAG_DATE_TIME_S) {
         return -2;  // 类型 Tag 匹配错误
     }
     (*offset)++;

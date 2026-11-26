@@ -1,0 +1,20 @@
+  [mutate] /tmp/mutation-selftest-gqz45tu7/guarded.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=1
+  [restore] /tmp/mutation-selftest-gqz45tu7/guarded.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+  ✅ [SELFTEST] sensitive mutation is red, restore is green
+  [mutate] /tmp/mutation-selftest-7q0i46yg/guarded.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=0
+  [restore] /tmp/mutation-selftest-7q0i46yg/guarded.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+  ✅ [SELFTEST] insensitive mutation is reported
+  ✅ [SELFTEST] find string with 0 occurrences fails
+  ✅ [SELFTEST] find string with 2 occurrences fails
+  [mutate] /tmp/mutation-selftest-81gvth8s/guarded.c: 1 occurrence replaced
+  [mutated] build rc=1, test rc=skipped
+  [restore] /tmp/mutation-selftest-81gvth8s/guarded.c: original bytes and hash verified
+  [restored] build rc=1, test rc=skipped
+  ✅ [SELFTEST] build failure is reported and source restored
+  ✅ [SELFTEST] \n and \t escapes decode
+
+✅ [SELFTEST] mutation runner decision logic verified

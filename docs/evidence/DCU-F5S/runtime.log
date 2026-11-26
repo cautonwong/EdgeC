@@ -1,0 +1,29 @@
+== build (clean, HEAD 85cb3a04) ==
+cmake --build build --clean-first -j4 -> rc=0
+first-party warnings: 0 (only third-party open62541 unused-parameter)
+[1269/1270] Linking C executable tests/test_iems_cli_write
+[1270/1270] Linking C executable tests/test_iems_ydt1363_uart_pty
+
+== guards ==
+build-warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+build-freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/f5-snapshot-identity
+catalog: [DCU_698_CATALOG] catalog matches docs/698_parsed.md
+docrefs: exit 0
+
+== advanced modules suite ==
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+== targeted suite ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  98.00 sec
+
+== 返工补记（c8796002，原型移入 dcu_698_var.h）==
+build (clean, --clean-first) -> rc=0; first-party warnings: 0
+guards: build-warnings 0 / build-freshness pass / catalog 0 / docrefs 0
+test_dcu_advanced_modules: 2/2
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 140.60 sec

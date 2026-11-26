@@ -17,7 +17,9 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
 
-PRUNE_DIRS = {".git", ".local", ".venv", ".vscode", "build", "third-party", "node_modules", "docs", "web", "algo"}
+from c_source_scan import SHARED_PRUNE_DIRS, skip_subtree
+
+PRUNE_DIRS = {".git", ".local", ".venv", ".vscode", "build", "third-party", "node_modules", "docs", "web", "algo"} | SHARED_PRUNE_DIRS
 EXCLUDED_FILES = {"quickjs.c", "open62541.c", "sqlite3.c", "simd_cdd_codec.c", "modbus_codec.c", "dlt698_codec.c"}
 
 def analyze_switch_cases(lines):
@@ -153,15 +155,11 @@ def check_file(file_path, repo_root):
 
 def check_directory(target_dir):
     violations = []
-    # Only skip the fixture tree when scanning the repository. When the target
-    # *is* a fixture we must scan it: the old good_*/bad_* name check silently
-    # skipped every other fixture, turning the refutation test into a no-op.
-    fixture_mode = "/fixtures" in target_dir.replace("\\", "/")
+    # Fixtures are validated by the refutation suite; a target that is itself a
+    # fixture has no `fixtures` segment below it and is scanned.
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        if not fixture_mode and "/fixtures/" in "/" + root.replace("\\", "/") + "/":
-            continue
-        if "tests" in root and "fixtures" not in root and "guards" not in root:
+        if skip_subtree(root, target_dir):
             continue
         for f in files:
             if f.endswith(('.c', '.cpp')):

@@ -1,0 +1,10 @@
+## test commit 5cd6c390
+5cd6c390 test(dcu): pin execution identity across scheme switch and new exec gen
+ tests/test_dcu_poller.c | 173 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 173 insertions(+)
+
+## fix commit 815ab262
+815ab262 fix(dcu): give served bits and visit failures an execution identity
+ cmd/dcu/dcu_poller.c | 49 ++++++++++++++++++++++++++++++++++++++-----------
+ cmd/dcu/dcu_poller.h | 19 ++++++++++++++++---
+ 2 files changed, 54 insertions(+), 14 deletions(-)

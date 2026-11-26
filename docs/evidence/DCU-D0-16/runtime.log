@@ -1,0 +1,7 @@
+=== D0-16 ACCEPTANCE (2026-11-24T06:07:52Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/home/edge/EdgeC/.venv/bin/python3 ./acceptance/run.sh dcu
+3 passed in 10.04s
+34 passed in 66.11s (0:01:06)
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+DCU_LEFT=no

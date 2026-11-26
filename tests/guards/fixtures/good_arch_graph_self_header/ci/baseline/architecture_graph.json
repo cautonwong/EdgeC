@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "description": "Positive: a component including its own forbidden-basename header is exempt.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [
+    {
+      "component": "edge_stream",
+      "header": "datahub.h",
+      "reason": "use the port"
+    }
+  ],
+  "composition_roots": [],
+  "known_skips": []
+}

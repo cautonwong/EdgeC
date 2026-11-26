@@ -14,6 +14,7 @@ struct bus_orchestrator_s {
     edge_driver_session_port_t drv_port;
     uv_loop_t *loop;
     net_buf_pool_t *pool;
+    net_buf_pool_t *slave_pool; /* 从站响应：装得下 EDGE_SLAVE_AXDR_MAX + 帧 */
 
     int max_buses;
     bus_engine_t *engines[ARBITER_MAX_BUSES];
@@ -109,7 +110,14 @@ int bus_orchestrator_setup_master(bus_orchestrator_t *ctx, int bus_id, const cha
 int bus_orchestrator_setup_slave(bus_orchestrator_t *ctx, int bus_id, const char *protocol,
                                  uint32_t device_id) {
     if (!ctx || bus_id < 0 || bus_id >= ctx->max_buses) return -1;
-    bus_engine_t *eng = engine_create_slave(&ctx->drv_port, bus_id, protocol, device_id, ctx->loop, ctx->arb, &ctx->bus, ctx->pool);
+    /* 从站响应可能是一整张对象列表；共享池按采集/上报尺寸建，装不下时
+     * 编码器只能回 DAR 2。给小池一次到位，不抬高共享池的 RAM。 */
+    if (!ctx->slave_pool) {
+        ctx->slave_pool =
+            net_buf_pool_new(BUS_SLAVE_POOL_COUNT, (uint16_t)BUS_SLAVE_POOL_BUF_SIZE, 0);
+        if (!ctx->slave_pool) return -1;
+    }
+    bus_engine_t *eng = engine_create_slave(&ctx->drv_port, bus_id, protocol, device_id, ctx->loop, ctx->arb, &ctx->bus, ctx->slave_pool);
     if (!eng) return -1;
 
     ctx->engines[bus_id] = eng;
@@ -158,6 +166,10 @@ struct net_buf_pool *bus_orchestrator_get_pool(bus_orchestrator_t *ctx) {
 
 void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (!ctx) return;
+    if (ctx->slave_pool) {
+        net_buf_pool_unref(ctx->slave_pool);
+        ctx->slave_pool = NULL;
+    }
     if (g_active_orch == ctx) g_active_orch = NULL;
 }
 

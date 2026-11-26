@@ -46,8 +46,9 @@ static int g_pend_n;
 static uint64_t g_value_seq;
 
 static int _mock_source_submit(void* ctx, uint32_t meter_idx, uint32_t tag_id,
-                               poller_read_done_cb cb, void* ud) {
+                               uint32_t task_mask, poller_read_done_cb cb, void* ud) {
     (void)ctx;
+    (void)task_mask;
     (void)meter_idx;
     (void)tag_id;
     if (g_pend_n >= PEND_MAX) return -1;   /* 提交失败：链会当场结算并继续 */

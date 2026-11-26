@@ -1,0 +1,16 @@
+== test commit acafecf4 ==
+acafecf4 test(DCU-F4-ADDTASK): pin add_task_ex not reopening ACTIVE executions
+ tests/test_dcu_poller.c | 88 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 88 insertions(+)
+
+== fix commit 93877f9e ==
+93877f9e fix(DCU-F4-ADDTASK): stop add_task_ex from reopening ACTIVE executions
+ cmd/dcu/dcu_poller.c | 1 -
+ cmd/dcu/dcu_poller.h | 1 +
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+
+== branch vs base a3421169 ==
+ cmd/dcu/dcu_poller.c    |  1 -
+ cmd/dcu/dcu_poller.h    |  1 +
+ tests/test_dcu_poller.c | 88 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 89 insertions(+), 1 deletion(-)

@@ -30,10 +30,20 @@
 #define IC_RECORD 9         // 记录/冻结数据接口类 (如日冻结 5004)
 #define IC_ACQUISITION 10   // 采集监控接口类 (如 6000 档案, 6012 任务)
 #define IC_COLLECTION 11    // 集合接口类 (如 6014 普通采集方案集, 6002 搜表)
+#define IC_PULSE 12         // 脉冲计量接口类 (如 2401 脉冲计量)
 #define IC_CONTROL 13       // 控制/继电器动作类 (如 8000 远程拉合闸)
+#define IC_INTERVAL_STAT 14 // 区间统计接口类
+#define IC_AVERAGE 15       // 累加平均接口类
+#define IC_EXTREMUM 16      // 极值工具接口类
+#define IC_DISPLAY 17       // 显示接口类 (F300 自动轮显, F301 按键轮显)
+#define IC_FILE_TRANSFER 18 // 文件传输接口类 (F000 分帧, F001 分块, F002 扩展)
+#define IC_DEVICE_MGMT 19   // 设备管理接口类 (4300 电气设备, 4307..4309 水/气/热表)
 #define IC_ESAM 21          // ESAM 接口类 (F100)
 #define IC_PERIPHERAL 22    // 输入输出设备接口类 (F200 串口)
+#define IC_GROUP 23         // 总加组接口类 (2301..2308)
 #define IC_SUB_EVENT 24     // 分项事件对象接口类 (3000 失压, 3005 过流)
+#define IC_WIRELESS_PUBLIC 25 // 无线公网通信接口类 (4500/4501)
+#define IC_ETHERNET 26        // 以太网通信接口类 (4510..4517)
 
 #define OAD_ACTIVE_ENERGY 0x00100200         // 0010 属性 2（总及费率电能数组）
 #define OAD_REACTIVE_ENERGY 0x00200200       // 0020 属性 2（总及费率电能数组）
@@ -73,10 +83,63 @@
 #define OI_TASK_UNIT 0x6013         // 任务配置单元 OI（标准 A.7，IC 8）
 #define OI_NORMAL_SCHEME 0x6014     // 普通采集方案集 OI（标准 A.7，IC 11）
 #define OI_NORMAL_SCHEME_UNIT 0x6015 // 普通采集方案 OI（标准 A.7，IC 8）
+#define OI_EVENT_SCHEME 0x6016      // 事件采集方案集 OI（标准 A.7，IC 11）
+#define OI_EVENT_SCHEME_UNIT 0x6017 // 事件采集方案 OI（标准 A.7，IC 8）
+#define OI_TRANSPARENT_SCHEME 0x6018 // 透明方案集 OI（标准 A.7，IC 11）
+#define OI_TRANSPARENT_SCHEME_UNIT 0x6019 // 透明方案 OI（标准 A.7，IC 8）
+#define OI_TRANSPARENT_RESULT 0x601A      // 透明方案结果集 OI（标准 A.7，IC 11）
+#define OI_TRANSPARENT_RESULT_UNIT 0x601B // 一个透明方案结果 OI（标准 A.7，IC 8）
+#define OI_REPORT_SCHEME 0x601C           // 上报方案集 OI（标准 A.7，IC 11）
+#define OI_REPORT_SCHEME_UNIT 0x601D      // 上报方案 OI（标准 A.7，IC 8）
+#define OI_RULE_LIBRARY 0x601E            // 采集规则库 OI（标准 A.7，IC 11）
+#define OI_RULE 0x601F                    // 采集规则 OI（标准 A.7，IC 8）
+#define OI_ACQ_STATUS_SET 0x6032          // 采集状态集（标准 A.7，IC 11）
+#define OI_ACQ_STATUS 0x6033              // 一个采集状态（标准 A.7，IC 8）
+#define OI_TASK_MONITOR_SET 0x6034        // 采集任务监控集（标准 A.7，IC 11）
+#define OI_TASK_MONITOR 0x6035            // 采集任务监控单元（标准 A.7，IC 8）
+#define OI_ACQ_START_TIME 0x6040          // 采集启动时标（标准 A.7，IC 8）
+#define OI_ACQ_SUCCESS_TIME 0x6041        // 采集成功时标（标准 A.7，IC 8）
+#define OI_ACQ_STORE_TIME 0x6042          // 采集存储时标（标准 A.7，IC 8）
 #define OI_METER_DISCOVERY 0x6002   // 搜表（Class 11 集合对象）
+#define OI_FILE_SET 0x7000          // 文件集合（标准 A.8，IC 11）
+#define OI_SCRIPT_SET 0x7010        // 脚本集合（标准 A.8，IC 11）
+#define OI_PULSE_METER 0x2401       // 脉冲计量（标准 7.3.12 表157，IC 12）
+#define OI_GROUP_FIRST 0x2301       // 总加组 1（标准 7.3.23 表190，IC 23）
+#define OI_GROUP_LAST 0x2308        // 总加组 8
+#define OI_FILE_FRAME 0xF000        // 文件分帧传输管理（表A.11，IC 18）
+#define OI_FILE_CHUNK 0xF001        // 文件分块传输管理（表A.11，IC 18）
+#define OI_FILE_EXT 0xF002          // 文件扩展传输管理（表A.11，IC 18）
+#define OI_DEVICE_ELECTRIC 0x4300   // 电气设备（标准 7.3.19 表178，IC 19）
+#define OI_DEVICE_WATER 0x4307      // 水表（标准设备管理 OI 方法表，IC 19）
+#define OI_DEVICE_GAS 0x4308        // 气表（标准设备管理 OI 方法表，IC 19）
+#define OI_DEVICE_HEAT 0x4309       // 热表（标准设备管理 OI 方法表，IC 19）
+#define OI_WIRELESS_COMM_FIRST 0x4500 // 公网通信模块 1（标准 7.3.25 表196，IC 25）
+#define OI_WIRELESS_COMM_LAST 0x4501  // 公网通信模块 2
+#define OI_ETHERNET_COMM_FIRST 0x4510 // 以太网通信模块 1（标准 7.3.26 表199，IC 26）
+#define OI_ETHERNET_COMM_LAST 0x4517  // 以太网通信模块 8
 #define OI_REMOTE_CONTROL 0x8000    // 远程拉闸动作控制 OI
+#define OI_POWER_SAVE 0x8001        // 保电
+#define OI_TERMINAL_SECURITY 0x8100 // 终端保安定值
+#define OI_POWER_CTRL_PERIOD 0x8101 // 终端功控时段
+#define OI_POWER_CTRL_ALARM 0x8102  // 功控告警时间
+#define OI_DAILY_POWER_CTRL 0x8103  // 时段功控
+#define OI_CONTROL_OBJECT 0x810E    // 控制对象
+#define OI_TRIP_ROUND 0x810F        // 跳闸轮次
+#define OI_ELEC_CTRL_VALUE 0x8110   // 电控定值
 #define OI_ESAM_SECURITY 0xF100     // ESAM 北向鉴权加密芯片 OI
-#define OI_CHANNEL_CONFIG 0xF200    // 外设串口信道物理配置 OI
+#define OI_CHANNEL_CONFIG 0xF200    // RS232 端口（Class 22）
+#define OI_RS485_PORT 0xF201        // RS485 端口
+#define OI_INFRARED_PORT 0xF202      // 红外端口
+#define OI_DIGITAL_INPUT 0xF203      // 开关量输入
+#define OI_DC_ANALOG 0xF204          // 直流模拟量
+#define OI_RELAY_OUTPUT 0xF205       // 继电器输出
+#define OI_ALARM_OUTPUT 0xF206       // 告警输出
+#define OI_MULTI_TERMINAL 0xF207     // 多功能端子
+#define OI_AC_SAMPLING 0xF208        // 交采接口
+#define OI_LOCAL_MODULE 0xF209       // 载波/微功率无线接口
+#define OI_PULSE_INPUT 0xF20A        // 脉冲输入设备
+#define OI_BLUETOOTH 0xF20B          // 蓝牙
+#define OI_WIRELESS_PRIVATE 0xF20C   // 230M 无线专网接口
 
 #define MAX_EVENT_RECORDS 10
 #define MAX_EVENT_SNAPSHOTS 8

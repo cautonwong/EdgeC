@@ -1,0 +1,5 @@
+macro(declare_hidden)
+  add_library(hidden STATIC hidden.c)
+endmacro()
+add_library(alpha STATIC src/alpha.c)
+target_link_libraries(alpha PUBLIC hidden)

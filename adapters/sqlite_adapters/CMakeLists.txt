@@ -13,6 +13,10 @@ add_library(edge_sqlite_adapters STATIC
     src/edge_tar.c
     src/edge_digest.c
     src/edge_app_export.c
+    src/history_bundle.c
+    src/alarm_history_sqlite.c
+    src/alarm_history_migration.c
+    src/snapshot_csv_adapter.c
 )
 find_package(OpenSSL REQUIRED)
 

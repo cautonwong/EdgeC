@@ -1,0 +1,34 @@
+{
+  "standard": [
+    {
+      "name": "iec104",
+      "index": 0,
+      "enable": 0
+    },
+    {
+      "name": "modbus",
+      "index": 1,
+      "enable": 0,
+      "host": "10.0.0.12",
+      "port": 502,
+      "user": "northuser",
+      "pass": "placeholder-not-a-secret",
+      "lz4": 0,
+      "client_id": "northA"
+    }
+  ],
+  "interval": {
+    "EMS": 60,
+    "PCS": 60,
+    "BMS": 60,
+    "CELL": 60,
+    "DIDO": 60,
+    "AIRCOND": 60,
+    "PCS_METER": 60,
+    "GRID_METER": 60,
+    "OTHERS": 60
+  },
+  "heart_beat": 60,
+  "login": 5,
+  "north_control": -1
+}

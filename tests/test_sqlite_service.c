@@ -3,6 +3,7 @@
 #include <sqlite3.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -19,6 +20,32 @@ static int get_user_version(sqlite3* db) {
     if (sqlite3_step(stmt) == SQLITE_ROW) ver = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
     return ver;
+}
+
+/* 分表名按墙钟月份生成；汇总所有 telemetry_YYYYMM 行数，避免测试依赖当前月份。 */
+static int count_all_shard_rows(sqlite3* raw) {
+    sqlite3_stmt* stmt = NULL;
+    int total = 0;
+    if (sqlite3_prepare_v2(raw,
+                           "SELECT name FROM sqlite_master WHERE type='table' AND "
+                           "name GLOB 'telemetry_[0-9][0-9][0-9][0-9][0-9][0-9]';",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        return 0;
+    }
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char* name = (const char*)sqlite3_column_text(stmt, 0);
+        if (!name) continue;
+        char sql[128];
+        snprintf(sql, sizeof(sql), "SELECT count(*) FROM \"%s\";", name);
+        sqlite3_stmt* count_stmt = NULL;
+        if (sqlite3_prepare_v2(raw, sql, -1, &count_stmt, NULL) == SQLITE_OK &&
+            sqlite3_step(count_stmt) == SQLITE_ROW) {
+            total += sqlite3_column_int(count_stmt, 0);
+        }
+        sqlite3_finalize(count_stmt);
+    }
+    sqlite3_finalize(stmt);
+    return total;
 }
 
 static void on_walk_close(uv_handle_t* handle, void* arg) {
@@ -140,12 +167,7 @@ static void test_flush_worker_persists(void** state) {
             if (raw) sqlite3_close(raw);
             continue;
         }
-        sqlite3_stmt* stmt = NULL;
-        if (sqlite3_prepare_v2(raw, "SELECT count(*) FROM telemetry_202401;", -1, &stmt, NULL) ==
-            SQLITE_OK) {
-            if (sqlite3_step(stmt) == SQLITE_ROW) rows = sqlite3_column_int(stmt, 0);
-            sqlite3_finalize(stmt);
-        }
+        rows = count_all_shard_rows(raw);
         sqlite3_close(raw);
     }
     assert_int_equal(rows, 2);
@@ -210,7 +232,7 @@ static void test_migration_logic(void** state) {
     sqlite_svc_t* svc = sqlite_svc_create(loop, &cfg);
 
     sqlite3* db = sqlite_svc_get_db_handle(svc);
-    assert_int_equal(get_user_version(db), 17);  // 验证已达到最新版本 (V17: app_settings)
+    assert_int_equal(get_user_version(db), 18); // 最新版本 (V18: telemetry 墙钟主键)
 
     sqlite_svc_destroy(svc);
     unlink(db_path);

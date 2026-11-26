@@ -1,0 +1,48 @@
+=== D0-20 TESTS (2026-11-25T06:50:19Z) ===
+tip: commit 后见交回消息；基 85c457c0 + feat/dcu cde627a0
+
+--- clean build warning ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+--- ctest -R 'dcu|poller|dlt698|698' (45) ---
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  10.06 sec
+（状态机后再跑一次：45/45，poller 20 例）
+
+--- ASAN detect_leaks=1 同集 ---
+100% tests passed, 0 tests failed out of 45
+
+--- guard selftest ---
+📊 Refutation Test Results: 284/284 passed (100% sensitivity)
+
+--- 反向验证 ---
+去掉半开迁移：test_breaker_cooldown_half_open / probe_failure_rearms 红；去掉 target 快照：test_mask_change_reopens_execution 红；恢复后 20/20 绿
+
+--- 验收（coverage）---
+未 3 连绿：F6 扇出阻塞（同一帧字节写到 7 条通道连接），000029 窗口无法配对、000031 恢复读超时/重复；见 runtime.log 与 summary §5。
+
+=== F6 修复后复跑 (2026-11-25T16:15Z) ===
+--- clean build warning（build-ci --clean-first） ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+（唯一 warning 为 third-party/open62541 config.h 未用参数，门禁白名单内）
+
+--- ctest 全量（build-cov） ---
+100% tests passed, 0 tests failed out of 368
+
+--- ASAN detect_leaks=1 ---
+affected io/engine 集：5/5 passed（master_link_lifecycle|io_executor|passthrough|iems_full_stack|bus_orchestrator）
+dcu 集：45/45 passed
+
+--- guard selftest ---
+📊 Refutation Test Results: 284/284 passed (100% sensitivity)
+
+--- fanalyzer ---
+✅ [FANALYZER] 3 known finding(s), no new reports
+
+--- SRP / build freshness ---
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+✅ [BUILD_FRESHNESS] build-ci is current for /tmp/edgec-land/d0-18-execution-rootcause
+
+--- 验收（coverage，安静窗口） ---
+3 连绿：3 passed / 35 passed 各一次，见 runtime.log 末尾。

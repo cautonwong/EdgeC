@@ -2,6 +2,9 @@
 
 add_library(edge_north STATIC
     src/northbound_mgr.c
+    src/north_ipc.c
+    src/north_protocol.c
+    src/north_result_queue.c
     src/snf_manager.c
 )
 

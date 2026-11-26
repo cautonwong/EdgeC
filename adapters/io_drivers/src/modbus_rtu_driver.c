@@ -7,10 +7,10 @@
  *   1. 帧尾有 CRC16
  *   2. **没有帧间静默代码**——3.5 字符间隔归 arbiter（`arbiter_set_bus_min_gap`），
  *      驱动里再等一次就是两处都在管，迟早打架
- *   3. 32 位量（quantity==2）按 ABCD 合包，与旧实现一致
+ *   3. 写值的类型与字序由 point_desc 给（见 modbus_codec.h 的
+ *      modbus_write_desc_t）；缺省保持 qty1→u16、qty2→u32 ABCD
  */
 
-#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -20,6 +20,9 @@
 #include "modbus_codec.h"
 #include "net_buf.h"
 
+/* 寄存器数量上限。Modbus FC16 规范允许 123 个，但请求私有缓冲
+ * （REQ_DRV_PRIV_MAX=128）只装得下 32 个原始寄存器加头字段，从站读缓冲
+ * 也按同一上限开。扩到 123 需要先拆 scratch，超出本轮范围。 */
 #define MB_MAX_REGS 32
 
 typedef struct {
@@ -28,8 +31,7 @@ typedef struct {
     uint8_t slave_id;
     uint16_t raw[MB_MAX_REGS];
     uint16_t raw_n;
-    bool is_write;  /**< 写请求：编码成 FC05/06 而不是读 */
-    double value;   /**< 写入值（raw，未标定） */
+    bool is_write;  /**< 写请求：编码成 FC06/FC16 而不是读 */
 } modbus_rtu_req_t;
 
 static int _decode_native(uint32_t native_id, uint16_t *addr, uint16_t *quantity) {
@@ -45,28 +47,26 @@ static int _decode_native(uint32_t native_id, uint16_t *addr, uint16_t *quantity
 static int mb_rtu_req_prepare(void *priv, uint32_t slave_id, uint32_t point_id, const void *meta_list,
                               uint32_t meta_list_len, const void *point_desc,
                               size_t point_desc_len, bool is_write, double value) {
-    (void)point_desc;
-    (void)point_desc_len;
     (void)meta_list;
     (void)meta_list_len;
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
     if (!p) return -1;
+    /* 从站地址线上只有 1 字节：>247 会被截断成别的从站（256 -> 0 广播）。 */
+    if (slave_id > 247) return -1;
     if (_decode_native(point_id, &p->addr, &p->quantity) != 0) return -1;
     p->slave_id = (uint8_t)slave_id;
     p->raw_n = 0;
     p->is_write = is_write;
-    p->value = value;
-    /* 写只支持 1 个寄存器（FC06）或 2 个（FC16 拼 32 位量）；非有限值或越界
-     * 值的 double→uint 转换未定义，负值会回绕，显式拒绝而不是截断。 */
     if (is_write) {
-        if (!isfinite(value)) return -1;
-        if (p->quantity == 1) {
-            if (value < 0.0 || value > 65535.0) return -1;
-        } else if (p->quantity == 2) {
-            if (value < 0.0 || value > 4294967295.0) return -1;
-        } else {
-            return -1;
+        /* 类型与字序是点位模型的知识，由消费方经 point_desc 给；描述只用于写，
+         * 读忽略（与 DLMS 一致）。尺寸不对或半截描述一律拒绝，不按默认猜。 */
+        const modbus_write_desc_t *desc = NULL;
+        if (point_desc_len != 0) {
+            if (!point_desc || point_desc_len != sizeof(modbus_write_desc_t)) return -1;
+            desc = (const modbus_write_desc_t *)point_desc;
         }
+        if (modbus_encode_write_regs(value, desc, p->quantity, p->raw) != 0) return -1;
+        p->raw_n = p->quantity;
     }
     return 0;
 }
@@ -75,14 +75,12 @@ static int mb_rtu_req_encode_impl(void *priv, bool hi_crc, net_buf_t *out) {
     modbus_rtu_req_t *p = (modbus_rtu_req_t *)priv;
     if (!p || !out) return -1;
     if (p->is_write) {
-        if (p->quantity == 2) {
-            /* 32 位量按 ABCD 拆两个寄存器，与读路径的合包顺序相反 */
-            uint32_t v = (uint32_t)p->value;
-            uint16_t regs[2] = {(uint16_t)(v >> 16), (uint16_t)(v & 0xFFFF)};
-            return modbus_rtu_encode_write_multiple_ex(p->slave_id, p->addr, 2, regs, hi_crc, out);
+        /* 写描述已在 req_prepare 编码进 raw[]；1 个寄存器走 FC06，其余走 FC16 */
+        if (p->quantity == 1) {
+            return modbus_rtu_encode_write_single_ex(p->slave_id, p->addr, p->raw[0], hi_crc, out);
         }
-        return modbus_rtu_encode_write_single_ex(p->slave_id, p->addr, (uint16_t)p->value, hi_crc,
-                                                 out);
+        return modbus_rtu_encode_write_multiple_ex(p->slave_id, p->addr, p->quantity, p->raw, hi_crc,
+                                                   out);
     }
     return modbus_rtu_encode_read_ex(p->slave_id, MODBUS_FC_READ_HOLDING_REGS, p->addr, p->quantity,
                                      hi_crc, out);
@@ -136,7 +134,7 @@ static int mb_rtu_req_decode_impl(void *priv, const uint8_t *buf, size_t len, si
             if (data_len < 4) return -1;
             uint16_t addr = (uint16_t)((data[0] << 8) | data[1]);
             uint16_t raw = (uint16_t)((data[2] << 8) | data[3]);
-            if (addr != p->addr || raw != (uint16_t)p->value) return -1;
+            if (addr != p->addr || raw != p->raw[0]) return -1;
             if (out_value) *out_value = (double)raw;
             return 0;
         }

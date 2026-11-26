@@ -1,0 +1,2 @@
+✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+ℹ️  [ARCHITECTURE_GRAPH] folded out of the parsed subgraph: 0 macro-generated target call(s) (add_edge_test etc.) and cmake/ helper macros; File API reports the full configure-time graph.

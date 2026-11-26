@@ -31,14 +31,17 @@ int edge_api_read_tag(int bus_id, const char* protocol, uint32_t slave_id, uint3
  *
  * @param native_id      驱动认识的协议原生点位标识
  * @param result_tag_id  回调里 result->tag_id 用的标识（调用方自己的 tag_id）
+ * @param result_device_id 回调里 result->device_id 用的设备身份（inventory 稠密 id，
+ *                       不是从站地址），原样使用；0 = tag 级视图（合法身份）。
+ *                       兼容入口 edge_api_read_tag 显式传 slave_id 以保持旧行为
  * @param scale          量纲：解码值 × scale 后交给回调；传 0 表示 1.0
  * @param priority       仲裁优先级。周期抄表传 `ARBITER_PRIO_LOW`；
  *                       交互式单点读传 `ARBITER_PRIO_NORMAL`
  */
-int edge_api_read_tag_ex(int bus_id, const char* protocol, uint32_t slave_id, uint32_t native_id,
-                         uint32_t result_tag_id, double scale, const void* point_desc,
-                         size_t point_desc_len, int priority, legacy_on_complete_cb cb,
-                         void* user_data);
+int edge_api_read_tag_ex(int bus_id, const char* protocol, uint32_t slave_id,
+                         uint32_t result_device_id, uint32_t native_id, uint32_t result_tag_id,
+                         double scale, const void* point_desc, size_t point_desc_len, int priority,
+                         legacy_on_complete_cb cb, void* user_data);
 
 /**
  * @brief 登记某协议的设备地址表（645 的 6 字节 BCD 表地址等）。

@@ -1,0 +1,121 @@
+=== TARGETED UNIT TESTS (15 affected, Release, fix branch) ===
+Test project /tmp/edgec-land/d2-05a-asan-fix/build
+      Start 13: test_dcu_inventory
+ 1/15 Test #13: test_dcu_inventory ...............   Passed    0.95 sec
+      Start 22: test_dcu_node
+ 2/15 Test #22: test_dcu_node ....................   Passed    0.37 sec
+      Start 25: test_dcu_698_object_model
+ 3/15 Test #25: test_dcu_698_object_model ........   Passed    0.00 sec
+      Start 27: test_dcu_698_catalog
+ 4/15 Test #27: test_dcu_698_catalog .............   Passed    0.00 sec
+      Start 28: test_dcu_698_var
+ 5/15 Test #28: test_dcu_698_var .................   Passed    0.00 sec
+      Start 29: test_dcu_698_report
+ 6/15 Test #29: test_dcu_698_report ..............   Passed    0.00 sec
+      Start 30: test_dcu_698_axdr
+ 7/15 Test #30: test_dcu_698_axdr ................   Passed    0.01 sec
+      Start 31: test_dcu_698_param
+ 8/15 Test #31: test_dcu_698_param ...............   Passed    0.02 sec
+      Start 33: test_dcu_698_value_table
+ 9/15 Test #33: test_dcu_698_value_table .........   Passed    0.01 sec
+      Start 34: test_dcu_698_tasks
+10/15 Test #34: test_dcu_698_tasks ...............   Passed    0.55 sec
+      Start 35: test_dcu_698_schemes
+11/15 Test #35: test_dcu_698_schemes .............   Passed    0.58 sec
+      Start 36: test_dcu_698_scheme_mgmt
+12/15 Test #36: test_dcu_698_scheme_mgmt .........   Passed    0.77 sec
+      Start 92: test_driver_dlt698
+13/15 Test #92: test_driver_dlt698 ...............   Passed    5.11 sec
+      Start 93: test_dlt698_appconn
+14/15 Test #93: test_dlt698_appconn ..............   Passed    0.00 sec
+      Start 94: test_dcu_698_appconn
+15/15 Test #94: test_dcu_698_appconn .............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =   8.45 sec
+
+=== NEW MANAGEMENT TEST: ASAN + detect_leaks=1 ===
+[==========] tests: Running 7 test(s).
+[ RUN      ] test_event_scheme_round_trip_and_persistence
+[       OK ] test_event_scheme_round_trip_and_persistence
+[ RUN      ] test_event_wire_shape_is_exact
+[       OK ] test_event_wire_shape_is_exact
+[ RUN      ] test_event_delete_update_clear_and_dar
+[2026-11-23 03:57:08][WARN][NB] DCU 6016: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-23 03:57:08][WARN][NB] DCU 6016: 方案 8 的电能表集合 choice 3 未实现
+[       OK ] test_event_delete_update_clear_and_dar
+[ RUN      ] test_transparent_scheme_round_trip_and_dar
+[2026-11-23 03:57:08][WARN][NB] DCU 6018: 等待后续报文（多帧累积）未实现
+[2026-11-23 03:57:08][WARN][NB] DCU 6018: 结果比对标识 1 未实现
+[       OK ] test_transparent_scheme_round_trip_and_dar
+[ RUN      ] test_transparent_wire_shape_is_exact
+[       OK ] test_transparent_wire_shape_is_exact
+[ RUN      ] test_transparent_results_round_trip
+[       OK ] test_transparent_results_round_trip
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 7 test(s) run.
+[  PASSED  ] 7 test(s).
+
+=== ASAN + detect_leaks=1: existing schemes ===
+[2026-11-23 03:57:08][WARN][NB] DCU 6014: 方案 1 被活动任务引用，拒绝 Clear
+[       OK ] test_clear_persists_across_reload
+[ RUN      ] test_sql_failure_rolls_back_db_and_ram
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+
+=== ASAN + detect_leaks=1: appconn ===
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+=== ASAN + detect_leaks=1: driver ===
+[NETBUF][INFO] NetBufPool 0x7ffe8827e280: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe8827e280: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe8827e280: Unref (1 -> 0)
+[       OK ] test_slave_rejects_over_cap_object_list
+[==========] tests: 18 test(s) run.
+[  PASSED  ] 18 test(s).
+
+=== UBSAN (scheme_mgmt) ===
+[==========] tests: Running 7 test(s).
+[ RUN      ] test_event_scheme_round_trip_and_persistence
+[       OK ] test_event_scheme_round_trip_and_persistence
+[ RUN      ] test_event_wire_shape_is_exact
+[       OK ] test_event_wire_shape_is_exact
+[ RUN      ] test_event_delete_update_clear_and_dar
+[2026-11-23 03:59:47][WARN][NB] DCU 6016: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-23 03:59:47][WARN][NB] DCU 6016: 方案 8 的电能表集合 choice 3 未实现
+[       OK ] test_event_delete_update_clear_and_dar
+[ RUN      ] test_transparent_scheme_round_trip_and_dar
+[2026-11-23 03:59:47][WARN][NB] DCU 6018: 等待后续报文（多帧累积）未实现
+[2026-11-23 03:59:47][WARN][NB] DCU 6018: 结果比对标识 1 未实现
+[       OK ] test_transparent_scheme_round_trip_and_dar
+[ RUN      ] test_transparent_wire_shape_is_exact
+[       OK ] test_transparent_wire_shape_is_exact
+[ RUN      ] test_transparent_results_round_trip
+[       OK ] test_transparent_results_round_trip
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 7 test(s) run.
+[  PASSED  ] 7 test(s).
+
+=== BUILD WARNING GATE ===
+[1/8] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_axdr.c.o
+[2/8] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_scheme_store.c.o
+[3/8] Building C object tests/CMakeFiles/test_dcu_698_scheme_mgmt.dir/test_dcu_698_scheme_mgmt.c.o
+[4/8] Compiling OMG IDL 4.2 files using Cyclone DDS idlc compiler...
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+[5/8] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/bus_dds/datahub_dds.c.o
+[6/8] Linking C static library modules/edge_infra/libedge_infra.a
+[7/8] Linking C static library cmd/dcu/libdcu_app_lib.a
+[8/8] Linking C executable tests/test_dcu_698_scheme_mgmt
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

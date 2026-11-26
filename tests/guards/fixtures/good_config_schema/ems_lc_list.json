@@ -1,0 +1,12 @@
+{
+  "devices": [
+    {
+      "sn": "00000000001",
+      "name": "Cabinet1",
+      "no": "LC1",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    }
+  ]
+}

@@ -977,11 +977,16 @@ static void test_xiankong_vendor(void **state) {
     fake_preset(&fake, "StartReady", 0.0);
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), -2);
     assert_int_equal(fake.write_count, 3);
-    fake_preset(&fake, "StartReady", 1.0);
+    // v3 只判断 StartReady 是否非 0，2 也视为就绪。
+    fake_preset(&fake, "StartReady", 2.0);
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), 0);
     assert_int_equal(fake.write_count, 4);
     assert_string_equal(fake.writes[3].tag, "OnOffSet");
     assert_close(fake.writes[3].value, 1.0);
+    // 缺失 StartReady 是读失败，比 v3 缺省 0 更严格，返回 -1。
+    fake.preset_count = 0;
+    assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), -1);
+    assert_int_equal(fake.write_count, 4);
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_STANDBY), -1);
     assert_int_equal(fake.write_count, 4);
     print_writes("xiankong", &fake);
@@ -1013,6 +1018,10 @@ static void test_xiankong_vendor(void **state) {
     onoff = -7;
     assert_int_equal(ops->get_onoff(&dev, &onoff), -1);
     assert_int_equal(onoff, -7);
+    // 缺失 ModeOnOffStatus 是读失败，返回 -1。
+    fake.preset_count = 0;
+    assert_int_equal(ops->get_onoff(&dev, &onoff), -1);
+    assert_int_equal(onoff, -7);
 
     int connect = -1;
     fake_preset(&fake, "CurWorkMode", 1.0);
@@ -1025,14 +1034,38 @@ static void test_xiankong_vendor(void **state) {
     connect = -7;
     assert_int_equal(ops->get_connect(&dev, &connect), -1);
     assert_int_equal(connect, -7);
+    // 缺失 CurWorkMode 是读失败，返回 -1。
+    fake.preset_count = 0;
+    assert_int_equal(ops->get_connect(&dev, &connect), -1);
+    assert_int_equal(connect, -7);
 
-    // v3 把 get_mode 派到 get_onoff；这里 get_mode 未实现，必须 -1 且不读 tag。
+    // v3 的 set/get WorkMode 不对称：set_connect 写 WorkMode（断开=0/并网=1），
+    // get_connect 读 CurWorkMode（1=断开/2=并网）；同一个 1 在两侧含义相反。
+    fake.write_count = 0;
+    fake.read_count = 0;
+    assert_int_equal(ops->set_connect(&dev, IEMS_VENDOR_CONNECT_GRID), 0);
+    assert_string_equal(fake.writes[0].tag, "WorkMode");
+    assert_close(fake.writes[0].value, 1.0);
+    fake_preset(&fake, "CurWorkMode", fake.writes[0].value);
+    assert_int_equal(ops->get_connect(&dev, &connect), 0);
+    assert_int_equal(connect, IEMS_VENDOR_DISCONNECT_GRID);
+    assert_string_equal(fake.reads[0].tag, "CurWorkMode");
+
+    // v3 把 get_mode/get_connect 派到 get_onoff；这里按同名方法派发：
+    // get_mode 未实现返回 -1 且不读 tag，get_connect 读 CurWorkMode。
     fake.read_count = 0;
     fake_preset(&fake, "ModeOnOffStatus", 1.0);
+    fake_preset(&fake, "CurWorkMode", 2.0);
     assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_MODE, &mode), -1);
     assert_int_equal(fake.read_count, 0);
     assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_ONOFF, &onoff), 0);
     assert_string_equal(fake.reads[0].tag, "ModeOnOffStatus");
+    assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_CONNECT, &connect), 0);
+    assert_int_equal(connect, IEMS_VENDOR_CONNECT_GRID);
+    assert_string_equal(fake.reads[1].tag, "CurWorkMode");
+    double value = 0.0;
+    assert_int_equal(ops->get_double_value(&dev, IEMS_VENDOR_FN_GET_POWER, &value), -1);
+    assert_int_equal(ops->get_double_value(&dev, "unknown", &value), -1);
 }
 
 static void test_xinai_vendor(void **state) {
@@ -1987,13 +2020,22 @@ static void test_feilton_vendor(void **state) {
     assert_int_equal(ops->set_power(&dev, 12.5), -1);
     assert_int_equal(fake.write_count, 0);
 
-    // 停机写 Stop，启动需 StartReady == 1 才写 Start。
+    // 停机写 Stop，启动需 StartReady == 1 才写 Start；未就绪返回 v3 的 -2。
     fake.write_count = 0;
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_OFF), 0);
     assert_string_equal(fake.writes[0].tag, "Stop");
     assert_close(fake.writes[0].value, 5461072.0);
     fake_preset(&fake, "StartReady", 0.0);
+    assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), -2);
+    assert_int_equal(fake.write_count, 1);
+    // v3 只认 StartReady == 1；其他可读值同样按未就绪返回 -2。
+    fake_preset(&fake, "StartReady", 2.0);
+    assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), -2);
+    assert_int_equal(fake.write_count, 1);
+    // 缺失 StartReady 是读失败，比 v3 缺省 0 更严格，返回 -1 而不是 -2。
+    fake.preset_count = 0;
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), -1);
+    assert_int_equal(fake.write_count, 1);
     fake_preset(&fake, "StartReady", 1.0);
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_ON), 0);
     assert_int_equal(ops->set_onoff(&dev, IEMS_VENDOR_STANDBY), -1);
@@ -2001,6 +2043,15 @@ static void test_feilton_vendor(void **state) {
     assert_string_equal(fake.writes[1].tag, "Start");
     assert_close(fake.writes[1].value, 5395790.0);
     print_writes("feilton (onoff)", &fake);
+
+    // 写失败向上传播为 -1（v3 忽略写结果恒返回 0）。
+    fake.fail_write = -1;
+    fake_preset(&fake, "SetPwrMode", 0.0);
+    assert_int_equal(ops->set_power(&dev, 1.0), -1);
+    fake_preset(&fake, "SetPwrMode", 512.0);
+    assert_int_equal(ops->set_power(&dev, 1.0), -1);
+    assert_int_equal(fake.write_count, 2);
+    fake.fail_write = 0;
 
     // v3 StopState 0 表示运行、1 表示停机。
     int onoff = -1;
@@ -2012,6 +2063,11 @@ static void test_feilton_vendor(void **state) {
     assert_int_equal(onoff, IEMS_VENDOR_OFF);
     fake_preset(&fake, "StopState", 2.0);
     assert_int_equal(ops->get_onoff(&dev, &onoff), -1);
+    // 缺失/坏 tag 是读失败，返回 -1。
+    fake.preset_count = 0;
+    onoff = -7;
+    assert_int_equal(ops->get_onoff(&dev, &onoff), -1);
+    assert_int_equal(onoff, -7);
 
     // v3 其余方法未实现：返回 -1 且不碰 I/O。
     int writes_before = fake.write_count;
@@ -2033,6 +2089,23 @@ static void test_feilton_vendor(void **state) {
     // 扩展接口按函数名派发，get_mode 不再落到 get_onoff（v3 误派）。
     assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_MODE, &mode), -1);
     assert_int_equal(fake.read_count, reads_before);
+    // 支持的方法经扩展接口同样写同一寄存器；未知名返回 -1 且不碰 I/O。
+    fake.write_count = 0;
+    fake.read_count = 0;
+    fake_preset(&fake, "StopState", 0.0);
+    assert_int_equal(ops->set_value(&dev, IEMS_VENDOR_FN_SET_ONOFF, IEMS_VENDOR_OFF), 0);
+    assert_string_equal(fake.writes[0].tag, "Stop");
+    assert_close(fake.writes[0].value, 5461072.0);
+    assert_int_equal(ops->set_value(&dev, "unknown", 0.0), -1);
+    assert_int_equal(fake.write_count, 1);
+    assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_ONOFF, &onoff), 0);
+    assert_int_equal(onoff, IEMS_VENDOR_ON);
+    assert_string_equal(fake.reads[0].tag, "StopState");
+    assert_int_equal(ops->get_int_value(&dev, IEMS_VENDOR_FN_GET_CONNECT, &connect), -1);
+    assert_int_equal(fake.read_count, 1);
+    double value = 0.0;
+    assert_int_equal(ops->get_double_value(&dev, IEMS_VENDOR_FN_GET_POWER, &value), -1);
+    assert_int_equal(ops->get_double_value(&dev, "unknown", &value), -1);
 }
 
 static void test_huazhi_vendor(void **state) {

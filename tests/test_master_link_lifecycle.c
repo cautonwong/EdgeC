@@ -2,6 +2,7 @@
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -16,6 +17,7 @@
 #include "datahub.h"
 #include "driver_manager.h"
 #include "edge_request.h"
+#include "engines/engine_priv_internal.h"
 #include "io_executor.h"
 #include "net_buf.h"
 #include "datahub_priv.h"
@@ -47,6 +49,10 @@ static int g_finish;      /* 驱动侧 on_finish 被叫了几次 */
 static int g_last_status;
 /* 0: 收到一个字节就报 DONE;1: 永远 INCOMPLETE(只发不收) */
 static int g_decode_mode;
+/* on_finish 里申请并持有的缓冲(所有权回归用例) */
+static net_buf_pool_t *g_hold_pool;
+static net_buf_t *g_held;
+static int g_hold_on_finish;
 
 static int fake_setup(edge_req_t *req, void *ctx) {
     (void)req;
@@ -76,6 +82,16 @@ static void fake_on_finish(edge_req_t *req, int status) {
     (void)req;
     g_finish++;
     g_last_status = status;
+    /* 在引擎回调栈里向 io 句柄同款池申请一块并持有:锁住 "回调借用的 RX 载荷
+     * 在回调期间必须由 io 层持有" 这条所有权约定 */
+    if (g_hold_on_finish && g_hold_pool && !g_held) {
+        g_held = net_buf_alloc(g_hold_pool, 0);
+        if (g_held) {
+            memset(g_held->b.data, 0x5A, 16);
+            g_held->b.len = 16;
+        }
+        g_hold_on_finish = 0;
+    }
 }
 
 static const request_ops_t k_fake_ops = {
@@ -309,6 +325,130 @@ static void test_queued_command_gets_full_timeout_on_wire(void **state) {
     teardown_ctx(ctx);
 }
 
+typedef struct {
+    int saved_fd;
+    FILE *file;
+} stdout_capture_t;
+
+static void _capture_stdout(stdout_capture_t *cap) {
+    fflush(stdout);
+    cap->saved_fd = dup(STDOUT_FILENO);
+    assert_true(cap->saved_fd >= 0);
+    cap->file = tmpfile();
+    assert_non_null(cap->file);
+    assert_int_equal(dup2(fileno(cap->file), STDOUT_FILENO), STDOUT_FILENO);
+}
+
+static char *_restore_stdout(stdout_capture_t *cap) {
+    fflush(stdout);
+    assert_int_equal(dup2(cap->saved_fd, STDOUT_FILENO), STDOUT_FILENO);
+    close(cap->saved_fd);
+    rewind(cap->file);
+    char *buf = calloc(1, 8192);
+    assert_non_null(buf);
+    size_t n = fread(buf, 1, 8191, cap->file);
+    buf[n] = '\0';
+    fclose(cap->file);
+    return buf;
+}
+
+static unsigned _count_substr(const char *haystack, const char *needle) {
+    unsigned count = 0;
+    size_t len = strlen(needle);
+    for (const char *p = strstr(haystack, needle); p; p = strstr(p + len, needle)) count++;
+    return count;
+}
+
+static void test_master_io_missing_log_once_before_attach(void **state) {
+    (void)state;
+    g_done = 0;
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    arbiter_t *arb = NULL;
+    assert_int_equal(arbiter_init(&arb, &loop), 0);
+    driver_manager_storage_t mgr_storage;
+    driver_manager_t *drv_mgr = driver_manager_create_in(&mgr_storage);
+    assert_non_null(drv_mgr);
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 16, 256, 0, NULL, NULL), 0);
+
+    bus_engine_t *eng = engine_create_master(driver_manager_session_port_ptr(drv_mgr), 0,
+                                             "TestProto", 1, &loop, arb, NULL, &pool);
+    assert_non_null(eng);
+    master_priv_t *priv = (master_priv_t *)eng->user_data;
+    edge_req_t req = {.ops = &k_fake_ops};
+
+    stdout_capture_t cap;
+    _capture_stdout(&cap);
+    for (int i = 0; i < 4; i++) eng->run_command(eng, make_cmd(&req, 100));
+    char *logs = _restore_stdout(&cap);
+    assert_int_equal(_count_substr(logs, "Run command failed - IO/Request NULL"), 1);
+    assert_true(priv->io_missing_logged);
+    free(logs);
+    assert_int_equal(g_done, 4);
+
+    int fds[2];
+    assert_int_equal(socketpair(AF_UNIX, SOCK_STREAM, 0, fds), 0);
+    io_handle_t *io = io_executor_create_from_fd(&loop, fds[0], &pool);
+    assert_non_null(io);
+    eng->attach(eng, io);
+    assert_false(priv->io_missing_logged);
+
+    io_handle_destroy(io);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    close(fds[1]);
+    eng->detach(eng);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    arbiter_destroy(arb);
+    driver_manager_destroy(drv_mgr);
+    net_buf_pool_destroy(&pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+/* IO_EVENT_RX 载荷所有权:io 层持有到回调返回之后才释放。
+ *
+ * 引擎回调里同步完成的命令会立刻派发下一条,而那条命令会从同一个 net_buf 池
+ * 取 TX 缓冲。若引擎在回调里把 RX 载荷 unref 掉(旧行为),io 层回调返回后的
+ * 收尾 unref 就会把回调里新申请到的缓冲一起释放 —— 排队中的 TX 帧内容随后被
+ * 后续分配覆盖,同一条请求的字节会出现在多条通道的 socket 上。此处用
+ * "on_finish 里持有的一块缓冲" 做哨兵:它必须活过回调返回。 */
+static void test_rx_payload_outlives_engine_callback(void **state) {
+    (void)state;
+    g_done = 0;
+    g_done_status = 0;
+    g_finish = 0;
+    g_last_status = 0;
+    g_decode_mode = 0;
+    g_held = NULL;
+    g_hold_on_finish = 1;
+
+    link_ctx_t *ctx = make_ctx();
+    g_hold_pool = &ctx->pool;
+    edge_req_t req = {.ops = &k_fake_ops};
+
+    assert_int_equal(bus_orchestrator_submit_cmd(ctx->orch, 0, make_cmd(&req, 2000)), 0);
+    pump(&ctx->loop, 30); /* 请求上线,等对端应答 */
+    assert_int_equal(send(ctx->peer_fd, "R", 1, 0), 1);
+    pump(&ctx->loop, 200);
+
+    assert_int_equal(g_done, 1);
+    assert_int_equal(g_done_status, CMD_STATUS_SUCCESS);
+    assert_non_null(g_held);
+
+    /* 再申请一块(旧行为下会拿到已被误释放的哨兵)并改写它;哨兵内容必须不变 */
+    net_buf_t *probe = net_buf_alloc(&ctx->pool, 0);
+    assert_non_null(probe);
+    memset(probe->b.data, 0x77, 16);
+    for (int i = 0; i < 16; i++) assert_int_equal(g_held->b.data[i], 0x5A);
+
+    net_buf_unref(probe);
+    net_buf_unref(g_held);
+    g_held = NULL;
+    g_hold_pool = NULL;
+    teardown_ctx(ctx);
+}
+
 int main(void) {
     /* 对端关闭后再写会 EPIPE:不忽略 SIGPIPE 会把测试进程直接打断 */
     signal(SIGPIPE, SIG_IGN);
@@ -317,6 +457,8 @@ int main(void) {
         cmocka_unit_test(test_master_survives_repeated_timeout),
         cmocka_unit_test(test_queued_command_gets_full_timeout_on_wire),
         cmocka_unit_test(test_master_settles_queued_commands_on_one_bus),
+        cmocka_unit_test(test_master_io_missing_log_once_before_attach),
+        cmocka_unit_test(test_rx_payload_outlives_engine_callback),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

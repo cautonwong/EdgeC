@@ -1057,17 +1057,14 @@ static int _control_upgrade_app(void *ctx, const char *manifest_json, const void
         return -1;
     }
     if (spec.limits.heap_kb > 0) manifest.heap_limit_kb = spec.limits.heap_kb;
-    if (app_points_check(control->db, manifest.id, spec.points, spec.points_count, reason,
-                         sizeof(reason)) != 0) {
-        LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", reason);
-        return -1;
-    }
-
     char *settings_json = NULL;
-    char settings_reason[APP_SETTING_REASON_SIZE] = "";
-    if (_manifest_settings_json(manifest_json, &settings_json, settings_reason,
-                                sizeof(settings_reason)) < 0) {
-        LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", settings_reason);
+    if (app_points_check(control->db, manifest.id, spec.points, spec.points_count, reason,
+                         sizeof(reason)) != 0 ||
+        _manifest_settings_json(manifest_json, &settings_json, reason, sizeof(reason)) < 0 ||
+        app_settings_upgrade_check(control->db, manifest.id, settings_json, reason,
+                                   sizeof(reason)) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "AppMgr: upgrade denied: %s", reason);
+        free(settings_json);
         return -1;
     }
 

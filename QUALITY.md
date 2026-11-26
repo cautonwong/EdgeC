@@ -35,7 +35,7 @@
 | :--- | :--- | :--- |
 | `check_plane_isolation.py` | 四平面单向依赖（路径规则 + 模块头文件所有权） | 4 项跟踪债务 (#414) |
 | `check_aggregate_boundary.py` | 聚合根不透明 + 禁止跨模块访问内部字段 | 5 项跟踪债务 (#413) |
-| `check_composition_root.py` | 装配入口排他（`ci/composition_roots.txt`） | 5 项跟踪债务 (#417) |
+| `check_composition_root.py` | 装配入口排他（`ci/baseline/architecture_graph.json` 的 `composition_roots`） | 5 项跟踪债务 (#417) |
 | `check_caller_allocated_storage.py` | 存储对齐 + `_Static_assert` + 放置构造器零堆分配 | **0 违规** |
 | `check_no_dynamic_memory.py` | 执行路径（`*_proc` / `*_step` / `*_run` / …）零堆分配 | 6 项跟踪债务 (#412) |
 | `check_stack_usage.py` | 自动变量缓冲区 ≤ 512 B | 5 项跟踪债务 (#412) |
@@ -73,7 +73,7 @@
 - **已知债务**：`datahub_t` / `datahub_router_t` / `stream_engine_t` 仍在公共头中完整暴露，账本指向 #413。
 
 ### 3.3 组合根与零动态内存 (Composition Root & Zero-Alloc)
-- 仅允许在 `modules/edge_bootstrap/` 与 `ci/composition_roots.txt` 列出的产品入口执行装配；
+- 仅允许在 `modules/edge_bootstrap/` 与 `ci/baseline/architecture_graph.json` 的 `composition_roots` 列出的产品入口执行装配；
 - **豁免只允许出现在 `ci/baseline/` 中**，且每条必须挂 issue、只能缩减。代码内不得再有硬编码白名单（`check_exemptions.py` 负责校验声明集中化）。
 
 ---

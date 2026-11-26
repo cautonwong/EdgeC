@@ -1,0 +1,19 @@
+=== D0-18 RUNTIME (2026-11-25T03:20:47Z) ===
+--- acceptance final (3x) ---
+r1:
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+r2:
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+r3:
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+
+--- exec gap distribution ---
+run 1 meters 40 gaps 123 min/med/max 5.04 9.99 19.76
+run 2 meters 40 gaps 148 min/med/max 3.69 17.92 26.38
+run 3 meters 40 gaps 114 min/med/max 4.64 19.88 21.14
+
+--- duplicate evidence (failing r4) ---
+adjacent same-DI pairs 7 same-conn 0 diff-conn 7

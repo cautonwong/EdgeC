@@ -29,7 +29,7 @@ D1-18c 把 6000 方法整体下架，因为旧实现只改 RAM、重启即丢。
 
 - `router_sink_ops_t` 增加 `archive_save/delete/clear` 三个端口；`dcu_node` 用 `dcu_storage_t.db` 实现，复用既有单连接，不另开 SQLite。
 - `dcu_inventory` 负责 SQL（与既有 `load_from_db` 同源）；`meter_inventory` 通过 `ALTER TABLE ... ADD COLUMN` 增量补列，旧库可直接升级。
-- 写入顺序：先落库、后改 RAM；失败不改 RAM。Update 的地址变更先写新主键再删旧行。
+- 写入顺序：129/130 先按新值改 RAM 再落库；落库失败恢复 RAM 快照（含 revision 与地址主键），GET 仍服务旧值。Update 的地址变更在成功落库后再删旧行。
 
 ## 已知限制
 

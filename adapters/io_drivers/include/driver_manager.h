@@ -18,7 +18,7 @@ typedef struct datahub_s datahub_t;
 typedef struct driver_manager_s driver_manager_t;
 
 typedef struct {
-    alignas(max_align_t) uint8_t raw[65536];
+    alignas(max_align_t) uint8_t raw[147456];
 } driver_manager_storage_t;
 
 /**

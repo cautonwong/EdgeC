@@ -1,0 +1,300 @@
+===== tests/guards/fixtures/bad_arch_graph_alias
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_alias
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_ambiguous
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_ambiguous
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] foundation/src/base.c:1: include-ambiguous datahub_ops.h: alpha/beta at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_basename_ambiguous
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_basename_ambiguous
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] foundation/src/base.c:1: include-ambiguous shared_priv.h: alpha/beta at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_basename_owner
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_basename_owner
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c:1: include FOUNDATION (foundation) -> alpha (modules) via alpha_private.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_brackets
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_brackets
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:5: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:5
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cmake_cycle
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cmake_cycle
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [TARGET_CYCLE] CMake target graph: beta -> alpha -> beta
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cmake_dir
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cmake_dir
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] foundation/CMakeLists.txt:2: cmake-unowned-target cmake_target at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cmake_include
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cmake_include
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/extra/targets.cmake:2: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/extra/targets.cmake:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cmake_include_cycle
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cmake_include_cycle
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] a.cmake:1: cmake-include-cycle a.cmake at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cmake_include_missing
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cmake_include_missing
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] CMakeLists.txt:1: cmake-include missing/targets.cmake at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_cycle_layers
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_cycle_layers
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [INCLUDE_CYCLE] component include graph: modules/io -> adapters/io -> modules/io | modules/io -> adapters/io: modules/io/include/io.h:3 (adapter.h); adapters/io -> modules/io: adapters/io/include/adapter.h:3 (io.h)
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_declared_target
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_declared_target
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] modules/alpha/CMakeLists.txt:5: cmake-declared-target hidden at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_escape_paren
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_escape_paren
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:3: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:3
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_forbidden_header
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_forbidden_header
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [FORBIDDEN_HEADER] modules/edge_stream/src/consumer.cpp:1: edge_stream must use its port
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_comment
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_comment
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c:1: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_cycle
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_cycle
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [INCLUDE_CYCLE] component include graph: modules/beta -> modules/alpha -> modules/beta | modules/beta -> modules/alpha: modules/beta/include/beta.h:3 (alpha.h); modules/alpha -> modules/beta: modules/alpha/include/alpha.h:3 (beta.h)
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_direction
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_direction
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c:1: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_macro
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_macro
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] modules/alpha/src/alpha.c:2: include-macro ALPHA_HDR at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_phase2
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_phase2
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c:1: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: fixture; sites: foundation/src/base.c:1, foundation/src/base.c:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_include_source_dir
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_include_source_dir
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+  - [UNDECLARED_EDGE] extra/targets.cmake:1: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: fixture; sites: extra/targets.cmake:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_keyword_case
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_keyword_case
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> public (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_layer
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_layer
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:2
+  - [UNDECLARED_EDGE] foundation/src/base.c:2: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_list_append
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_list_append
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:5: link foundation_base (foundation/FOUNDATION) -> edge_net (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:5
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_lowercase_options
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_lowercase_options
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> lower_imported (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_module_missing
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_module_missing
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] CMakeLists.txt:1: cmake-module NoSuchModule at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_module_path
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_module_path
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+  - [UNDECLARED_EDGE] custom_modules/CustomTargets.cmake:1: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: fixture; sites: custom_modules/CustomTargets.cmake:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_other
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_other
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] examples/plugin/main.c:1: include examples (other) -> cmd (cmd) via ../../cmd/app/app.h; forbidden: examples are consumers; sites: examples/plugin/main.c:1
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_parent_scope
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_parent_scope
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [UNREGISTERED_PARSE_GAP] foundation/CMakeLists.txt:2: cmake-parent-scope LIBS at 2 site(s); register it in known_skips with a reason
+  - [UNREGISTERED_PARSE_GAP] foundation/CMakeLists.txt:3: cmake-genex ${LIBS} at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_prune_path
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_prune_path
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> fixture_target (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_quoted_escape
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_quoted_escape
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:4: link foundation_base (foundation/FOUNDATION) -> edge_forbidden (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:4
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_quoted_gt
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_quoted_gt
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c:6: include FOUNDATION (foundation) -> alpha (modules) via alpha>beta.h; forbidden: fixture; sites: foundation/src/base.c:6
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA unknown top-level key(s): bogus_key
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_composition_roots
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_composition_roots
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA missing section composition_roots
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_composition_roots_path
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_composition_roots_path
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA composition_roots[0] missing path
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_composition_roots_stale
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_composition_roots_stale
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA composition_roots[0] path does not exist: cmd/gone/main.c
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_duplicate_entry
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_duplicate_entry
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_layer_edges[10] duplicates an earlier entry
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_file
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_file
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA forbidden_headers[0] file does not exist: modules/gone/missing.h
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_forbidden_files
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_forbidden_files
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA forbidden_headers[0] path is not normalized: './modules/beta/src/beta.c'
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_json
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_json
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA cannot read matrix /tmp/iems-fix/arch-graph-wt/tests/guards/fixtures/bad_arch_graph_schema_json/ci/baseline/architecture_graph.json: Expecting property name enclosed in double quotes: line 2 column 1 (char 16)
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_missing
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_missing
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA missing section known_skips
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_sources
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_sources
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_component_edges[0] unknown source(s): bogus
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_sources_duplicate
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_schema_sources_duplicate
+❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_component_edges[0] duplicate sources entry
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_semicolon
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_semicolon
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:2
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> beta (modules/beta); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:2
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_shared_surface_layer
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_shared_surface_layer
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [INCLUDE_CYCLE] component include graph: modules/ROOT -> modules/alpha -> modules/ROOT | modules/ROOT -> modules/alpha: modules/ROOT/include/ROOT.h:1 (alpha.h); modules/alpha -> modules/ROOT: modules/alpha/include/alpha.h:1 (ROOT.h)
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_skip
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_skip
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] cmd/app/CMakeLists.txt:2: cmake-genex $<TARGET_NAME_IF_EXISTS:helper> at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_stale_skip
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_stale_skip
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [STALE_KNOWN_SKIP] modules/alpha/src/alpha.c: include-macro ALPHA_HDR no longer reproduces; remove it from known_skips
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_unowned_target
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_unowned_target
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] modules/alpha/CMakeLists.txt:4: cmake-unowned-target hidden at 1 site(s); register it in known_skips with a reason
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_variable
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_variable
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:3: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:3
+exit: 1
+
+===== tests/guards/fixtures/bad_arch_graph_schema_composition_roots (composition root budget)
+$ python3 ci/scripts/check_composition_root_budget.py --root tests/guards/fixtures/bad_arch_graph_schema_composition_roots
+[COMPOSITION_ROOT_BUDGET] /tmp/iems-fix/arch-graph-wt/tests/guards/fixtures/bad_arch_graph_schema_composition_roots/ci/baseline/architecture_graph.json has no composition_roots list; fix the matrix instead of reporting an empty budget
+exit: 1
+
+===== strong_mode_arch_graph (text mode: green)
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/strong_mode_arch_graph
+✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 0 CMake target(s), 0 first-party link edge(s), 0 target cycle(s); 3 include file(s), 0 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 1 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+ℹ️  [ARCHITECTURE_GRAPH] folded out of the parsed subgraph: 0 macro-generated target call(s) (add_edge_test etc.) and cmake/ helper macros; File API reports the full configure-time graph.
+exit: 0
+
+===== strong_mode_arch_graph (strong mode: red)
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/strong_mode_arch_graph --compile-commands tests/guards/fixtures/strong_mode_arch_graph/compile_commands.json
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNDECLARED_EDGE] foundation/src/base.c (closure): include FOUNDATION (foundation) -> alpha (modules) via modules/alpha/include/alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c (closure)
+exit: 1
+

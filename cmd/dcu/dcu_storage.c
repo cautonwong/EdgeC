@@ -137,6 +137,28 @@ int dcu_storage_write_freeze(dcu_storage_t* storage, const char* addr, uint32_t 
     return (ret == SQLITE_DONE) ? 0 : -3;
 }
 
+int dcu_storage_trim_freeze(dcu_storage_t* storage, const char* addr, uint32_t freeze_oad,
+                            uint32_t src_oad, uint32_t keep) {
+    if (!storage || !storage->db || !addr || keep == 0) return -1;
+    sqlite3_stmt* stmt = NULL;
+    const char* sql =
+        "DELETE FROM dcu_freeze_history WHERE meter_address = ? AND freeze_oad = ? "
+        "AND source_oad = ? AND freeze_time NOT IN (SELECT freeze_time FROM dcu_freeze_history "
+        "WHERE meter_address = ? AND freeze_oad = ? AND source_oad = ? "
+        "ORDER BY freeze_time DESC LIMIT ?);";
+    if (sqlite3_prepare_v2(storage->db, sql, -1, &stmt, NULL) != SQLITE_OK) return -2;
+    sqlite3_bind_text(stmt, 1, addr, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 2, (sqlite3_int64)freeze_oad);
+    sqlite3_bind_int64(stmt, 3, (sqlite3_int64)src_oad);
+    sqlite3_bind_text(stmt, 4, addr, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 5, (sqlite3_int64)freeze_oad);
+    sqlite3_bind_int64(stmt, 6, (sqlite3_int64)src_oad);
+    sqlite3_bind_int64(stmt, 7, (sqlite3_int64)keep);
+    int rc = sqlite3_step(stmt) == SQLITE_DONE ? 0 : -3;
+    sqlite3_finalize(stmt);
+    return rc;
+}
+
 int dcu_storage_write_event(dcu_storage_t* storage, const char* addr, uint16_t oi,
                             uint64_t start_time, uint64_t end_time, float snapshot_val) {
     if (!storage || !addr) return -1;
@@ -391,6 +413,11 @@ int dcu_storage_begin_trans(dcu_storage_t* storage) {
 int dcu_storage_commit_trans(dcu_storage_t* storage) {
     if (!storage || !storage->db) return -1;
     return sqlite3_exec(storage->db, "COMMIT;", NULL, NULL, NULL) == SQLITE_OK ? 0 : -1;
+}
+
+int dcu_storage_rollback_trans(dcu_storage_t* storage) {
+    if (!storage || !storage->db) return -1;
+    return sqlite3_exec(storage->db, "ROLLBACK;", NULL, NULL, NULL) == SQLITE_OK ? 0 : -1;
 }
 
 void dcu_storage_destroy(dcu_storage_t* storage) {

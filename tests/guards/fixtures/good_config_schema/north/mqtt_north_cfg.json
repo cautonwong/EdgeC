@@ -1,0 +1,28 @@
+{
+  "standard": [
+    {
+      "name": "iec104",
+      "index": 0,
+      "enable": 0
+    },
+    {
+      "name": "modbus",
+      "index": 1,
+      "enable": 0
+    }
+  ],
+  "interval": {
+    "EMS": 60,
+    "PCS": 60,
+    "BMS": 60,
+    "CELL": 60,
+    "DIDO": 60,
+    "AIRCOND": 60,
+    "PCS_METER": 60,
+    "GRID_METER": 60,
+    "OTHERS": 60
+  },
+  "heart_beat": 60,
+  "login": 5,
+  "north_control": -1
+}

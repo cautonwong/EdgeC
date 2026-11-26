@@ -48,6 +48,13 @@ OI_ROW = re.compile(r"^([0-9A-Fa-f]{4})\s+(\d{1,2})\s+(.+)$")
 METHOD_IN_ROW = re.compile(r"方法\s*(\d+)\s*[：:（(]")
 ATTR_IN_ROW = re.compile(r"属性\s*(\d+)")
 
+# Appendix A is located by title, not by line number, so a re-extracted source
+# that shifts its line numbering cannot move the OI tables out of the scan.
+APPENDIX_A_TITLE = re.compile(r"^附\s*录\s*A$")
+APPENDIX_B_TITLE = re.compile(r"^附\s*录\s*B$")
+OBJECT_TABLE_TITLE = re.compile(r"^表\s*A\.(\d+)\s+.*对象标识定义$")
+OBJECT_TABLE_NUMBERS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14})
+
 # OIs whose class is not the obvious range owner. Values come from the class
 # definitions in 7.3 and the object tables in 7.4 and Appendix A.
 OI_CLASS_OVERRIDES = {
@@ -293,13 +300,44 @@ def parse_classes(lines: list[str]) -> list[dict]:
     return classes
 
 
-def parse_ois(lines: list[str], class_ids: set[int]) -> list[dict]:
+def appendix_a_window(lines: list[str]) -> tuple[int, int]:
+    def sole_title(pattern: re.Pattern, label: str) -> int:
+        hits = [i for i, line in enumerate(lines) if pattern.match(line.strip())]
+        if len(hits) != 1:
+            raise ValueError(f"expected exactly one {label} title, found {len(hits)}")
+        return hits[0]
+
+    start = sole_title(APPENDIX_A_TITLE, "Appendix A (附 录 A)")
+    end = sole_title(APPENDIX_B_TITLE, "Appendix B (附 录 B)")
+    if end <= start:
+        raise ValueError("Appendix B appears before Appendix A")
+
+    titles: dict[int, list[int]] = {}
+    for i in range(start, end):
+        m = OBJECT_TABLE_TITLE.match(lines[i].strip())
+        if m:
+            titles.setdefault(int(m.group(1)), []).append(i)
+    missing = sorted(OBJECT_TABLE_NUMBERS - titles.keys())
+    if missing:
+        raise ValueError("missing object table titles: "
+                         + ", ".join(f"A.{n}" for n in missing))
+    duplicated = sorted(n for n, hits in titles.items() if len(hits) > 1)
+    if duplicated:
+        raise ValueError("duplicate object table titles: "
+                         + ", ".join(f"A.{n}" for n in duplicated))
+    for number, hits in titles.items():
+        following = [line.strip() for line in lines[hits[0] + 1:hits[0] + 5]
+                     if line.strip()][:3]
+        if not any("对象名称" in line for line in following):
+            raise ValueError(f"table A.{number} title is not followed by an object-table header")
+    return start, end
+
+
+def parse_ois(lines: list[str], class_ids: set[int], window: tuple[int, int]) -> list[dict]:
     rows = []
     split_oi = re.compile(r"^([0-9A-Fa-f]{2})\s+([0-9A-Fa-f]{2})\s+(\d{1,2})\s+(.+)$")
-    for i, line in enumerate(lines):
-        if i < 6298 or i > 9450:
-            continue
-        text = line.strip()
+    for i in range(*window):
+        text = lines[i].strip()
         m = OI_ROW.match(text)
         if m:
             oi = int(m.group(1), 16)
@@ -326,16 +364,13 @@ def parse_ois(lines: list[str], class_ids: set[int]) -> list[dict]:
     return rows
 
 
-def parse_oi_methods(lines: list[str]) -> dict[str, set[int]]:
+def parse_oi_methods(lines: list[str], window: tuple[int, int]) -> dict[str, set[int]]:
     """Methods an OI defines in Appendix A, which the 7.3 class tables omit."""
     methods: dict[str, set[int]] = {}
     current: str | None = None
     split_oi = re.compile(r"^([0-9A-Fa-f]{2})\s+([0-9A-Fa-f]{2})\s+(\d{1,2})\s+(.+)$")
-    for i, line in enumerate(lines):
-        if i < 6298 or i > 9450:
-            current = None
-            continue
-        text = line.strip()
+    for i in range(*window):
+        text = lines[i].strip()
         m = OI_ROW.match(text)
         if m:
             current = f"{int(m.group(1), 16):04X}"
@@ -349,7 +384,7 @@ def parse_oi_methods(lines: list[str]) -> dict[str, set[int]]:
     return methods
 
 
-def parse_oi_attributes(lines: list[str]) -> dict[str, set[int]]:
+def parse_oi_attributes(lines: list[str], window: tuple[int, int]) -> dict[str, set[int]]:
     """Attributes an OI defines in Appendix A, which the 7.3 class tables omit.
 
     6002 的 A5..A10 只出现在表 A.7，不在 7.3.11 的类定义里。目录把它们单独列成
@@ -358,11 +393,8 @@ def parse_oi_attributes(lines: list[str]) -> dict[str, set[int]]:
     attrs: dict[str, set[int]] = {}
     current: str | None = None
     split_oi = re.compile(r"^([0-9A-Fa-f]{2})\s+([0-9A-Fa-f]{2})\s+(\d{1,2})\s+(.+)$")
-    for i, line in enumerate(lines):
-        if i < 6298 or i > 9450:
-            current = None
-            continue
-        text = line.strip()
+    for i in range(*window):
+        text = lines[i].strip()
         m = OI_ROW.match(text)
         if m:
             current = f"{int(m.group(1), 16):04X}"
@@ -380,8 +412,9 @@ def render_header(classes: list[dict], ois: list[dict], oi_methods: dict[str, se
                   oi_attrs: dict[str, set[int]]) -> str:
     class_attr = {cls["class_id"]: max((a["no"] for a in cls["attributes"]), default=0)
                   for cls in classes}
-    class_method = {cls["class_id"]: max((m["no"] for m in cls["methods"]), default=0)
-                    for cls in classes}
+    class_own_method = {cls["class_id"]: max((m["no"] for m in cls["methods"]), default=0)
+                        for cls in classes}
+    class_method = dict(class_own_method)
     for row in ois:
         cid = row["inferred_class"]
         extra = max(oi_methods.get(row["oi"], {0}))
@@ -425,23 +458,42 @@ def render_header(classes: list[dict], ois: list[dict], oi_methods: dict[str, se
         out.append("    {0x0000, 0}, /* 无超出类表的实例属性 */")
     out.append("};")
     out.append("")
+    out.append("/* 附录 A 的 OI 行定义的方法号；7.3 类表未覆盖的号只属于列出的 OI。 */")
+    out.append("typedef struct {")
+    out.append("    uint16_t oi;")
+    out.append("    uint8_t method;")
+    out.append("} dcu698_catalog_oi_method_t;")
+    out.append("")
+    out.append("static const dcu698_catalog_oi_method_t dcu698_catalog_oi_methods[] = {")
+    method_rows = []
+    for row in sorted(ois, key=lambda r: int(r["oi"], 16)):
+        for method in sorted(oi_methods.get(row["oi"], ())):
+            method_rows.append(f"    {{0x{row['oi']}, {method}}},")
+    if method_rows:
+        out.extend(method_rows)
+    else:
+        out.append("    {0x0000, 0}, /* 无 OI 专属方法 */")
+    out.append("};")
+    out.append("")
     out.append("typedef struct {")
     out.append("    uint8_t class_id;")
     out.append("    uint8_t max_attr;")
-    out.append("    uint8_t max_method;")
+    out.append("    uint8_t max_method;       /* 7.3 方法与该类 OI 附录 A 方法的按类最大值 */")
+    out.append("    uint8_t max_class_method; /* 仅 7.3 类表自身的方法上限 */")
     out.append("} dcu698_catalog_class_t;")
     out.append("")
     out.append("static const dcu698_catalog_class_t dcu698_catalog_classes[] = {")
     for cls in sorted(classes, key=lambda c: c["class_id"]):
         cid = cls["class_id"]
-        out.append(f"    {{{cid}, {class_attr[cid]}, {class_method[cid]}}},")
+        out.append(f"    {{{cid}, {class_attr[cid]}, {class_method[cid]}, "
+                   f"{class_own_method[cid]}}},")
     out.append("};")
     out.append("")
     out.append("#endif /* DCU_698_CATALOG_EXPECTED_H */")
     return "\n".join(out) + "\n"
 
 
-def render(classes: list[dict], ois: list[dict]) -> str:
+def render(classes: list[dict], ois: list[dict], oi_methods: dict[str, set[int]]) -> str:
     by_class: dict[int, list[dict]] = {}
     for row in ois:
         by_class.setdefault(row["inferred_class"], []).append(row)
@@ -477,6 +529,21 @@ def render(classes: list[dict], ois: list[dict]) -> str:
             rng = "-"
         out.append(f"| {cid} | {cls['name']} | {len(cls['attributes'])} | "
                    f"{len(cls['methods'])} | {len(rows)} | {rng} |")
+    out.append("")
+    out.append("## Appendix A OI methods")
+    out.append("")
+    out.append("Method numbers defined in the OI rows of Appendix A. A number the")
+    out.append("7.3 class table does not define for every OI of the class is only")
+    out.append("valid on the OIs listed with it.")
+    out.append("")
+    out.append("| OI | Class | Methods |")
+    out.append("| --- | --- | --- |")
+    by_oi = {row["oi"]: row for row in ois}
+    for oi in sorted(oi_methods, key=lambda k: int(k, 16)):
+        if oi not in by_oi:
+            continue
+        methods = ", ".join(str(m) for m in sorted(oi_methods[oi]))
+        out.append(f"| {oi} | {by_oi[oi]['inferred_class']} | {methods} |")
     out.append("")
     for cls in classes:
         cid = cls["class_id"]
@@ -550,10 +617,15 @@ def main() -> int:
         return 1
 
     lines = source.read_text(encoding="utf-8").splitlines()
+    try:
+        window = appendix_a_window(lines)
+    except ValueError as exc:
+        print(f"698 appendix layout: {exc}", file=sys.stderr)
+        return 1
     classes = parse_classes(lines)
-    ois = parse_ois(lines, {cls["class_id"] for cls in classes})
-    oi_methods = parse_oi_methods(lines)
-    oi_attrs = parse_oi_attributes(lines)
+    ois = parse_ois(lines, {cls["class_id"] for cls in classes}, window)
+    oi_methods = parse_oi_methods(lines, window)
+    oi_attrs = parse_oi_attributes(lines, window)
 
     if len(classes) != 26:
         print(f"expected 26 classes, parsed {len(classes)}", file=sys.stderr)
@@ -578,8 +650,12 @@ def main() -> int:
                   f"inferred={row['inferred_class']} @{row['source_line']}", file=sys.stderr)
         return 1
 
-    markdown = render(classes, ois)
-    payload = json.dumps({"classes": classes, "ois": ois}, ensure_ascii=False, indent=1) + "\n"
+    markdown = render(classes, ois, oi_methods)
+    oi_method_payload = {oi: sorted(oi_methods[oi])
+                         for oi in sorted(oi_methods, key=lambda k: int(k, 16))
+                         if oi_methods[oi]}
+    payload = json.dumps({"classes": classes, "ois": ois, "oi_methods": oi_method_payload},
+                         ensure_ascii=False, indent=1) + "\n"
     header = render_header(classes, ois, oi_methods, oi_attrs)
     reconciliation = render_reconciliation(ois)
     out_recon = reconciliation_path(root)

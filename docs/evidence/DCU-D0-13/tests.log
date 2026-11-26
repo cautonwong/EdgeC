@@ -1,0 +1,43 @@
+=== D0-13 TESTS (2026-11-24T03:21:46Z) ===
+--- unit: test_dcu_runtime_self_exit (8) ---
+[==========] tests: Running 8 test(s).
+[ RUN      ] test_unset_is_zero
+[       OK ] test_unset_is_zero
+[ RUN      ] test_five_seconds
+[       OK ] test_five_seconds
+[ RUN      ] test_zero_is_disabled
+[       OK ] test_zero_is_disabled
+[ RUN      ] test_invalid_is_disabled
+[       OK ] test_invalid_is_disabled
+[ RUN      ] test_leading_space_is_disabled
+[       OK ] test_leading_space_is_disabled
+[ RUN      ] test_plus_sign_is_disabled
+[       OK ] test_plus_sign_is_disabled
+[ RUN      ] test_wrapped_negative_is_disabled
+[       OK ] test_wrapped_negative_is_disabled
+[ RUN      ] test_negative_is_disabled
+[       OK ] test_negative_is_disabled
+[==========] tests: 8 test(s) run.
+[  PASSED  ] 8 test(s).
+--- unit: test_dcu_heartbeat_stop (2) ---
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_stop_closes_timers_and_is_idempotent
+[       OK ] test_stop_closes_timers_and_is_idempotent
+[ RUN      ] test_stop_before_storage_destroy
+[       OK ] test_stop_before_storage_destroy
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+--- ctest -R 'dcu|freeze|runtime' ---
+100% tests passed, 0 tests failed out of 38
+
+Total Test time (real) =  82.07 sec
+--- ASAN detect_leaks=1 (final tree) ---
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   1.43 sec
+--- gates ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [COMPOSITION_ROOT_BUDGET] clean. 16 root(s).
+✅ [FANALYZER] 3 known finding(s), no new reports
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 110/110 passed (100% sensitivity)

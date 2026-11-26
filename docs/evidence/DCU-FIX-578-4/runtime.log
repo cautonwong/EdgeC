@@ -1,0 +1,13 @@
+=== BEFORE FIX: repro_acl_set (adv-3 @ f13db8ea) ===
+object list rc=0 len=1166
+ACL rights OI=3000 A6 = 3 (0=none,1=read,2=write,3=rw)
+ACL rights OI=3000 A8 = 3
+SET 3000 A6 well-formed array[0] rc=-22 (TYPE_MISMATCH=-22 CLASS_MISMATCH=-21 DENIED=-25)
+SET 3000 A8 (ACL writable) rc=-21
+
+=== AFTER FIX: same repro rebuilt @ 97e9ae4a ===
+object list rc=0 len=1166
+ACL rights OI=3000 A6 = 1 (0=none,1=read,2=write,3=rw)
+ACL rights OI=3000 A8 = 3
+SET 3000 A6 well-formed array[0] rc=-25 (TYPE_MISMATCH=-22 CLASS_MISMATCH=-21 DENIED=-25)
+SET 3000 A8 (ACL writable) rc=-21

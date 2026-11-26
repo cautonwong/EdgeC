@@ -32,7 +32,16 @@ cmd/edge_mcp_server/main.c|184
 # 2026-11-20: cmd/iems/iems_north_listener.c 114 -> 170；北向 UDS 断链释放 io 句柄（fd 不再随连接增长），拒绝第二路并发客户端，accept 时短暂探测旧 fd 状态，避免快速重连被误拒。
 # 2026-11-19: cmd/iems/iems_app.c 576 -> 579；REST 监听失败沿启动链返回，管理面起不来即启动失败。
 # 2026-11-20: cmd/iems/iems_app.c 579 -> 578；WAL 启动降级移入 iems_wal_start.c，组合根只留一行调用。
-cmd/iems/iems_app.c|578
+# 2026-11-25: cmd/iems/iems_app.c 578 -> 581；destroy 时先清北向结果上下文再停管理器（P4-03c1）。
+# 2026-11-25: cmd/iems/iems_app.c 581 -> 597；P6-04b 配置加载接线（include + 一次 load_apply 调用），
+#   加载/校验/写库主体在 iems_config_loader.c；北向装配按 SRP 拆出，单函数仍 < 200 行。
+# 2026-11-26: cmd/iems/iems_app.c 597 -> 607；P6-02b 硬件健康门控接线（Linux 源 + monitor 存储与
+#   定时器生命周期三处调用），阈值/求值/采样在 iems_health_monitor.c。
+# 2026-11-26: cmd/iems/iems_app.c 607 -> 626；P2-02a ems/lc 设置加载接线（文件源 + fail closed
+#   调用 + 只读 getter），解析/校验在 iems_pcs_settings.c，模型在 iems_pcs_settings.h。
+# 2026-11-26: cmd/iems/iems_app.c 626 -> 632；P2-02a 把 PCS 加载抽成 _load_pcs_settings，
+#   assemble 保持 < 200 行（SRP 门禁）。
+cmd/iems/iems_app.c|632
 cmd/iems/iems_north_listener.c|170
 # 2026-11-19: cmd/iems/iems_north_iec104.c 基线 203；IEC104 TCP 监听 + 从站 source ops 接线适配器。
 # 2026-11-22: cmd/iems/iems_north_iec104.c 203 -> 180；既有改动缩小了根，刷新基线（只降不升）。
@@ -41,9 +50,11 @@ cmd/iems/iems_north_iec104.c|180
 # 2026-11-18: cmd/iems/iems_southbound_adapter.c 178 -> 199；Modbus TCP 设备走 tcp://host:port，连不上仍计入缺失摘要。
 # 2026-11-19: cmd/iems/iems_southbound_adapter.c 199 -> 218；BAUD 环境变量严格解析，非法/未支持速率拒绝整条总线并日志。
 # 2026-11-22: cmd/iems/iems_southbound_adapter.c 218 -> 215；既有改动缩小了根，刷新基线（只降不升）。
-cmd/iems/iems_southbound_adapter.c|215
+# 2026-11-23: cmd/iems/iems_southbound_adapter.c 215 -> 216；异步 connect 的 adopt 端口由组合根注入（io_executor_create_from_fd）。
+cmd/iems/iems_southbound_adapter.c|216
 # 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
-cmd/iems/main.c|111
+# 2026-11-25: cmd/iems/main.c 111 -> 112；EDGE_CONFIG_DIR 在组合根读一次传入（P6-04b，空串由装配层当未设置）。
+cmd/iems/main.c|112
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
 # 2026-11-21: DCU-D0-03 产品 stdout 行缓冲：所有产品组合根入口 setvbuf(_IOLBF)（mcp +1, nexus_lab +1, smart_box +2）。
 cmd/nexus_lab/main.c|157
@@ -52,7 +63,10 @@ cmd/smart_box/main.c|92
 # 2026-11-10: cmd/iems/iems_app.c 343 -> 347; SnF store port injection (+4).
 # 2026-11-10: north source adapter moved to bootstrap; product include adds one line (DCU 196->197, IEMS 347->348).
 # 2026-11-18: northbound_mgr.c 711 -> 690；账本跟随实际行数，本次为收紧。
-modules/edge_north/src/northbound_mgr.c|690
+# 2026-11-23: northbound_mgr.c 690 -> 692；IPC 编排移入 north_ipc.c，根余 685 行 + 两处公开 API 转发 7 行；公开名必须留在根，故为 692 而非 690。
+# 2026-11-24: northbound_mgr.c 692 -> 691；墙钟 seam 的内联 helper 移入 northbound_mgr.h，根只留 setter。
+# 2026-11-25: northbound_mgr.c 691 -> 650；回执队列提取到 north_result_queue.c，协议注册/创建提取到 north_protocol.c（P4-03c1 复检），根只留 init/post/stop 接线。
+modules/edge_north/src/northbound_mgr.c|650
 # 2026-11-10: edge_mcp_server hides tag-meta tool for metadata-less hub (+1).
 # 2026-11-10: iems_app.c 348 -> 346 after control port wiring cleanup.
 # 2026-11-11: north driver port injection in iEMS/DCU adapters (+4 each).
@@ -90,4 +104,4 @@ modules/edge_north/src/northbound_mgr.c|690
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1374 -> 1465；参数 schema 随安装/升级持久化、setting_get 端口与 appctl settings set 回调。
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1465 -> 1470；settings set 成功后经 runtime 通知运行中的应用。
 # 2026-11-19: cmd/iems/iems_app_manager_adapter.c 1470 -> 1474；未知 app_id 在排队前拒绝 (-ENOENT)，REST 报 not_found。
-cmd/iems/iems_app_manager_adapter.c|1474
+cmd/iems/iems_app_manager_adapter.c|1471

@@ -199,7 +199,8 @@ static int feilton_set_power(iems_vendor_device *dev, double power) {
     return write_tag(dev, "WrtActPowSetC", phase);
 }
 
-/* v3 启动前要求 StartReady == 1，否则 -2 且不写（pcs/feilton_pcs.c:41-66）。 */
+/* v3 启动前要求 StartReady == 1，否则 -2 且不写（pcs/feilton_pcs.c:41-66）。
+ * 读失败单独返回 -1，避免把通信故障伪装成“未就绪”。 */
 static int feilton_set_onoff(iems_vendor_device *dev, int onoff) {
     if (onoff == IEMS_VENDOR_OFF) {
         return write_int(dev, "Stop", 5461072);
@@ -208,8 +209,11 @@ static int feilton_set_onoff(iems_vendor_device *dev, int onoff) {
         return -1;
     }
     int ready = 0;
-    if (read_int(dev, "StartReady", &ready) != 0 || ready != 1) {
+    if (read_int(dev, "StartReady", &ready) != 0) {
         return -1;
+    }
+    if (ready != 1) {
+        return -2;
     }
     return write_int(dev, "Start", 5395790);
 }

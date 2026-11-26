@@ -1,0 +1,30 @@
+  ✅ [LIVE_PASS] check_sdk_wit.py
+  ✅ [LIVE_PASS] check_net_buf_alloc_timeout.py
+  ✅ [LIVE_PASS] check_script_permissions.py
+  ✅ [LIVE_PASS] check_test_registration.py
+  ✅ [LIVE_PASS] check_app_host_no_exec.py
+  ✅ [LIVE_PASS] check_stage_registry.py
+  ✅ [LIVE_PASS] check_app_abi_surface.py
+  ✅ [LIVE_PASS] check_crypto_boundary.py
+  ✅ [LIVE_PASS] check_strncpy_bounds.py
+  ✅ [LIVE_PASS] check_ftell_checked.py
+  ✅ [LIVE_PASS] check_alloc_null.py
+  ✅ [LIVE_PASS] check_sanitizer_perf_gates.py
+  ✅ [LIVE_PASS] check_app_export_dispatch.py
+  ✅ [LIVE_PASS] check_sdk_signature.py
+  ✅ [LIVE_PASS] check_protocol_selection.py
+  ✅ [LIVE_PASS] check_privileged_test_runs.py
+  ✅ [LIVE_PASS] check_dcu_698_catalog.py
+  ✅ [LIVE_PASS] check_iems_control_slave.py
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+  ✅ [LIVE_PASS] check_acceptance_wrapper_signals.py
+  ✅ [LIVE_PASS] check_doc_references.py
+  ✅ [ARCH_LEDGER] fallbacks match the matrix (18 plane pairs, 3 components, 4 file rules)
+  ✅ [DOC_REFS] 28 AGENTS.md script reference(s) resolve
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+real	0m11.467s
+user	0m9.746s
+sys	0m1.728s
+RC=0

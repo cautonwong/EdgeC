@@ -10,17 +10,24 @@ add_library(dcu_app_lib STATIC
     dcu_storage.c
     dcu_task_store.c
     dcu_scheme_store.c
+    dcu_report_scheme_store.c
+    dcu_698_rules.c
+    dcu_rule_store.c
     dcu_698_object_model.c
+    dcu_comm_info.c
     dcu_698_class_acq.c
     dcu_698_class_event.c
     dcu_698_class_control.c
-    dcu_698_class_security.c
     dcu_698_axdr.c
+    dcu_698_scheme_axdr.c
     dcu_698_param.c
     dcu_clock_port.c
+    dcu_runtime_self_exit.c
     dcu_698_appconn.c
     dcu_698_var.c
     dcu_698_record.c
+    dcu_698_freeze.c
+    dcu_698_freeze_cfg.c
     dcu_698_report.c
     dcu_router.c
     dcu_north_source.c
@@ -40,6 +47,7 @@ add_library(dcu_app_lib STATIC
     dcu_twin_source.c
     dcu_topology_phase_id.c
     dcu_driver_adapter.c
+    dcu_relay_map.c
     dcu_node.c
     dcu_north_adapter.c
     dcu_bus_adapter.c

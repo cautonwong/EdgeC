@@ -1,0 +1,15 @@
+== runtime: old generator (4da3a938) on shifted source (140 blank lines prepended) ==
+wrote docs/design/DCU_698_OI_CATALOG.md (26 classes, 512 OIs)
+wrote docs/design/DCU_698_OI_CATALOG.json
+wrote tests/fixtures/dcu_698_catalog_expected.h
+old_exit=0
+
+== runtime: fixed generator on the same shifted source ==
+wrote docs/design/DCU_698_OI_CATALOG.md (26 classes, 514 OIs)
+wrote docs/design/DCU_698_OI_CATALOG.json
+wrote tests/fixtures/dcu_698_catalog_expected.h
+new_exit=0
+
+== catalog comparison (source_line stripped; classes/ois/oi_methods) ==
+old fixed-window: 512 OIs; missing=['F300', 'F301']; extra=[]; catalog_identical=False
+fixed generator: 514 OIs; missing=[]; extra=[]; catalog_identical=True

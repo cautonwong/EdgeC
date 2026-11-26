@@ -352,6 +352,23 @@ static void test_tcp_write_resp_tiny_pool_returns_error(void **state) {
     net_buf_pool_destroy(&pool);
 }
 
+/* 1 个 buffer 的小池：out 只有 8 字节 tailroom（net_buf_alloc 预留 64 字节头），
+ * FC16 写 2 个寄存器要 13 字节。修前 net_buf_add 断言/越界；修后返回 -1 且不写 out。 */
+static void test_rtu_fc16_tiny_pool_returns_error(void **state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 1, 72, 0, NULL, NULL), 0);
+    net_buf_t *out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    uint16_t regs[2] = {0x1234, 0x5678};
+    assert_int_equal(modbus_rtu_encode_write_multiple_ex(1, 5, 2, regs, false, out), -1);
+    assert_int_equal(out->b.len, 0);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
 static int _accept_ok(void *ctx, uint32_t point_id, double value) {
     (void)ctx;
     (void)point_id;
@@ -489,6 +506,7 @@ int main(void) {
         cmocka_unit_test(test_tcp_fc16_encodes_full_frame),
         cmocka_unit_test(test_tcp_exception_encodes_full_frame),
         cmocka_unit_test(test_tcp_fc16_tiny_pool_returns_error),
+        cmocka_unit_test(test_rtu_fc16_tiny_pool_returns_error),
         cmocka_unit_test(test_tcp_exception_tiny_pool_returns_error),
         cmocka_unit_test(test_tcp_read_tiny_pool_returns_error),
         cmocka_unit_test(test_tcp_write_single_tiny_pool_returns_error),

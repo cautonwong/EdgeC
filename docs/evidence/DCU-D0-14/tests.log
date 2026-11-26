@@ -1,0 +1,24 @@
+=== D0-14 TESTS (2026-11-24T04:31:59Z) ===
+--- ctest -R dcu ---
+100% tests passed, 0 tests failed out of 37
+
+Total Test time (real) =  50.16 sec
+--- guard ---
+📊 Refutation Test Results: 110/110 passed (100% sensitivity)
+--- SRP ---
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+--- acceptance r1 ---
+3 passed in 8.02s
+34 passed in 52.75s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- acceptance r2 ---
+3 passed in 8.69s
+34 passed in 38.82s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- acceptance r3 ---
+3 passed in 14.97s
+34 passed in 42.74s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.

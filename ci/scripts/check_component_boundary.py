@@ -7,9 +7,12 @@ locks the headers removed by a migration so they cannot come back unnoticed.
 """
 
 import argparse
+import json
 import os
 import re
 import sys
+
+from c_source_scan import SHARED_PRUNE_DIRS
 
 COMPONENTS = {
     "edge_stream": {"datahub.h", "datahub_router.h"},
@@ -22,15 +25,34 @@ SYSTEM_HEADERS = {"autoconf.h", "wasm_export.h"}
 FILE_FORBIDDEN = {
     "modules/edge_io/src/protocol_bridge.c": {"datahub.h"},
     "modules/edge_io/include/protocol_bridge.h": {"datahub.h"},
-    "modules/edge_io/src/driver_radar_fmcw.c": {"datahub.h"},
-    "modules/edge_io/include/driver_radar_fmcw.h": {"datahub.h"},
-    "modules/edge_io/src/adc_driver.c": {"datahub.h"},
-    "modules/edge_io/include/adc_driver.h": {"datahub.h"},
     "modules/edge_mcp/src/edge_mcp_dispatcher.c": {"datahub.h"},
     "modules/edge_mcp/include/edgeos/edge_mcp_dispatcher.h": {"datahub.h"},
 }
 BASELINE = os.path.join("ci", "baseline", "component_boundary.txt")
+MATRIX = os.path.join("ci", "baseline", "architecture_graph.json")
 INCLUDE_RE = re.compile(r'^[ \t]*#\s*include\s+"([^"]+)"', re.MULTILINE)
+
+
+def load_rules(root):
+    path = os.path.join(root, MATRIX)
+    if not os.path.exists(path):
+        return COMPONENTS, FILE_FORBIDDEN
+    try:
+        with open(path, encoding="utf-8") as handle:
+            matrix = json.load(handle)
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"[COMPONENT_BOUNDARY_GUARD] cannot read {path}: {error}")
+    components = {}
+    file_forbidden = {}
+    for entry in matrix.get("forbidden_headers", []):
+        if "component_boundary" not in entry.get("sources", []):
+            continue
+        if "file" in entry or "files" in entry:
+            for path in entry.get("files", [entry.get("file")]):
+                file_forbidden.setdefault(path, set()).add(entry["header"])
+        elif "component" in entry:
+            components.setdefault(entry["component"], set()).add(entry["header"])
+    return components, file_forbidden
 
 
 def header_owners(root):
@@ -38,17 +60,20 @@ def header_owners(root):
     modules = os.path.join(root, "modules")
     for module in os.listdir(modules) if os.path.isdir(modules) else []:
         include = os.path.join(modules, module, "include")
-        for dirpath, _, filenames in os.walk(include):
+        for dirpath, dirnames, filenames in os.walk(include):
+            dirnames[:] = [d for d in dirnames if d not in SHARED_PRUNE_DIRS]
             for name in filenames:
                 if name.endswith(".h"):
                     owners.setdefault(name, module)
     shared = os.path.join(root, "include")
-    for dirpath, _, filenames in os.walk(shared):
+    for dirpath, dirnames, filenames in os.walk(shared):
+        dirnames[:] = [d for d in dirnames if d not in SHARED_PRUNE_DIRS]
         for name in filenames:
             if name.endswith(".h"):
                 owners.setdefault(name, "ROOT")
     foundation = os.path.join(root, "foundation", "include")
-    for dirpath, _, filenames in os.walk(foundation):
+    for dirpath, dirnames, filenames in os.walk(foundation):
+        dirnames[:] = [d for d in dirnames if d not in SHARED_PRUNE_DIRS]
         for name in filenames:
             if name.endswith(".h"):
                 owners.setdefault(name, "FOUNDATION")
@@ -72,15 +97,16 @@ def load_baseline(root):
 def scan(root):
     owners = header_owners(root)
     allowed = load_baseline(root)
+    components, file_forbidden = load_rules(root)
     violations = []
     pinned = set()
 
-    for component, forbidden in COMPONENTS.items():
+    for component, forbidden in components.items():
         base = os.path.join(root, "modules", component)
         if not os.path.isdir(base):
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in {".git", "build"}]
+            dirnames[:] = [d for d in dirnames if d not in ({".git", "build"} | SHARED_PRUNE_DIRS)]
             for name in filenames:
                 if not name.endswith((".c", ".h")):
                     continue
@@ -109,7 +135,7 @@ def scan(root):
                     else:
                         violations.append(f"{rel}|{include}|OWNER:{owner}")
 
-    for rel, forbidden in FILE_FORBIDDEN.items():
+    for rel, forbidden in file_forbidden.items():
         path = os.path.join(root, rel)
         if not os.path.exists(path):
             continue

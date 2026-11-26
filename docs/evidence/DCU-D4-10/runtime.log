@@ -1,0 +1,113 @@
+== build (clean, working tree at feat 492946d1) ==
+cmake --build build --clean-first -j4 -> rc=0 (1271/1271)
+first-party warnings: 0 (only third-party open62541 unused-parameter)
+check_build_warnings.py -> no new violations
+
+== object list / ACL budget ==
+rc=0 len=3878 count_byte=102
+ACL objects 102 <= EDGE_SLAVE_ACL_MAX_OBJECTS 224
+dlt698_acl_object_t 16 B * 102 = 1632 B + header <= DRIVER_PRIV_SIZE 4096 (static assert in driver_dlt698.c)
+
+== new cases ==
+[ RUN      ] test_class25_26_comm_rows
+[       OK ] test_class25_26_comm_rows
+[ RUN      ] test_reset_returns_to_uninitialized
+[ RUN      ] test_class25_26_comm_acl_is_read_only
+[       OK ] test_class25_26_comm_acl_is_read_only
+[ RUN      ] test_class22_object_masks_are_covered_by_acl
+[ RUN      ] test_product_class25_26_comm_dar
+[       OK ] test_product_class25_26_comm_dar
+[ RUN      ] test_comm_info_platform_snapshot_encodes_or_refuses
+[       OK ] test_comm_info_platform_snapshot_encodes_or_refuses
+[ RUN      ] test_product_accept_set_event_attrs
+[ RUN      ] test_slave_class25_26_comm_dar
+[NETBUF][INFO] NetBufPool 0x7fffcb560120: Ref (1 -> 2)
+--
+[       OK ] test_slave_class25_26_comm_dar
+[ RUN      ] test_slave_set_read_only_is_denied
+
+== guards ==
+catalog: matches docs/698_parsed.md
+docrefs: rc=0
+build-warnings: no new violations (clean log)
+build-freshness: current for /tmp/edgec-land/d4-10-comm
+check_no_dynamic_memory: ok
+check_alloc_null: ok
+check_stack_usage: ok
+check_caller_allocated_storage: ok
+check_public_structs: ok
+check_plane_isolation: ok
+check_component_boundary: ok
+check_resource_discipline: ok
+
+== final targeted suite ==
+100% tests passed, 0 tests failed out of 45
+Total Test time (real) = 133.84 sec
+
+== scope gaps (read-only skeleton) ==
+- 写与持久化（APN/IP/端口）未做；ACL 只读，SET DAR 3。
+- APN/ICCID/IMSI/SIM 号码/信号强度没有生产者，只回 DAR 5。
+- Class 26 A4 的 IP/掩码可读，但 IP 配置方式不可判定，A4 仍回 DAR 5。
+- 只有 4510 映射平台第一个物理以太网口；4511..4517 没有逐口来源。
+- dcu_698_value_for_oad 的标量路径对 4510 A5 会回 DAR 7（主站 GET 走 resolve_axdr，
+  不受影响）；收口需改 dcu_698_var.c，不在本单允许范围。
+- docs/design/DCU_698_DEVIATIONS.md 的 Class 25/26 行与计划 §8 D4-10 出口文字待
+  verifier 更新。
+- 未新增 foundation 端口或 adapters 改动（计划 §12.6：先落 cmd/dcu）。
+
+== FIX ROUND 2026-11-26: physical unicast NIC selection (review defects 1-3) ==
+
+-- defects proved by adversarial review against a faked /sys/class/net --
+1. multicast MAC accepted: enp1s0 01:00:5e:00:00:02 + ens3 -> picked the multicast.
+2. Linux bridge with en/eth-prefixed name accepted: enbr0 with bridge/ + ens3 -> picked bridge.
+3. container veth named eth0 accepted: no /sys/class/net/eth0/device, ip -d link = veth.
+
+-- fix --
+new seam: int dcu_comm_info_scan(const char *net_root, dcu_comm_info_t *out)
+in cmd/dcu/dcu_comm_info.h; dcu_comm_info_read -> scan("/sys/class/net", out).
+criteria: type==1, no wireless/, no bridge/, device link present, MAC nonzero and
+I/G bit (mac[0] & 0x01) clear.
+unchanged: eth0 first, else lexicographically smallest qualifying port; multi-port
+index ordering (eth2/eth10, review A) HOLD, shortcut comment kept.
+
+-- red (see red.log) --
+test commit 230c9c20 on 31513dd0: undefined reference to dcu_comm_info_scan.
+old-criteria extraction: 4/53 fail (multicast-only, multicast+physical, en-named
+bridge, veth eth0); 49/53 pass.
+
+-- green --
+clean Release build: cmake --build build --clean-first -j4 -> rc=0 (1271/1271)
+first-party warnings: 0 (clean log; only third-party open62541 unused-parameter)
+test_dcu_698_axdr: 53/53 pass, including the 7 new fixture cases:
+  test_comm_info_scan_prefers_eth0
+  test_comm_info_scan_rejects_multicast_only
+  test_comm_info_scan_skips_multicast_for_physical
+  test_comm_info_scan_skips_en_named_bridge
+  test_comm_info_scan_rejects_wireless_and_non_ethernet
+  test_comm_info_scan_rejects_all_zero_mac
+  test_comm_info_scan_rejects_veth_named_eth0
+ctest -R 'dcu|dlt698': 45/45 pass (77.48 s)
+
+-- gates --
+check_build_warnings: no new violations (clean log)
+check_build_freshness: build is current for /tmp/edgec-land/d4-10-comm
+check_no_dynamic_memory: no new violations
+check_public_structs: clean (10 structs audited)
+check_stack_usage: no new violations
+check_doc_references: rc=0
+check_alloc_null: no violations
+check_caller_allocated_storage: clean
+check_plane_isolation: no new violations
+check_component_boundary: clean
+check_resource_discipline: clean
+
+-- live host check (this WSL2 container) --
+$ ls -l /sys/class/net/eth0/device
+ls: cannot access '/sys/class/net/eth0/device': No such file or directory
+$ ip -d link show eth0
+2: eth0@if7: ... link/ether ea:92:3c:d8:02:16 ... veth addrgenmode eui64 ...
+No interface under /sys/class/net has a device link. Under the old criteria this
+veth MAC was the 4510 A5 answer; the fixed scan rejects it (no-device case pinned
+by test_comm_info_scan_rejects_veth_named_eth0), so mac_present=0 and 4510 A5
+returns DAR 5 here.
+

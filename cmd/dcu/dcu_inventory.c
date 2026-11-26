@@ -207,6 +207,15 @@ int dcu_inventory_update_extended(dcu_inventory_t* inv, uint16_t config_seq,
     return 0;
 }
 
+void dcu_inventory_restore_unit(dcu_inventory_t* inv, const production_meter_t* snapshot,
+                                uint32_t revision) {
+    if (!inv || !snapshot) return;
+    int index = _find_seq(inv, snapshot->config_seq);
+    if (index < 0) return;
+    inv->meters[index] = *snapshot;
+    inv->revision = revision;
+}
+
 int dcu_inventory_remove_seq(dcu_inventory_t* inv, uint16_t config_seq) {
     if (!inv) return -1;
     int index = _find_seq(inv, config_seq);

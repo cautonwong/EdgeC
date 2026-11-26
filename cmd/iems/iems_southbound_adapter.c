@@ -130,7 +130,8 @@ int iems_southbound_connect_in(uv_loop_t *loop, datahub_t *hub, bus_orchestrator
         if (transport == IEMS_BUS_TCP) {
             bus_ok = iems_tcp_link_start_bus(loop, orch, bus_idx, label, path, &bus_state[bus_idx],
                                              link_slots ? &link_slots[bus_idx] : NULL, link_cfg,
-                                             io_executor_create_tcp, datahub_get_io_pool(hub));
+                                             io_executor_create_tcp, io_executor_create_from_fd,
+                                             datahub_get_io_pool(hub));
         } else if (transport == IEMS_BUS_UART) {
             // 过渡配置:真实设备的波特率尚未进契约表,先按总线用环境变量覆盖
             uint32_t baud = 9600;

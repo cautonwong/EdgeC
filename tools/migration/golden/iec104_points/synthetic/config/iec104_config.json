@@ -1,0 +1,22 @@
+{
+    "ver": 2,
+    "pts": [
+        {
+            "commonAddr": 1,
+            "pointInfo": [
+                ["A.sig", "5", "bool", 1, 1.0],
+                ["A.meas", "150", "float", 1, 0.1],
+                ["A.ctrl", "245", "int", 1, 1.0],
+                ["A.regu", "350", "float", 1, 2.5],
+                ["A.none", "0", "int", 1, 1.0],
+                ["A.dup", "150", "int", 1, 1.0]
+            ]
+        },
+        {
+            "commonAddr": 2,
+            "pointInfo": [
+                ["B.sig", "6", "bool", 1, 1.0]
+            ]
+        }
+    ]
+}

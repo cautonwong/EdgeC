@@ -1,24 +1,23 @@
 #include "dcu_698_axdr.h"
 
+#include "dcu_698_freeze_cfg.h"
+#include "dcu_698_axdr_internal.h"
+
 #include <string.h>
 #include <time.h>
 #include <uv.h>
 
+#include "dcu_comm_info.h"
 #include "dcu_698_appconn.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
 #include "dcu_698_var.h"
 #include "dcu_driver_adapter.h"
 #include "dcu_router.h"
+#include "dcu_scheme_store.h"
 #include "dlt698_codec.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
-
-/* ACTION-Request 的 TimeTag 可选：线格式要么没有这个字节，要么就是一个 0x00。
- * 真实 TimeTag 要做传输时效判定（6.1.1.5），本实现不做，按 DAR 7 拒绝，不静默忽略。 */
-static int _time_tag_absent(const uint8_t *buf, size_t off, size_t len) {
-    return off == len || (off + 1 == len && buf[off] == DLT698_NO_TIME_TAG);
-}
 
 /* 表49 的 date_time_s 不带时区，主站要看到设备本地民用时间：经 localtime_r/mktime
  * 展开，进程 TZ 即设备配置的时区。部署时必须配置 TZ，否则主站读到的是 UTC。 */
@@ -153,59 +152,10 @@ static int _encode_axdr_value(const dcu_value_t *v, uint8_t *buf, size_t cap, si
     }
 }
 
-typedef struct {
-    const uint8_t *p;
-    size_t len;
-    size_t off;
-} axdr_cursor_t;
-
-static bool _take(axdr_cursor_t *c, size_t n, const uint8_t **out) {
-    if (c->off + n < c->off || c->off + n > c->len) return false;
-    if (out) *out = c->p + c->off;
-    c->off += n;
-    return true;
-}
-
-static int _take_u8(axdr_cursor_t *c, uint8_t tag, uint8_t *out) {
-    const uint8_t *p = NULL;
-    if (!_take(c, 2, &p) || p[0] != tag) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    if (out) *out = p[1];
-    return 0;
-}
-
-static int _take_u16(axdr_cursor_t *c, uint8_t tag, uint16_t *out) {
-    const uint8_t *p = NULL;
-    if (!_take(c, 3, &p) || p[0] != tag) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    if (out) *out = (uint16_t)((p[1] << 8) | p[2]);
-    return 0;
-}
-
-/* 表 24：TI = 0x54 | unit | value_be16，没有内层标签。 */
-static int _take_ti(axdr_cursor_t *c, uint8_t *unit, uint16_t *value) {
-    const uint8_t *p = NULL;
-    if (!_take(c, 4, &p) || p[0] != DLT698_TAG_TI) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    if (unit) *unit = p[1];
-    if (value) *value = (uint16_t)((p[2] << 8) | p[3]);
-    return 0;
-}
-
 static int _take_date_time(axdr_cursor_t *c, uint8_t out[7]) {
     const uint8_t *p = NULL;
     if (!_take(c, 8, &p) || p[0] != DLT698_TAG_DATE_TIME_S) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     memcpy(out, p + 1, 7);
-    return 0;
-}
-
-static int _take_head(axdr_cursor_t *c, uint8_t tag, uint8_t count) {
-    const uint8_t *p = NULL;
-    if (!_take(c, 2, &p) || p[0] != tag || p[1] != count) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    return 0;
-}
-
-static int _take_array(axdr_cursor_t *c, uint8_t *count) {
-    const uint8_t *p = NULL;
-    if (!_take(c, 2, &p) || p[0] != DLT698_TAG_ARRAY) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-    *count = p[1];
     return 0;
 }
 
@@ -417,7 +367,7 @@ static int _decode_csd_list(axdr_cursor_t *c, dcu_scheme_cfg_t *u) {
 }
 
 /* MS：`5C choice`。choice 2..7 的 SEQUENCE OF 用裸个数，不重复 array 标签。 */
-static int _decode_ms(axdr_cursor_t *c, uint8_t *ms_choice) {
+int dcu_698_axdr_take_ms(axdr_cursor_t *c, uint8_t *ms_choice) {
     const uint8_t *p = NULL;
     if (!_take(c, 2, &p) || p[0] != DCU_698_TAG_MS) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     uint8_t choice = p[1];
@@ -471,7 +421,7 @@ static int _decode_scheme_unit(axdr_cursor_t *c, dcu_scheme_cfg_t *u) {
     u->capture_type = capture_type;
     rc = _decode_csd_list(c, u);
     if (rc != 0) return rc;
-    rc = _decode_ms(c, &u->ms_choice);
+    rc = dcu_698_axdr_take_ms(c, &u->ms_choice);
     if (rc != 0) return rc;
     rc = _take_u8(c, DLT698_TAG_ENUM, &u->storage_time);
     if (rc != 0) return rc;
@@ -582,6 +532,36 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
         if (rc != 0) return rc;
         return dcu_698_call(omd, &poller->scheme_op, NULL);
     }
+    if (oi == OI_EVENT_SCHEME) {
+        dcu_event_scheme_op_t *op = dcu_scheme_store_event_op();
+        rc = dcu_698_decode_event_scheme_op(method, axdr, axdr_len, op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, op, NULL);
+    }
+    if (oi == OI_TRANSPARENT_SCHEME) {
+        dcu_transparent_op_t *op = dcu_scheme_store_transparent_op();
+        rc = dcu_698_decode_transparent_op(method, axdr, axdr_len, op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, op, NULL);
+    }
+    if (oi == OI_REPORT_SCHEME) {
+        dcu_report_op_t *op = dcu_scheme_store_report_op();
+        rc = dcu_698_decode_report_op(method, axdr, axdr_len, op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, op, NULL);
+    }
+    if (oi == OI_RULE_LIBRARY) {
+        dcu_rule_op_t *op = dcu_698_rules_op();
+        rc = dcu_698_decode_rule_op(method, axdr, axdr_len, op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, op, NULL);
+    }
+    if (oi >= 0x5000 && oi <= 0x5007) {
+        static dcu_freeze_op_t op;
+        rc = dcu_698_freeze_decode_op(method, axdr, axdr_len, &op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, &op, NULL);
+    }
     if (oi != OI_TASK_SCHEDULER) {
         return dcu_698_call(omd, NULL, NULL);
     }
@@ -591,21 +571,6 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
     rc = dcu_698_decode_task_op(method, axdr, axdr_len, &poller->task_op);
     if (rc != 0) return rc;
     return dcu_698_call(omd, &poller->task_op, NULL);
-}
-
-static int _put_tagged_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t tag, uint8_t v) {
-    if (*off + 2 > cap) return -1;
-    buf[(*off)++] = tag;
-    buf[(*off)++] = v;
-    return 0;
-}
-
-static int _put_tagged_u16(uint8_t *buf, size_t cap, size_t *off, uint8_t tag, uint16_t v) {
-    if (*off + 3 > cap) return -1;
-    buf[(*off)++] = tag;
-    buf[(*off)++] = (uint8_t)(v >> 8);
-    buf[(*off)++] = (uint8_t)v;
-    return 0;
 }
 
 static int _put_ti(uint8_t *buf, size_t cap, size_t *off, uint8_t unit, uint16_t value) {
@@ -708,12 +673,6 @@ int dcu_698_task_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *
     }
 
     *len = off;
-    return 0;
-}
-
-static int _put_raw_u8(uint8_t *buf, size_t cap, size_t *off, uint8_t v) {
-    if (*off + 1 > cap) return -1;
-    buf[(*off)++] = v;
     return 0;
 }
 
@@ -837,6 +796,11 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     }
 
     uint16_t oi = (uint16_t)(oad >> 16);
+    /* Class 25/26 通信参数：只有平台网络配置能给的属性回真实值。 */
+    if ((oi >= OI_WIRELESS_COMM_FIRST && oi <= OI_WIRELESS_COMM_LAST) ||
+        (oi >= OI_ETHERNET_COMM_FIRST && oi <= OI_ETHERNET_COMM_LAST)) {
+        return dcu_comm_info_encode_axdr(oad, buf, cap, len);
+    }
     if (oi == OI_METER_DISCOVERY) {
         const dcu_698_object_t *disc_obj = dcu_698_find(oi);
         if (!disc_obj) return EDGE_SLAVE_SRC_NOT_FOUND;
@@ -847,6 +811,45 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     }
     if (oi == OI_METER_ARCHIVE || oi == OI_ARCHIVE_UNIT) {
         return dcu_698_archive_encode_axdr(dcu_698_internal_inventory(), oad, buf, cap, len);
+    }
+    if (oi >= 0x5000 && oi <= 0x5007) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id != 3) {
+            return dcu_698_class_defines_attr(IC_RECORD, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                 : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        const dcu_freeze_cfg_t *cfg = dcu_698_freeze_cfg_get((uint16_t)oi);
+        if (!cfg) return EDGE_SLAVE_SRC_TEMPORARY;
+        if (dcu_freeze_cfg_encode(cfg, buf, cap, len) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return 0;
+    }
+    if (oi == OI_REMOTE_CONTROL) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id == 2 || attr_id == 4 || attr_id == 5) return EDGE_SLAVE_SRC_TEMPORARY;
+        return dcu_698_class_defines_attr(IC_CONTROL, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                               : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    if (oi == OI_POWER_SAVE) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id >= 2 && attr_id <= 5) return EDGE_SLAVE_SRC_TEMPORARY;
+        return dcu_698_class_defines_attr(IC_CONTROL, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                               : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    if (oi == OI_TERMINAL_SECURITY || oi == OI_POWER_CTRL_PERIOD || oi == OI_POWER_CTRL_ALARM ||
+        oi == OI_DAILY_POWER_CTRL) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id == 2) return EDGE_SLAVE_SRC_TEMPORARY;
+        uint8_t class_id = oi == OI_DAILY_POWER_CTRL ? IC_CONTROL : IC_PARAM;
+        return dcu_698_class_defines_attr(class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                             : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    const dcu_698_object_t *per = dcu_698_find(oi);
+    if (per && per->class_id == IC_PERIPHERAL) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (dcu_mask_test(per->attr_mask, attr_id)) return EDGE_SLAVE_SRC_TEMPORARY;
+        return dcu_698_oi_defines_attr(oi, IC_PERIPHERAL, attr_id)
+                   ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                   : EDGE_SLAVE_SRC_UNDEFINED;
     }
     const dcu_698_object_t *event_obj = dcu_698_find(oi);
     if (event_obj && event_obj->class_id == IC_SUB_EVENT) {
@@ -860,6 +863,52 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
         dcu_poller_t *poller = scheme_obj ? (dcu_poller_t *)scheme_obj->instance : NULL;
         if (!poller) return EDGE_SLAVE_SRC_NOT_FOUND;
         return dcu_698_scheme_encode_axdr(poller, oad, buf, cap, len);
+    }
+    if (oi == OI_EVENT_SCHEME || oi == OI_EVENT_SCHEME_UNIT) {
+        return dcu_698_event_scheme_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_TRANSPARENT_SCHEME || oi == OI_TRANSPARENT_SCHEME_UNIT) {
+        return dcu_698_transparent_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_TRANSPARENT_RESULT || oi == OI_TRANSPARENT_RESULT_UNIT) {
+        return dcu_698_transparent_result_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_REPORT_SCHEME || oi == OI_REPORT_SCHEME_UNIT) {
+        return dcu_698_report_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_RULE_LIBRARY || oi == OI_RULE) {
+        return dcu_698_rule_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_ACQ_START_TIME || oi == OI_ACQ_SUCCESS_TIME || oi == OI_ACQ_STORE_TIME) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id != 2) {
+            return dcu_698_class_defines_attr(IC_PARAM, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                 : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        const dcu_698_object_t *task_obj = dcu_698_find(OI_TASK_SCHEDULER);
+        dcu_poller_t *poller = task_obj ? (dcu_poller_t *)task_obj->instance : NULL;
+        if (!poller) return EDGE_SLAVE_SRC_NOT_FOUND;
+        uint64_t epoch = oi == OI_ACQ_START_TIME   ? dcu_poller_last_task_start_epoch(poller)
+                         : oi == OI_ACQ_SUCCESS_TIME ? dcu_poller_last_success_epoch(poller)
+                                                     : dcu_poller_last_store_epoch(poller);
+        if (epoch == 0) return EDGE_SLAVE_SRC_TEMPORARY;
+        size_t off = 0;
+        if (dcu_698_put_date_time_s(epoch, buf, cap, &off) != 0) return EDGE_SLAVE_SRC_TEMPORARY;
+        *len = off;
+        return 0;
+    }
+    if (oi == OI_TASK_MONITOR_SET || oi == OI_TASK_MONITOR) {
+        return dcu_698_task_monitor_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi == OI_ACQ_STATUS_SET || oi == OI_ACQ_STATUS) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id != 2) {
+            uint8_t class_id = oi == OI_ACQ_STATUS_SET ? IC_COLLECTION : IC_PARAM;
+            return dcu_698_class_defines_attr(class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                 : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        /* 缺相序检测与中继拓扑：不返回假数据。 */
+        return EDGE_SLAVE_SRC_TEMPORARY;
     }
     if (oi == OI_TASK_SCHEDULER || oi == OI_TASK_UNIT) {
         const dcu_698_object_t *task_obj = dcu_698_find(OI_TASK_SCHEDULER);
@@ -1040,7 +1089,7 @@ int dcu_north_accept_axdr(void *ctx, uint32_t oad, const uint8_t *axdr, size_t l
     if (!obj->write) return EDGE_SLAVE_SRC_DENIED;
 
     write_kind_t kind;
-    if (_write_kind_for(oi, attr_id, &kind) != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (_write_kind_for(oi, attr_id, &kind) != 0) return EDGE_SLAVE_SRC_DENIED;
 
     int64_t i = 0;
     double f = 0.0;
@@ -1243,3 +1292,4 @@ int dcu_698_decode_archive_op(uint8_t method, const uint8_t *buf, size_t len,
     dlt698_free_data(&d);
     return rc;
 }
+

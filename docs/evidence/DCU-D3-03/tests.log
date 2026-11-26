@@ -1,0 +1,21 @@
+=== D3-03 TESTS (2026-11-24T00:20:18Z) ===
+--- unit: test_dcu_698_freeze (5) ---
+[ RUN      ] test_freeze_attr3_config_drives_records
+[       OK ] test_freeze_attr3_config_drives_records
+[ RUN      ] test_freeze_attr3_rollback_and_dar
+[       OK ] test_freeze_attr3_rollback_and_dar
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).
+--- ctest -R dcu ---
+100% tests passed, 0 tests failed out of 35
+
+Total Test time (real) =  24.38 sec
+--- ASAN detect_leaks=1 ---
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.98 sec
+--- gates ---
+build warnings: 0 (clean Release build)
+✅ [FANALYZER] 3 known finding(s), no new reports
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 105/105 passed (100% sensitivity)

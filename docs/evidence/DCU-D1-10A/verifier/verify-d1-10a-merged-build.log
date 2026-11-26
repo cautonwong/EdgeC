@@ -1,0 +1,4 @@
+[1/4] Building C object tests/CMakeFiles/test_dcu_698_catalog.dir/test_dcu_698_catalog.c.o
+[2/4] Building C object tests/CMakeFiles/test_dcu_698_object_model.dir/test_dcu_698_object_model.c.o
+[3/4] Linking C executable tests/test_dcu_698_catalog
+[4/4] Linking C executable tests/test_dcu_698_object_model

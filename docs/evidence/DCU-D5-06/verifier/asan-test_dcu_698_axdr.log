@@ -1,0 +1,325 @@
+[==========] tests: Running 42 test(s).
+[ RUN      ] test_product_variable_axdr_types
+[       OK ] test_product_variable_axdr_types
+[ RUN      ] test_discovery_standard_attribute_shapes
+[       OK ] test_discovery_standard_attribute_shapes
+[ RUN      ] test_discovery_action_start_duplicate_and_clear
+[       OK ] test_discovery_action_start_duplicate_and_clear
+[ RUN      ] test_event_class24_attrs_on_the_wire
+[NETBUF][INFO] NetBufPool 0x50d000000040: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000110: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000110: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000110: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000110: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Unref (1 -> 0)
+[       OK ] test_event_class24_attrs_on_the_wire
+[ RUN      ] test_event_class24_complex_attrs
+[       OK ] test_event_class24_complex_attrs
+[ RUN      ] test_event_class24_record_and_status_times
+[       OK ] test_event_class24_record_and_status_times
+[ RUN      ] test_product_axdr_rejects_small_buffer_and_complex
+[       OK ] test_product_axdr_rejects_small_buffer_and_complex
+[ RUN      ] test_driver_scalar_fallback_still_works
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Unref (1 -> 0)
+[       OK ] test_driver_scalar_fallback_still_works
+[ RUN      ] test_driver_high_byte_oad_has_no_signed_shift
+[NETBUF][INFO] NetBufPool 0x50d000000380: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Unref (1 -> 0)
+[       OK ] test_driver_high_byte_oad_has_no_signed_shift
+[ RUN      ] test_driver_carries_structure_axdr
+[NETBUF][INFO] NetBufPool 0x50d000000520: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000520: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000520: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000520: Unref (1 -> 0)
+[       OK ] test_driver_carries_structure_axdr
+[ RUN      ] test_driver_rejects_axdr_buffer_shortage
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Unref (1 -> 0)
+[       OK ] test_driver_rejects_axdr_buffer_shortage
+[ RUN      ] test_driver_normal_list_uses_axdr_per_item
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_uses_axdr_per_item
+[ RUN      ] test_driver_normal_list_mixed_success_and_dar
+[NETBUF][INFO] NetBufPool 0x50d000000790: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_mixed_success_and_dar
+[ RUN      ] test_driver_normal_list_empty_request
+[NETBUF][INFO] NetBufPool 0x50d000000860: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_empty_request
+[ RUN      ] test_driver_normal_list_duplicate_oad_each_answered
+[NETBUF][INFO] NetBufPool 0x50d000000930: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000930: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000930: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000930: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_duplicate_oad_each_answered
+[ RUN      ] test_driver_normal_list_reuses_one_buffer
+[NETBUF][INFO] NetBufPool 0x50d000000a00: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000a00: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000a00: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000a00: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_reuses_one_buffer
+[ RUN      ] test_get_normal_dar_mapping
+[NETBUF][INFO] NetBufPool 0x50d000000ad0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ad0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000ad0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ad0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000ba0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ba0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000ba0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ba0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000c70: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000c70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000c70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000c70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000d40: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000d40: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000d40: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000d40: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000000e10: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000e10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000e10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000e10: Unref (1 -> 0)
+[       OK ] test_get_normal_dar_mapping
+[ RUN      ] test_get_normal_encode_type_mismatch_returns_dar
+[NETBUF][INFO] NetBufPool 0x50d000000ee0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ee0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000ee0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000ee0: Unref (1 -> 0)
+[       OK ] test_get_normal_encode_type_mismatch_returns_dar
+[ RUN      ] test_normal_list_dar_mapping
+[NETBUF][INFO] NetBufPool 0x50d000000fb0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000fb0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000fb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000fb0: Unref (1 -> 0)
+[       OK ] test_normal_list_dar_mapping
+[ RUN      ] test_product_accept_set_paths
+[       OK ] test_product_accept_set_paths
+[ RUN      ] test_product_class8_datetime_round_trip
+[2026-11-26 11:03:44][WARN][NB] DCU 698 SET OI=0x4000 attr=1 被拒绝 rc=-21
+[2026-11-26 11:03:44][WARN][NB] DCU 698 SET OI=0x4000 attr=2 被拒绝 rc=-22
+[       OK ] test_product_class8_datetime_round_trip
+[ RUN      ] test_product_class2_and_5_have_no_value_yet
+[       OK ] test_product_class2_and_5_have_no_value_yet
+[ RUN      ] test_product_class14_15_16_have_no_value_yet
+[       OK ] test_product_class14_15_16_have_no_value_yet
+[ RUN      ] test_product_class17_has_no_value_yet
+[       OK ] test_product_class17_has_no_value_yet
+[ RUN      ] test_product_accept_set_event_attrs
+[       OK ] test_product_accept_set_event_attrs
+[ RUN      ] test_set_response_dar_paths
+[NETBUF][INFO] NetBufPool 0x50d000001080: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001080: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001080: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001080: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001150: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001150: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001150: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001150: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001220: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001220: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001220: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001220: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d0000012f0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000012f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000012f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000012f0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d0000013c0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000013c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000013c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000013c0: Unref (1 -> 0)
+[       OK ] test_set_response_dar_paths
+[ RUN      ] test_set_missing_data_dar7
+[NETBUF][INFO] NetBufPool 0x50d000001490: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001490: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001490: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001490: Unref (1 -> 0)
+[       OK ] test_set_missing_data_dar7
+[ RUN      ] test_set_scalar_fallback
+[NETBUF][INFO] NetBufPool 0x50d000001560: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001560: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001560: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001560: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001630: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001630: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001630: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001630: Unref (1 -> 0)
+[       OK ] test_set_scalar_fallback
+[ RUN      ] test_set_scalar_fallback_rejects_structure
+[NETBUF][INFO] NetBufPool 0x50d000001700: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001700: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000001700: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001700: Unref (1 -> 0)
+[       OK ] test_set_scalar_fallback_rejects_structure
+[ RUN      ] test_action_127_128_null_param
+[NETBUF][INFO] NetBufPool 0x50d0000017d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000017d0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 127: 产品没有告警输出，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d0000017d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000017d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d0000018a0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000018a0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 128: 产品没有告警输出，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d0000018a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000018a0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001970: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001970: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001970: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001970: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001a40: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001a40: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=128：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001a40: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001a40: Unref (1 -> 0)
+[       OK ] test_action_127_128_null_param
+[ RUN      ] test_action_129_trip_param
+[NETBUF][INFO] NetBufPool 0x50d000001b10: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001b10: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 129: 参数已解码（2 项，继电器 OAD=0x20000400），但产品没有继电器 OAD→电表地址映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d000001b10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001b10: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001be0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001be0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 129: 参数已解码（1 项，继电器 OAD=0x20000400），但产品没有继电器 OAD→电表地址映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d000001be0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001be0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001cb0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001cb0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001cb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001cb0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001d80: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001d80: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001d80: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001d80: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001e50: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001e50: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001e50: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001e50: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001f20: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001f20: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001f20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001f20: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000001ff0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000001ff0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000001ff0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000001ff0: Unref (1 -> 0)
+[       OK ] test_action_129_trip_param
+[ RUN      ] test_action_130_close_param
+[NETBUF][INFO] NetBufPool 0x50d0000020c0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000020c0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 130: 参数已解码（1 项，继电器 OAD=0x20000400），但产品没有继电器 OAD→电表地址映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d0000020c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000020c0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000002190: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002190: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=130：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000002190: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002190: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000002260: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002260: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=130：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000002260: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002260: Unref (1 -> 0)
+[       OK ] test_action_130_close_param
+[ RUN      ] test_action_131_password_close_param
+[NETBUF][INFO] NetBufPool 0x50d000002330: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002330: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][CORE] OI 8000 method 131: 参数已解码（1 项，继电器 OAD=0x20000400），但产品没有继电器 OAD→电表地址映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x50d000002330: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002330: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000002400: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002400: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=131：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000002400: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002400: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d0000024d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000024d0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=131：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d0000024d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000024d0: Unref (1 -> 0)
+[       OK ] test_action_131_password_close_param
+[ RUN      ] test_action_rejects_other_methods_and_trailing_bytes
+[NETBUF][INFO] NetBufPool 0x50d0000025a0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000025a0: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=126：参数解码失败 rc=-20
+[NETBUF][INFO] NetBufPool 0x50d0000025a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000025a0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000002670: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002670: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000002670: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002670: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x50d000002740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002740: Ref (1 -> 2)
+[2026-11-26 11:03:44][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x50d000002740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002740: Unref (1 -> 0)
+[       OK ] test_action_rejects_other_methods_and_trailing_bytes
+[ RUN      ] test_action_class9_attr3_method_shape_dar7
+[NETBUF][INFO] NetBufPool 0x50d000002810: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002810: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000002810: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002810: Unref (1 -> 0)
+[       OK ] test_action_class9_attr3_method_shape_dar7
+[ RUN      ] test_archive_config_short_buffer_dar2
+[       OK ] test_archive_config_short_buffer_dar2
+[ RUN      ] test_event_catalog_ois_without_instance_dar6
+[       OK ] test_event_catalog_ois_without_instance_dar6
+[ RUN      ] test_class13_readonly_dar
+[       OK ] test_class13_readonly_dar
+[ RUN      ] test_action_unknown_oi_dar6
+[NETBUF][INFO] NetBufPool 0x50d0000028e0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000028e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000028e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000028e0: Unref (1 -> 0)
+[       OK ] test_action_unknown_oi_dar6
+[ RUN      ] test_action_non8000_reaches_handler
+[NETBUF][INFO] NetBufPool 0x50d0000029b0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000029b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000029b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000029b0: Unref (1 -> 0)
+[       OK ] test_action_non8000_reaches_handler
+[ RUN      ] test_action_6012_method127_valid_body_dar0
+[NETBUF][INFO] NetBufPool 0x50d000002a80: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002a80: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000002a80: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002a80: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_valid_body_dar0
+[ RUN      ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[NETBUF][INFO] NetBufPool 0x50d000002b50: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000002b50: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000002b50: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000002b50: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[==========] tests: 42 test(s) run.
+[  PASSED  ] 42 test(s).

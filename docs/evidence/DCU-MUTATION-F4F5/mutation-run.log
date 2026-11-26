@@ -1,0 +1,219 @@
+=== Mutation guards: 4 entries, build /tmp/edgec-land/mutation-guards/build ===
+
+[MUTATION] DCU-F4-batch-continuation (cmd/dcu/dcu_poller.c)
+  [mutate] cmd/dcu/dcu_poller.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_poller.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-F4-batch-continuation: red under mutation (rc=8), green after restore
+
+[MUTATION] DCU-F4-served-ident (cmd/dcu/dcu_poller.c)
+  [mutate] cmd/dcu/dcu_poller.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_poller.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-F4-served-ident: red under mutation (rc=8), green after restore
+
+[MUTATION] DCU-F5-pump-revision-fence (cmd/dcu/dcu_poller.c)
+  [mutate] cmd/dcu/dcu_poller.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_poller.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-F5-pump-revision-fence: red under mutation (rc=8), green after restore
+
+[MUTATION] DCU-F5-spare-retry-revision (cmd/dcu/dcu_bus_source.c)
+  [mutate] cmd/dcu/dcu_bus_source.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_bus_source.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-F5-spare-retry-revision: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 4/4 guards sensitive, build refreshed
+
+===== supplementary: raw per-test output under the same manifest mutations =====
+
+===== RAW RED: DCU-F4-batch-continuation (cmd/dcu/dcu_poller.c) =====
+$ ninja -C build test_dcu_poller
+rc=0
+$ CMOCKA_TEST_FILTER=test_pending_capacity_starves_second_task ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=8
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................***Failed    0.01 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_pending_capacity_starves_second_task
+[  ERROR   ] --- 32 != 64
+[   LINE   ] --- /tmp/edgec-land/mutation-guards/tests/test_dcu_poller.c:500: error: Failure!
+[  FAILED  ] test_pending_capacity_starves_second_task
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_pending_capacity_starves_second_task
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+$ (restored) CMOCKA_TEST_FILTER=test_pending_capacity_starves_second_task ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=0
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+===== RAW RED: DCU-F4-served-ident (cmd/dcu/dcu_poller.c) =====
+$ ninja -C build test_dcu_poller
+rc=0
+$ CMOCKA_TEST_FILTER=test_scheme_change_mid_batch_reopens_execution ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=8
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................***Failed    0.01 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_scheme_change_mid_batch_reopens_execution
+[  ERROR   ] --- 16 != 0
+[   LINE   ] --- /tmp/edgec-land/mutation-guards/tests/test_dcu_poller.c:1496: error: Failure!
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+$ (restored) CMOCKA_TEST_FILTER=test_scheme_change_mid_batch_reopens_execution ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=0
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+===== RAW RED: DCU-F5-pump-revision-fence (cmd/dcu/dcu_poller.c) =====
+$ ninja -C build test_dcu_poller
+rc=0
+$ CMOCKA_TEST_FILTER=test_late_callback_before_revision_observed ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=8
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................***Failed    0.01 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_late_callback_before_revision_observed
+[  ERROR   ] --- 2 != 1
+[   LINE   ] --- /tmp/edgec-land/mutation-guards/tests/test_dcu_poller.c:1228: error: Failure!
+[  FAILED  ] test_late_callback_before_revision_observed
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_late_callback_before_revision_observed
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+$ (restored) CMOCKA_TEST_FILTER=test_late_callback_before_revision_observed ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=0
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.03 sec
+
+===== RAW RED: DCU-F5-spare-retry-revision (cmd/dcu/dcu_bus_source.c) =====
+$ ninja -C build test_dcu_poller
+rc=0
+$ CMOCKA_TEST_FILTER=test_spare_retry_dropped_after_slot_reuse ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=8
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................***Failed    0.12 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_spare_retry_dropped_after_slot_reuse
+[SRC-ERR] reason=spare-retry meter=1 tag=20000200 extra=57005
+[  ERROR   ] --- 2 != 1
+[   LINE   ] --- /tmp/edgec-land/mutation-guards/tests/test_dcu_poller.c:1373: error: Failure!
+[  FAILED  ] test_spare_retry_dropped_after_slot_reuse
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_spare_retry_dropped_after_slot_reuse
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.13 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+$ (restored) CMOCKA_TEST_FILTER=test_spare_retry_dropped_after_slot_reuse ctest --test-dir /tmp/edgec-land/mutation-guards/build -R '^test_dcu_poller$' --output-on-failure
+rc=0
+Test project /tmp/edgec-land/mutation-guards/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.15 sec
+
+===== supplementary: runner selftest =====
+  [mutate] /tmp/mutation-selftest-kh2qk16r/guarded.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=1
+  [restore] /tmp/mutation-selftest-kh2qk16r/guarded.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+  ✅ [SELFTEST] sensitive mutation is red, restore is green
+  [mutate] /tmp/mutation-selftest-k2n8285z/guarded.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=0
+  [restore] /tmp/mutation-selftest-k2n8285z/guarded.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+  ✅ [SELFTEST] insensitive mutation is reported
+  ✅ [SELFTEST] find string with 0 occurrences fails
+  ✅ [SELFTEST] find string with 2 occurrences fails
+  [mutate] /tmp/mutation-selftest-3unu7kk1/guarded.c: 1 occurrence replaced
+  [mutated] build rc=1, test rc=skipped
+  [restore] /tmp/mutation-selftest-3unu7kk1/guarded.c: original bytes and hash verified
+  [restored] build rc=1, test rc=skipped
+  ✅ [SELFTEST] build failure is reported and source restored
+  ✅ [SELFTEST] \n and \t escapes decode
+
+✅ [SELFTEST] mutation runner decision logic verified
+
+===== supplementary: baseline test_dcu_poller (unmutated, full binary) =====
+[2026-11-26 12:05:17][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_batched_visit_breaker_settles_once_per_round
+[==========] tests: 34 test(s) run.
+[  PASSED  ] 34 test(s).
+binary rc=0
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.17 sec

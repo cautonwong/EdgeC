@@ -1,0 +1,45 @@
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_dcu_node_lifecycle
+[2026-11-26 12:57:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 12:57:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-26 12:57:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 12:57:03][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 12:57:03][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_lifecycle
+[ RUN      ] test_dcu_node_domain_methods_and_events
+[2026-11-26 12:57:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 12:57:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 12:57:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 12:57:03][WARN][CORE] DCU Feed Reading: Meter '999999999999' not registered in inventory
+[2026-11-26 12:57:03][WARN][CORE] DCU Control: Unauthorized control OI 0x1234
+[       OK ] test_dcu_node_domain_methods_and_events
+[ RUN      ] test_dcu_node_set_source_ops_is_used
+[2026-11-26 12:57:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 12:57:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 12:57:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 12:57:04][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 12:57:04][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_set_source_ops_is_used
+[ RUN      ] test_dcu_node_record_reading_uses_slot_id
+[2026-11-26 12:57:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 12:57:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 12:57:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[       OK ] test_dcu_node_record_reading_uses_slot_id
+[ RUN      ] test_relay_map_resolution_keeps_execution_rejected
+[2026-11-26 12:57:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 12:57:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 12:57:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 129: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 130: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 131: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 129: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 5，但产品未接真实 DO 执行，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 130: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 5，但产品未接真实 DO 执行，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 131: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 5，但产品未接真实 DO 执行，拒绝执行
+[2026-11-26 12:57:04][WARN][CORE] OI 8000 method 129: 参数已解码（1 项，继电器 OAD=0x20000499），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[       OK ] test_relay_map_resolution_keeps_execution_rejected
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).

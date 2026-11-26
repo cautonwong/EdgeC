@@ -1,0 +1,6 @@
+#!/bin/sh
+PASSWORD=$secret:fixture.password
+TOKEN=${FIXTURE_TOKEN}
+API_KEY=$FIXTURE_API_KEY
+EMPTY_PASS=
+PASS=$PASS

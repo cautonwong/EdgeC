@@ -1,0 +1,32 @@
+== test commit df20cf2c ==
+df20cf2c test(DCU-D4-06): pin Class 18 file transfer honest DAR and read-only ACL
+ tests/test_dcu_698_appconn.c      | 28 ++++++++++++-
+ tests/test_dcu_698_axdr.c         | 53 ++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c | 35 +++++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c  |  2 +-
+ tests/test_driver_dlt698.c        | 85 +++++++++++++++++++++++++++++++++++++--
+ 5 files changed, 196 insertions(+), 7 deletions(-)
+
+== fix commit 5eef4736 ==
+5eef4736 feat(DCU-D4-06): register Class 18 file transfer with honest read-only DAR
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/dcu_698_appconn.c           |  8 ++++++++
+ cmd/dcu/dcu_698_object_model.c      | 15 ++++++++++++++-
+ cmd/dcu/dcu_router.h                |  4 ++++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 16 ++++++++--------
+ 6 files changed, 36 insertions(+), 9 deletions(-)
+
+== branch vs base 814f1de9 ==
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/dcu_698_appconn.c           |  8 ++++
+ cmd/dcu/dcu_698_object_model.c      | 15 ++++++-
+ cmd/dcu/dcu_router.h                |  4 ++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 16 +++----
+ tests/test_dcu_698_appconn.c        | 28 +++++++++++-
+ tests/test_dcu_698_axdr.c           | 53 +++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c   | 35 ++++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c    |  2 +-
+ tests/test_driver_dlt698.c          | 85 +++++++++++++++++++++++++++++++++++--
+ 11 files changed, 232 insertions(+), 16 deletions(-)

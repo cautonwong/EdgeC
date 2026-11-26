@@ -1,0 +1,3 @@
+#ifndef ALPHA_SHARED_PRIV_H
+#define ALPHA_SHARED_PRIV_H
+#endif

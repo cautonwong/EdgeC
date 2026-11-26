@@ -1,0 +1,10 @@
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d4-04-class19/build ===
+
+[MUTATION] DCU-D4-04-list-trailer-reserve (foundation/src/protocol/dlt698_codec.c)
+  [mutate] foundation/src/protocol/dlt698_codec.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] foundation/src/protocol/dlt698_codec.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D4-04-list-trailer-reserve: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

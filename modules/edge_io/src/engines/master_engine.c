@@ -152,10 +152,10 @@ static void _process_req_result(master_priv_t *priv, int rc) {
 static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     master_priv_t *priv = (master_priv_t *)user_data;
-    if (!priv) {
-        if (evt == IO_EVENT_RX && payload) net_buf_unref((net_buf_t *)payload);
-        return;
-    }
+    /* IO_EVENT_RX 的载荷由 io 句柄持有到本回调返回之后；这里只读、不 unref。
+     * 回调里同步完成的命令会立刻派发下一条并从同一池取 TX 缓冲——在回调里
+     * 释放载荷会让排队中的 TX 帧被后续分配覆盖（同帧扇出到多条通道的根因）。 */
+    if (!priv) return;
 
     if (evt == IO_EVENT_ERROR) {
         if (priv->current_cmd) _process_req_result(priv, REQ_STATUS_ERROR);
@@ -171,11 +171,9 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
         if (net_buf_simple_tailroom(&priv->rx_acc) < rx->b.len) {
             LOG_WARN(LOG_CAT_BUS, "Bus %d: RX chunk larger than accumulator, dropping %zu bytes",
                      priv->bus_id, rx->b.len);
-            net_buf_unref(rx);
             return;
         }
         net_buf_simple_add_mem(&priv->rx_acc, rx->b.data, rx->b.len);
-        net_buf_unref(rx);
 
         while (priv->current_cmd && priv->current_cmd->req && priv->rx_acc.len > 0) {
             size_t consumed = 0;
@@ -201,7 +199,17 @@ static void _master_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *u
 static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
     if (!priv || !priv->io || !cmd->req) {
-        LOG_ERROR(LOG_CAT_BUS, "Bus %d: Run command failed - IO/Request NULL", priv ? priv->bus_id : -1);
+        bool disconnected = priv && !priv->io;
+        if (!disconnected || !priv->io_missing_logged) {
+            LOG_ERROR(LOG_CAT_BUS, "Bus %d: Run command failed - IO/Request NULL",
+                      priv ? priv->bus_id : -1);
+            if (disconnected) priv->io_missing_logged = true;
+        }
+        /* 提交已被仲裁器接受（write 返回 0）：请求完成回调必须恰好一次。
+         * 早退路径 current_cmd 还没占上，_on_arbiter_settled 不会重复结算。 */
+        if (cmd->req && cmd->req->ops && cmd->req->ops->on_finish) {
+            cmd->req->ops->on_finish(cmd->req, CMD_STATUS_IO_ERROR);
+        }
         arbiter_on_io_done(priv ? priv->arb : NULL, priv ? priv->bus_id : -1, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
@@ -215,17 +223,21 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 
     if (!cmd->req->ops || !cmd->req->ops->setup || !cmd->req->ops->encode || !cmd->req->ops->decode) {
         LOG_ERROR(LOG_CAT_BUS, "Bus %d: Request ops missing", priv->bus_id);
+        if (cmd->req->ops && cmd->req->ops->on_finish)
+            cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
         return;
     }
 
     if (cmd->req->ops->setup(cmd->req, priv) != 0) {
+        if (cmd->req->ops->on_finish) cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
         return;
     }
 
     net_buf_t *tx = net_buf_alloc(priv->pool, 0);
     if (!tx) {
+        if (cmd->req->ops->on_finish) cmd->req->ops->on_finish(cmd->req, CMD_STATUS_IO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_IO_ERROR);
         return;
     }
@@ -250,6 +262,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
         }
     } else {
         if (tx) net_buf_unref(tx);
+        if (cmd->req->ops->on_finish) cmd->req->ops->on_finish(cmd->req, CMD_STATUS_PROTO_ERROR);
         arbiter_on_io_done(priv->arb, priv->bus_id, cmd, CMD_STATUS_PROTO_ERROR);
     }
 }
@@ -257,6 +270,7 @@ static void _master_run_command(bus_engine_t *self, cmd_msg_t *cmd) {
 static void _master_attach(bus_engine_t *self, io_handle_t *io) {
     master_priv_t *priv = (master_priv_t *)self->user_data;
     priv->io = io;
+    priv->io_missing_logged = false;
     io->cb = _master_io_cb;
     io->user_data = priv;
 

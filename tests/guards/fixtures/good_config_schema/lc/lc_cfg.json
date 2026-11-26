@@ -1,0 +1,6 @@
+{
+  "PowerLimit": 100,
+  "SOCmax": 95,
+  "SOCmin": 5,
+  "singleMaxVoltage": 3.65
+}

@@ -13,12 +13,13 @@ import os
 import re
 import sys
 
+from c_source_scan import SHARED_PRUNE_DIRS
+
 ROOTS = ("modules", "foundation", "cmd", "adapters")
 OPENSSL = re.compile(r'#\s*include\s*[<"]openssl/')
 DEBT = {
     "modules/edge_mgmt/src/edge_eapp.c": "Ed25519/SHA-256 pending port methods",
-    "adapters/sqlite_adapters/src/edge_backup.c": "SHA-256 streaming pending port migration",
-    "adapters/sqlite_adapters/src/edge_digest.c": "SHA-256 file digest pending port migration",
+    "adapters/sqlite_adapters/src/edge_digest.c": "SHA-256 file and stream digest pending port migration",
     "modules/edge_stream/src/wasm_runtime/wasm_mgr.c": "RSA PKCS1v15 verify pending port method",
 }
 
@@ -29,7 +30,8 @@ def scan(root):
         base = os.path.join(root, base_name)
         if not os.path.isdir(base):
             continue
-        for dirpath, _, filenames in os.walk(base):
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d not in SHARED_PRUNE_DIRS]
             for name in filenames:
                 if not name.endswith((".c", ".h")):
                     continue

@@ -1,0 +1,140 @@
+# Third-round repros: old guard (3d90a40a) vs final tip
+# Before command: python3 /tmp/arch-repro/old_guard.py --root tests/guards/fixtures/<name>
+# After command:  python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/<name>
+
+## include P2-10: // line continuation
+fixture: tests/guards/fixtures/good_arch_graph_comment_continuation
+before: rc=1  - [UNDECLARED_EDGE] foundation/src/base.c:7: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: fixture; sites: foundation/src/base.c:7
+after:  rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+
+## include C phase 2: BOM, %:include, backslash-newline
+fixture: tests/guards/fixtures/bad_arch_graph_include_phase2
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/src/base.c:1: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: fixture; sites: foundation/src/base.c:1, foundation/src/base.c:2
+
+## include regex: quoted path containing '>'
+fixture: tests/guards/fixtures/bad_arch_graph_quoted_gt
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 11 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 1 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/src/base.c:6: include FOUNDATION (foundation) -> alpha (modules) via alpha>beta.h; forbidden: fixture; sites: foundation/src/base.c:6
+
+## CMake 1: escaped '(' in message
+fixture: tests/guards/fixtures/bad_arch_graph_escape_paren
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+
+## CMake 2: keyword case sensitivity (target 'public')
+fixture: tests/guards/fixtures/bad_arch_graph_keyword_case
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 7 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> public (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+
+## CMake 3: list(APPEND)
+fixture: tests/guards/fixtures/bad_arch_graph_list_append
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 8 CMake target(s), 11 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:5: link foundation_base (foundation/FOUNDATION) -> edge_net (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:5
+
+## CMake 4: set(... PARENT_SCOPE)
+fixture: tests/guards/fixtures/bad_arch_graph_parent_scope
+before: rc=1  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+after:  rc=1  - [UNREGISTERED_PARSE_GAP] foundation/CMakeLists.txt:2: cmake-parent-scope LIBS at 2 site(s); register it in known_skips with a reason
+
+## CMake 5a: include() relative to CMAKE_CURRENT_SOURCE_DIR
+fixture: tests/guards/fixtures/bad_arch_graph_include_source_dir
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+
+## CMake 5b: custom module on CMAKE_MODULE_PATH
+fixture: tests/guards/fixtures/bad_arch_graph_module_path
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 1 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [TARGET_CYCLE] CMake target graph: foundation_base -> alpha -> foundation_base
+
+## CMake 5c: unresolved custom module is a gap
+fixture: tests/guards/fixtures/bad_arch_graph_module_missing
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 1 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNREGISTERED_PARSE_GAP] CMakeLists.txt:1: cmake-module NoSuchModule at 1 site(s); register it in known_skips with a reason
+
+## CMake 6: quoted '\;' unescape
+fixture: tests/guards/fixtures/bad_arch_graph_quoted_escape
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 8 CMake target(s), 11 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 1 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:4: link foundation_base (foundation/FOUNDATION) -> edge_forbidden (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:4
+
+## CMake 7: target ownership by definition file
+fixture: tests/guards/fixtures/bad_arch_graph_unowned_target
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 7 CMake target(s), 11 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNREGISTERED_PARSE_GAP] modules/alpha/CMakeLists.txt:4: cmake-unowned-target hidden at 1 site(s); register it in known_skips with a reason
+
+## CMake 8a: module-internal fixtures/ scanned
+fixture: tests/guards/fixtures/bad_arch_graph_prune_path
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 1 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> fixture_target (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+
+## CMake 8b: cmake/CMakeLists.txt parsed
+fixture: tests/guards/fixtures/bad_arch_graph_cmake_dir
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 1 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNREGISTERED_PARSE_GAP] foundation/CMakeLists.txt:2: cmake-unowned-target cmake_target at 1 site(s); register it in known_skips with a reason
+
+## Schema 1: composition_roots missing path
+fixture: tests/guards/fixtures/bad_arch_graph_schema_composition_roots_path
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA composition_roots[0] missing path
+
+## Schema 2: composition_roots stale path
+fixture: tests/guards/fixtures/bad_arch_graph_schema_composition_roots_stale
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA composition_roots[0] path does not exist: cmd/gone/main.c
+
+## Schema 3: forbidden_headers files path normalization
+fixture: tests/guards/fixtures/bad_arch_graph_schema_forbidden_files
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA forbidden_headers[0] path is not normalized: './modules/beta/src/beta.c'
+
+## Schema 4a: sources whitelist
+fixture: tests/guards/fixtures/bad_arch_graph_schema_sources
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_component_edges[0] unknown source(s): bogus
+
+## Schema 4b: duplicate sources entry
+fixture: tests/guards/fixtures/bad_arch_graph_schema_sources_duplicate
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_component_edges[0] duplicate sources entry
+
+## Schema 4c: duplicate matrix entry
+fixture: tests/guards/fixtures/bad_arch_graph_schema_duplicate_entry
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  ❌ [ARCHITECTURE_GRAPH] MATRIX_SCHEMA allowed_layer_edges[10] duplicates an earlier entry
+
+## Schema 5: layer-qualified shared surface
+fixture: tests/guards/fixtures/bad_arch_graph_shared_surface_layer
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 11 include file(s), 9 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [INCLUDE_CYCLE] component include graph: modules/ROOT -> modules/alpha -> modules/ROOT | modules/ROOT -> modules/alpha: modules/ROOT/include/ROOT.h:1 (alpha.h); modules/alpha -> modules/ROOT: modules/alpha/include/alpha.h:1 (ROOT.h)
+
+## Strong mode: first-party angle include invisible to text scan
+fixture: tests/guards/fixtures/strong_mode_arch_graph
+before (text only): rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 0 CMake target(s), 0 first-party link edge(s), 0 target cycle(s); 3 include file(s), 0 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 1 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after (text):  rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 0 CMake target(s), 0 first-party link edge(s), 0 target cycle(s); 3 include file(s), 0 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 1 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after (strong): rc=1  - [UNDECLARED_EDGE] foundation/src/base.c (closure): include FOUNDATION (foundation) -> alpha (modules) via modules/alpha/include/alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c (closure)
+
+## Ledger: adapters-layer plane decoy
+repro: append {from_layer: adapters, from_component: edge_io, to_layer: modules, to_component: edge_core, kinds: [include], sources: [plane_isolation]} to the live matrix
+before (component-name-only plane set): the decoy merges into the existing edge_io -> edge_core pair; fallback == matrix -> accepted
+after  (four-tuple plane set): (adapters, edge_io, modules, edge_core) is absent from the fallback -> ARCH_LEDGER differs -> rejected
+
+
+# Verifier round 2 (tip 549da4b9 -> follow-up)
+
+## Ledger: unmarked modules include permission
+repro: append {from_layer: modules, from_component: edge_core, to_layer: modules, to_component: edge_stream, kinds: [include]} with no sources
+before (549da4b9): failures=[]  (entry skipped because it lacks sources: [plane_isolation])
+after: failures=['❌ [ARCH_LEDGER] include permission edge_core -> edge_stream is neither in check_plane_isolation.MODULE_ALLOWED nor marked sources: [preprocessor_closure]']
+verdict: before accepted, after rejected.
+
+## Strong mode: -MD -MF -MT would divert the closure to a depfile
+repro: strong_mode_arch_graph copy with command `cc -I modules/alpha/include -MD -MF deps.d -MT base.o -c foundation/src/base.c`
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 0 CMake target(s), 0 first-party link edge(s), 0 target cycle(s); 3 include file(s), 0 component edge(s), 0 component cycle(s); 0 known parse gap(s), 0 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 1 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/src/base.c (closure): include FOUNDATION (foundation) -> alpha (modules) via modules/alpha/include/alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c (closure)
+verdict: before silently saw 0 edges (stdout empty, depfile written), after strips the flags and keeps the closure.
+
+## CMake: add_library options are case-sensitive
+fixture: tests/guards/fixtures/bad_arch_graph_lowercase_options
+before: rc=0  ✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 6 CMake target(s), 10 first-party link edge(s), 0 target cycle(s); 10 include file(s), 7 component edge(s), 0 component cycle(s); 0 known parse gap(s), 1 external/imported link(s) ignored, 0 external CMake module include(s), 0 quoted and 0 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+after:  rc=1  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> lower_imported (modules/alpha); forbidden: fixture; sites: foundation/CMakeLists.txt:2
+verdict: lowercase `imported` no longer turns the target into an imported one.

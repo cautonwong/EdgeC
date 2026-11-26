@@ -154,3 +154,8 @@ modules/edge_core/include/arbiter.h    # R-39
 modules/edge_core/include/datahub.h            # R-31 WAL crash recovery
 modules/edge_core/src/datahub.c                # R-31 WAL crash recovery
 modules/edge_core/src/datahub_priv.h           # R-31 WAL crash recovery
+
+# D1-21 - operator decision 2026-11-24: raise the 698 ACL cap from 60 to
+# 224 objects (measured target set 201, 23 spare) and the AXDR scratch buffer
+# to fit the full published OI plan.
+foundation/include/edge_slave_plane.h

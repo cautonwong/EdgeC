@@ -125,6 +125,12 @@ int dcu_inventory_update_extended(dcu_inventory_t* inv, uint16_t config_seq,
                                   const dcu_archive_unit_t* unit, bool has_annex);
 
 /**
+ * @brief 更新落库失败时把一只表恢复成快照，revision 一并回退（6000 方法 129/130）。
+ */
+void dcu_inventory_restore_unit(dcu_inventory_t* inv, const production_meter_t* snapshot,
+                                uint32_t revision);
+
+/**
  * @brief 按配置序号删除（6000 方法 131）。
  */
 int dcu_inventory_remove_seq(dcu_inventory_t* inv, uint16_t config_seq);

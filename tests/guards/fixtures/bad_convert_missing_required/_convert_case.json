@@ -1,0 +1,5 @@
+{
+  "family": "device",
+  "mode": "dry-run",
+  "description": "device entry without the required channel"
+}

@@ -1,0 +1,22 @@
+=== CORRECT-GUARDS TESTS (2026-11-24T07:25:02Z) ===
+--- guard selftest ---
+📊 Refutation Test Results: 112/112 passed (100% sensitivity)
+--- doc guard: bad fixture ---
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:5: 文件不存在 `cmd/dcu/dcu_698_event.c`
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:7: 函数/符号不存在 `dcu_698_freeze_read`
+rc=1
+--- doc guard: live tree ---
+rc=0
+--- doc guard: historical doc 0a401712 ---
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:5: 文件不存在 `docs/plans/2026-11-21-dcu-698-production-plan.md`
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:5: 文件不存在 `docs/design/DCU_698_OI_CATALOG.md`
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:5: 文件不存在 `docs/698_parsed.md`
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:13: 文件不存在 `docs/698_parsed.md`
+❌ [DOC_REFERENCES] docs/design/DCU_698_OBJECT_MODEL.md:14: 文件不存在 `docs/design/DCU_698_OI_CATALOG.md`
+... (full output in /tmp/docref-proof.log, rc=1)
+--- implicit declaration proof ---
+      |                         ^~~~~~~~~~~~~~~~~
+cc1: some warnings being treated as errors
+rc=1 expected
+--- clean build warnings ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

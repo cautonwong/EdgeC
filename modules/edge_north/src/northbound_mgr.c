@@ -10,6 +10,7 @@
 #include "contract_data_types.h"
 #include "edge_log.h"
 #include "edge_thread_port.h"
+#include "north_protocol.h"
 #include "snf_manager.h"
 
 #ifndef uv__queue_data
@@ -84,9 +85,8 @@ static uint32_t _pending_total(const northbound_mgr_t* mgr) {
     return sum;
 }
 
-/** 发给所有在线传输。任一路成功即算成功；失败那路自己重试。 */
-static int _publish_all(northbound_mgr_t* mgr, const char* address, const uint8_t* data,
-                        size_t len) {
+int northbound_mgr_publish_all(northbound_mgr_t* mgr, const char* address, const uint8_t* data,
+                               size_t len) {
     int rc = -1;
     for (uint32_t i = 0; i < mgr->transport_count; i++) {
         nb_transport_ops_t* t = &mgr->transports[i];
@@ -154,18 +154,8 @@ static void _render_address(northbound_mgr_t* mgr, const char* kind, const char*
 }
 
 static int _push_to_transport_direct_named(northbound_mgr_t* mgr, uint32_t tag_id, double val,
-                                           uint64_t ts, const char* name_override) {
+                                           uint64_t ts_us, const char* name_override) {
     if (!mgr || !mgr->nb_driver) return -1;
-
-    /* ⚠️ 已知缺口（A-P2-3）：`ts` 到这里就断了。
-     *
-     * `req_prepare` 的签名里没有时间戳，驱动编 payload 时自己取当前时间
-     * （sparkplug 用 `uv_hrtime()`）。实时路径影响不大，但 **SnF 回放会出错**：
-     * 三天前缓存的数据补发时会打上"现在"的时间戳，历史曲线就假了。
-     *
-     * 正确修法是把 `ts` 加进 `req_prepare`（13 个驱动各多一个形参，多数忽略）。
-     * 这是跨模块签名变更，单独一次做，不夹在地址模板这次里。 */
-    (void)ts;
 
     /* 未连接就是未连接。这里原来 printf 一条然后 return 0，等于告诉调用方
      * "推成功了"——SnF 会据此把记录标成已同步，数据就此消失且不留日志。
@@ -179,31 +169,40 @@ static int _push_to_transport_direct_named(northbound_mgr_t* mgr, uint32_t tag_i
     const uint8_t* payload = NULL;
     size_t payload_len = 0;
     if (!mgr->driver_port.encode_value ||
-        mgr->driver_port.encode_value(mgr->driver_port.ctx, mgr->nb_driver, tag_id, val, name,
-                                      &payload, &payload_len) != 0) {
+        mgr->driver_port.encode_value(mgr->driver_port.ctx, mgr->nb_driver, tag_id, val, ts_us,
+                                      name, &payload, &payload_len) != 0) {
         return -1;
     }
     char address[256];
     _render_address(mgr, "NDATA", name, address, sizeof(address));
-    return _publish_all(mgr, address, payload, payload_len);
+    return northbound_mgr_publish_all(mgr, address, payload, payload_len);
 }
 
 static int _push_to_transport_direct(northbound_mgr_t* mgr, uint32_t tag_id, double val,
-                                     uint64_t ts) {
-    return _push_to_transport_direct_named(mgr, tag_id, val, ts, NULL);
+                                     uint64_t ts_us) {
+    return _push_to_transport_direct_named(mgr, tag_id, val, ts_us, NULL);
 }
 
-static void _push_to_transport(northbound_mgr_t* mgr, uint32_t tag_id, double val, uint64_t ts) {
+/* 回执发布回调：队列模块只交线路名/值，编码与地址渲染留在编排层。
+ * accepted 与 result 都走这一条路径，且只在北向 loop 线程（或旧同步入口的调用线程）执行。 */
+static int _publish_receipt(void* ctx, const char* point, uint32_t tag_id, double value) {
+    northbound_mgr_t* mgr = (northbound_mgr_t*)ctx;
+    return _push_to_transport_direct_named(mgr, tag_id, value, northbound_mgr_now_us(mgr), point);
+}
+
+static void _push_to_transport(northbound_mgr_t* mgr, uint32_t tag_id, double val,
+                               uint64_t mono_ts) {
     if (!mgr) return;
 
     if (_any_connected(mgr)) {
-        if (_push_to_transport_direct(mgr, tag_id, val, ts) == 0) return;
+        /* 实时直发在发送边界采样墙钟；失败后 buffer_data 会在入库边界再采一次。 */
+        if (_push_to_transport_direct(mgr, tag_id, val, northbound_mgr_now_us(mgr)) == 0) return;
     }
 
     // [SnF] If offline or publish failed, buffer to SQLite
     if (mgr->snf) {
         PipeMsg msg = {0};
-        msg.ts = ts;
+        msg.ts = mono_ts;
         msg.tag_id = tag_id;
         msg.payload.val.f = val;
         msg.type = PIPEMSG_TYPE_SCALAR;
@@ -211,9 +210,9 @@ static void _push_to_transport(northbound_mgr_t* mgr, uint32_t tag_id, double va
     }
 }
 
-static int _snf_publish_wrapper(void* user_data, const PipeMsg* msg) {
-    return _push_to_transport_direct((northbound_mgr_t*)user_data, msg->tag_id, msg->payload.val.f,
-                                     msg->ts);
+static int _snf_publish_wrapper(void* user_data, const PipeMsg* msg, uint64_t wall_ts_us) {
+    return _push_to_transport_direct((northbound_mgr_t*)user_data, msg->tag_id,
+                                     msg->payload.val.f, wall_ts_us);
 }
 
 /* ==============================================================================
@@ -334,8 +333,9 @@ static void on_data_notify_timer(uv_timer_t* handle) {
     northbound_mgr_t* mgr = (northbound_mgr_t*)handle->data;
     if (!mgr) return;
 
-    /* 这三件都不依赖 service：订阅下行、跟踪会话代数、把 ring 抽干。 */
+    /* 这几件都不依赖 service：订阅下行、订阅 IPC、跟踪会话代数、把 ring 抽干。 */
     _ensure_downlink_subscribed(mgr);
+    north_ipc_ensure_subscribed(mgr);
     _sync_session_epoch(mgr);
     _drain_source(mgr);
 
@@ -351,7 +351,7 @@ static void on_data_notify_timer(uv_timer_t* handle) {
                                          mgr->north_src_ctx, &payload, &payload_len) == 0) {
             char address[256];
             _render_address(mgr, "NBIRTH", NULL, address, sizeof(address));
-            _publish_all(mgr, address, payload, payload_len);
+            northbound_mgr_publish_all(mgr, address, payload, payload_len);
         }
     }
 
@@ -403,67 +403,22 @@ static void on_north_stop(uv_async_t* handle) {
     uv_stop(handle->loop);
 }
 
-/* ==============================================================================
- * 北向协议注册表（ADR-0011：换协议不改这个文件）
- *
- * 加一个新协议 = 在这里加一行 + 写一个驱动。管理器本身不动。
- * ========================================================================== */
-typedef struct {
-    const char* name;
-    /* 该协议缺省的地址模板。换协议时地址规则必须跟着换 ——
-     * Sparkplug 的主题里要 kind，JSON 的 topic 树完全不同。 */
-    const char* default_address;
-} nb_protocol_entry_t;
-
-static const nb_protocol_entry_t NB_PROTOCOLS[] = {
-    {"SparkplugB", "spBv1.0/{group}/{kind}/{node}"},
-    /* 第二个协议是**对照样本**：地址规则、载荷格式、BIRTH 语义都与 Sparkplug 不同，
-     * 用来证明换协议不需要改编排层。只有一个协议时"可插拔"没法验证。 */
-    {"MqttJson", "edge/{node}/{kind}"},
-};
-
-static const nb_protocol_entry_t* _find_protocol(const char* name) {
-    if (!name) return NULL;
-    for (size_t i = 0; i < sizeof(NB_PROTOCOLS) / sizeof(NB_PROTOCOLS[0]); i++) {
-        if (strcmp(NB_PROTOCOLS[i].name, name) == 0) return &NB_PROTOCOLS[i];
-    }
-    return NULL;
-}
-
-/**
- * @brief 建驱动实例。
- *
- * 放在线程入口而不是 `init_ex`，是为了让 `set_protocol` 能在 `start` 之前随时调用 ——
- * 否则协议名只能在 init 那一刻定死，又变回硬编码。
- */
-static int _create_nb_driver(northbound_mgr_t* mgr) {
-    const nb_protocol_entry_t* p = _find_protocol(mgr->protocol_name);
-    if (!p) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: unknown protocol '%s'", mgr->protocol_name);
-        return -1;
-    }
-    if (!mgr->driver_port.attach) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: driver port is not injected");
-        return -1;
-    }
-    if (mgr->driver_port.attach(mgr->driver_port.ctx, p->name, &mgr->nb_driver) != 0) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: driver port cannot create '%s'", p->name);
-        mgr->nb_driver = NULL;
-        return -1;
-    }
-    return 0;
-}
-
 void northbound_mgr_set_driver_port(northbound_mgr_t* mgr, north_driver_port_t port) {
     if (!mgr) return;
     mgr->driver_port = port;
+}
+
+void northbound_mgr_set_wall_clock(northbound_mgr_t* mgr, nb_now_us_fn now_us, void* ctx) {
+    if (!mgr) return;
+    mgr->now_us_fn = now_us;
+    mgr->now_us_ctx = ctx;
 }
 
 static void north_thread_entry(void* arg) {
     northbound_mgr_t* mgr = (northbound_mgr_t*)arg;
     if (!mgr) return;
 
-    if (_create_nb_driver(mgr) != 0) {
+    if (north_protocol_attach(mgr) != 0) {
         LOG_ERROR(LOG_CAT_NB, "Northbound: no driver, thread will not run");
         return;
     }
@@ -495,6 +450,9 @@ static void north_thread_entry(void* arg) {
         }
     }
 
+    /* 回执通道：从这一刻起其它线程可以投递；编码/发布只会发生在本 loop。 */
+    north_result_queue_attach(&mgr->receipts, mgr->loop);
+
     // [SnF] Initialize Store-and-Forward
     if (mgr->store) {
         snf_config_t snf_cfg = {.store = mgr->store,
@@ -508,12 +466,21 @@ static void north_thread_entry(void* arg) {
         mgr->snf = snf_manager_create(&snf_cfg);
     }
 
-    uv_run(mgr->loop, UV_RUN_DEFAULT);
+    /* 所有 async handle 都初始化完才发布 ready。start 后立刻 stop 时，
+     * stop 看到 !ready 只置 stop_requested；线程在这里自己收尾，不碰未初始化 handle。 */
+    uv_mutex_lock(&mgr->lifecycle_lock);
+    bool skip_run = mgr->stop_requested;
+    mgr->loop_ready = true;
+    uv_mutex_unlock(&mgr->lifecycle_lock);
+
+    if (!skip_run) uv_run(mgr->loop, UV_RUN_DEFAULT);
 
     if (mgr->snf) snf_manager_destroy(mgr->snf);
 
     /* 句柄必须先关再 uv_loop_close，否则 loop 里还有活句柄，close 会返回 EBUSY
      * 且这些 handle 内存就一直挂着。关完再跑一轮让 close 回调落地。 */
+    north_result_queue_detach(&mgr->receipts); /* 丢弃未 drain 的回执，重启不重放 */
+
     uv_close((uv_handle_t*)&mgr->poll_timer, NULL);
     uv_close((uv_handle_t*)&mgr->stop_async, NULL);
     uv_close((uv_handle_t*)&mgr->req_async, NULL);
@@ -523,6 +490,9 @@ static void north_thread_entry(void* arg) {
     if (uv_loop_close(mgr->loop) != 0) {
         LOG_WARN(LOG_CAT_NB, "Northbound: loop still has live handles at shutdown");
     }
+    uv_mutex_lock(&mgr->lifecycle_lock);
+    mgr->loop_ready = false;
+    uv_mutex_unlock(&mgr->lifecycle_lock);
     mgr->loop = NULL;
 }
 
@@ -544,6 +514,8 @@ int northbound_mgr_init_ex(northbound_mgr_t* mgr, nb_source_ops_t source, const 
 
     uv__queue_init(&mgr->req_queue);
     uv_mutex_init(&mgr->req_lock);
+    uv_mutex_init(&mgr->lifecycle_lock);
+    north_result_queue_init(&mgr->receipts, _publish_receipt, mgr);
 
     /* 没有 publish 的传输等于没接（vpp_demo 走兼容 init），不进数组，
      * 这样 _any_connected 直接返回 false，数据老实走 SnF。 */
@@ -566,19 +538,12 @@ int northbound_mgr_add_transport(northbound_mgr_t* mgr, nb_transport_ops_t trans
     return 0;
 }
 
-/* 主题层级只允许可安全拼进 `spBv1.0/<group>/NDATA/<node>` 的字符集：
- * 含 '/' '+' '#' 或空格的值会让主题被拆层或变成通配，一律拒绝并告警。 */
 static void _set_topic_level(char *dst, size_t dst_size, const char *value, const char *what) {
     if (!value || !value[0]) return;
-    for (const char *p = value; *p; p++) {
-        char c = *p;
-        bool legal = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                     (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.';
-        if (!legal) {
-            LOG_WARN(LOG_CAT_NB, "Northbound: illegal %s '%s' ignored (topic would break)", what,
-                     value);
-            return;
-        }
+    if (!north_ipc_topic_level_ok(value)) {
+        LOG_WARN(LOG_CAT_NB, "Northbound: illegal %s '%s' ignored (topic would break)", what,
+                 value);
+        return;
     }
     snprintf(dst, dst_size, "%s", value);
 }
@@ -601,27 +566,6 @@ void northbound_mgr_set_address(northbound_mgr_t* mgr, const char* address_templ
              sample);
 }
 
-int northbound_mgr_set_protocol(northbound_mgr_t* mgr, const char* protocol_name) {
-    if (!mgr || !protocol_name || !protocol_name[0]) return -1;
-    if (!_find_protocol(protocol_name)) {
-        LOG_ERROR(LOG_CAT_NB, "Northbound: unknown protocol '%s'", protocol_name);
-        return -1;
-    }
-    snprintf(mgr->protocol_name, sizeof(mgr->protocol_name), "%s", protocol_name);
-
-    /* 换协议就把地址模板一起换掉（除非调用方显式配过）。
-     * 不换的话：选了 JSON 驱动、却还在往 spBv1.0/... 上发 —— 主题和载荷对不上，
-     * 主站两边都解析不了，而日志里一切正常。 */
-    if (!mgr->address_explicit) {
-        const nb_protocol_entry_t* p = _find_protocol(protocol_name);
-        if (p && p->default_address) {
-            snprintf(mgr->address_template, sizeof(mgr->address_template), "%s",
-                     p->default_address);
-        }
-    }
-    return 0;
-}
-
 int northbound_mgr_render_address(northbound_mgr_t* mgr, const char* kind, const char* point,
                                   char* out, size_t out_sz) {
     if (!mgr || !out || out_sz == 0) return -1;
@@ -631,17 +575,36 @@ int northbound_mgr_render_address(northbound_mgr_t* mgr, const char* kind, const
 
 int northbound_mgr_start(northbound_mgr_t* mgr) {
     if (!mgr || mgr->loop || mgr->thread_started) return -1;
+    uv_mutex_lock(&mgr->lifecycle_lock);
+    mgr->stop_claimed = false;
+    mgr->stop_requested = false;
+    mgr->loop_ready = false;
+    uv_mutex_unlock(&mgr->lifecycle_lock);
     if (edge_thread_create(&mgr->thread, north_thread_entry, mgr) != 0) return -1;
     mgr->thread_started = true;
     return 0;
 }
 
 void northbound_mgr_stop(northbound_mgr_t* mgr) {
-    if (!mgr || !mgr->thread_started) return;
-    /* loop 为 NULL 说明线程已自行退出（驱动建不起来），照样要 join。 */
-    if (mgr->loop) uv_async_send(&mgr->stop_async);
+    if (!mgr) return;
+    uv_mutex_lock(&mgr->lifecycle_lock);
+    if (!mgr->thread_started || mgr->stop_claimed) {
+        uv_mutex_unlock(&mgr->lifecycle_lock);
+        return; /* 并发 stop：只有认领者 join，其余立即返回 */
+    }
+    mgr->stop_claimed = true;
+    mgr->stop_requested = true;
+    bool ready = mgr->loop_ready;
+    uv_mutex_unlock(&mgr->lifecycle_lock);
+
+    north_result_queue_stop(&mgr->receipts);
+    /* ready 之前不碰 stop_async：线程初始化完看到 stop_requested 会自己收尾。 */
+    if (ready) uv_async_send(&mgr->stop_async);
     edge_thread_join(&mgr->thread);
+
+    uv_mutex_lock(&mgr->lifecycle_lock);
     mgr->thread_started = false;
+    uv_mutex_unlock(&mgr->lifecycle_lock);
     if (mgr->nb_driver && mgr->driver_port.detach) {
         mgr->driver_port.detach(mgr->driver_port.ctx, mgr->nb_driver);
         mgr->nb_driver = NULL;
@@ -654,7 +617,9 @@ void northbound_mgr_destroy(northbound_mgr_t* mgr) {
         mgr->driver_port.detach(mgr->driver_port.ctx, mgr->nb_driver);
         mgr->nb_driver = NULL;
     }
+    north_result_queue_destroy(&mgr->receipts);
     uv_mutex_destroy(&mgr->req_lock);
+    uv_mutex_destroy(&mgr->lifecycle_lock);
 }
 
 void northbound_mgr_set_rest_server(northbound_mgr_t* mgr, void* rest_srv) {
@@ -675,16 +640,11 @@ void northbound_mgr_set_north_source(northbound_mgr_t* mgr,
              (ops && ops->name) ? "yes" : "no", (ops && ops->on_downlink) ? "yes" : "no");
 }
 
-int northbound_mgr_publish_ack(northbound_mgr_t* mgr, uint32_t tag_id, const char* name, bool ok) {
-    if (!mgr) return -1;
+void northbound_mgr_set_ipc_port(northbound_mgr_t* mgr, north_ipc_port_t port, const char* sn) {
+    north_ipc_set_port(mgr, port, sn);
+}
 
-    /* 名字加后缀而不是另开一条通道：这样回执与遥测共用同一套地址模板与编码路径，
-     * 换协议不用改这里（Sparkplug 编成 metric、裸 JSON 编成 {p,v}）。 */
-    char ack_name[96];
-    if (name && name[0]) {
-        snprintf(ack_name, sizeof(ack_name), "%s.ack", name);
-    } else {
-        snprintf(ack_name, sizeof(ack_name), "ack.%u", tag_id);
-    }
-    return _push_to_transport_direct_named(mgr, tag_id, ok ? 1.0 : 0.0, uv_hrtime(), ack_name);
+int northbound_mgr_publish_ipc(northbound_mgr_t* mgr, const north_ipc_endpoint_t* ep,
+                               north_ipc_verb_t verb, const uint8_t* payload, size_t len) {
+    return north_ipc_publish(mgr, ep, verb, payload, len);
 }

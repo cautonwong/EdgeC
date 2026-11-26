@@ -1,0 +1,16 @@
+{
+  "price": [
+    {
+      "flat": 0.6,
+      "month": [
+        1,
+        2,
+        3
+      ],
+      "peak": 0.9,
+      "top": 1.2,
+      "valley": 0.3
+    }
+  ],
+  "schema_version": "1.0.0"
+}

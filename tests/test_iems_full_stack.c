@@ -225,6 +225,7 @@ static void test_iems_dispatch_flow(void** state) {
     uint8_t startdt[] = {0x68, 0x04, 0x07, 0x00, 0x00, 0x00};
     net_buf_simple_add_mem(&in_buf->b, startdt, 6);
     ctx->iec_io.cb(&ctx->iec_io, IO_EVENT_RX, in_buf, ctx->iec_io.user_data);
+    net_buf_unref(in_buf); /* cb 只是借用载荷;测试自己注入的缓冲由测试释放 */
     for (int i = 0; i < 10; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);
 
     net_buf_t* cmd_buf = net_buf_alloc(pool, 0);
@@ -239,6 +240,7 @@ static void test_iems_dispatch_flow(void** state) {
 
     printf("Injecting IEC 104 Command (Tag 1001=1.0)...\n");
     ctx->iec_io.cb(&ctx->iec_io, IO_EVENT_RX, full_cmd, ctx->iec_io.user_data);
+    net_buf_unref(full_cmd);
 
     for (int i = 0; i < 100; i++) {
         uv_run(&ctx->loop, UV_RUN_NOWAIT);
@@ -270,6 +272,7 @@ static void test_iems_dispatch_flow(void** state) {
 
         mb_tx_count = 0;
         ctx->mb_io.cb(&ctx->mb_io, IO_EVENT_RX, mb_req, ctx->mb_io.user_data);
+        net_buf_unref(mb_req); /* 借用语义:注入方负责释放 */
 
         // Deep loop flush to ensure async notifications from Hub reach the Slave
         for (int i = 0; i < 300; i++) uv_run(&ctx->loop, UV_RUN_NOWAIT);

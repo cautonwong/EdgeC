@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "description": "Refutation: a known_skip that no longer reproduces must fail.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": [
+    {
+      "kind": "include-macro",
+      "file": "modules/alpha/src/alpha.c",
+      "detail": "ALPHA_HDR",
+      "reason": "fixture"
+    }
+  ]
+}

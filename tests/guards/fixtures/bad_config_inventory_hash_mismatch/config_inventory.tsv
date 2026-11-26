@@ -1,0 +1,3 @@
+path	sha256	bytes	top_keys	parse_error
+a.json	787175874413fae3c7d92d294fa7ecc80b96d5db21ff01e5d9749f929116846a	36	["count", "name"]	
+sub/b.json	fef6caae917258860415af57aa576c5c27bfb30b5e56c481d32f6d7f330ddb7f	37	["enabled", "items"]	

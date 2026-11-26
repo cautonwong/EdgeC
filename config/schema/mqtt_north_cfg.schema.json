@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mqtt_north_cfg",
+  "description": "P6-04a round 1. Covers north/mqtt_north_cfg.json. pass accepts only $secret:<name> or ${ENV_NAME}; interval keys are the north-map class types.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "standard"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "standard": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^.+$"
+          },
+          "index": {
+            "type": "integer"
+          },
+          "enable": {
+            "type": "integer"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "string"
+          },
+          "pass": {
+            "type": "string"
+          },
+          "lz4": {
+            "type": "integer"
+          },
+          "client_id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "x-secret": [
+          "pass"
+        ]
+      }
+    },
+    "interval": {
+      "type": "object",
+      "properties": {
+        "EMS": {
+          "type": "integer"
+        },
+        "PCS": {
+          "type": "integer"
+        },
+        "BMS": {
+          "type": "integer"
+        },
+        "CELL": {
+          "type": "integer"
+        },
+        "DIDO": {
+          "type": "integer"
+        },
+        "AIRCOND": {
+          "type": "integer"
+        },
+        "PCS_METER": {
+          "type": "integer"
+        },
+        "GRID_METER": {
+          "type": "integer"
+        },
+        "OTHERS": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "heart_beat": {
+      "type": "integer"
+    },
+    "login": {
+      "type": "integer"
+    },
+    "north_control": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false
+}

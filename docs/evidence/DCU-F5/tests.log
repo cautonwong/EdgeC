@@ -1,0 +1,297 @@
+===== RED: a695fd09 (test commit only) =====
+$ cd build && ctest -R dcu_poller --output-on-failure
+
+Test project /tmp/edgec-land/f5-late-callback/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................***Failed    0.01 sec
+[==========] tests: Running 23 test(s).
+[ RUN      ] test_task_and_scheme_add
+[       OK ] test_task_and_scheme_add
+[ RUN      ] test_add_scheme_bounds
+[       OK ] test_add_scheme_bounds
+[ RUN      ] test_chain_visits_each_meter_once
+[       OK ] test_chain_visits_each_meter_once
+[ RUN      ] test_success_counts_only_due_enabled_tasks
+[       OK ] test_success_counts_only_due_enabled_tasks
+[ RUN      ] test_success_counts_across_non_due_tick
+[       OK ] test_success_counts_across_non_due_tick
+[ RUN      ] test_dedup_overlapping_tasks
+[       OK ] test_dedup_overlapping_tasks
+[ RUN      ] test_submit_failure_does_not_stall
+[       OK ] test_submit_failure_does_not_stall
+[ RUN      ] test_breaker_skips_meter
+[2026-11-26 08:43:46][ERROR][IO] 🚨 [DCU-Poller] Meter 40000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_breaker_skips_meter
+[ RUN      ] test_channels_progress_independently
+[       OK ] test_channels_progress_independently
+[ RUN      ] test_gc_retires_deleted_meter
+[       OK ] test_gc_retires_deleted_meter
+[ RUN      ] test_execution_polls_each_meter_once
+[       OK ] test_execution_polls_each_meter_once
+[ RUN      ] test_transient_disable_does_not_reload
+[       OK ] test_transient_disable_does_not_reload
+[ RUN      ] test_reopen_drops_stale_pending
+[       OK ] test_reopen_drops_stale_pending
+[ RUN      ] test_mixed_visit_does_not_count_success
+[       OK ] test_mixed_visit_does_not_count_success
+[ RUN      ] test_breaker_cooldown_half_open
+[2026-11-26 08:43:46][ERROR][IO] 🚨 [DCU-Poller] Meter 85000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_breaker_cooldown_half_open
+[ RUN      ] test_breaker_cooldown_probe_failure_rearms
+[2026-11-26 08:43:46][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[2026-11-26 08:43:46][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 6 >= threshold: 5)
+[       OK ] test_breaker_cooldown_probe_failure_rearms
+[ RUN      ] test_reopen_resnapshots_and_ignores_stale_callbacks
+[       OK ] test_reopen_resnapshots_and_ignores_stale_callbacks
+[ RUN      ] test_mask_change_reopens_execution
+[       OK ] test_mask_change_reopens_execution
+[ RUN      ] test_overlapping_tasks_settle_on_shared_visit
+[       OK ] test_overlapping_tasks_settle_on_shared_visit
+[ RUN      ] test_reset_circuit_breaker_closes
+[2026-11-26 08:43:46][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_reset_circuit_breaker_closes
+[ RUN      ] test_reopen_late_callback_wrong_address
+[  ERROR   ] --- "B0000002" != "A0000001"
+[   LINE   ] --- /tmp/edgec-land/f5-late-callback/tests/test_dcu_poller.c:901: error: Failure!
+[  FAILED  ] test_reopen_late_callback_wrong_address
+[ RUN      ] test_late_callback_uses_submit_protocol_for_scale
+[  ERROR   ] --- g_done_value > 0.999 && g_done_value < 1.001 is not true
+[   LINE   ] --- /tmp/edgec-land/f5-late-callback/tests/test_dcu_poller.c:961: error: Failure!
+[  FAILED  ] test_late_callback_uses_submit_protocol_for_scale
+[ RUN      ] test_late_failure_does_not_retry_shifted_index
+[SRC-ERR] reason=spare-retry meter=0 tag=20000200 extra=57005
+[  ERROR   ] --- 2 != 1
+[   LINE   ] --- /tmp/edgec-land/f5-late-callback/tests/test_dcu_poller.c:987: error: Failure!
+[  FAILED  ] test_late_failure_does_not_retry_shifted_index
+[==========] tests: 23 test(s) run.
+[  PASSED  ] 20 test(s).
+[  FAILED  ] tests: 3 test(s), listed below:
+[  FAILED  ] test_reopen_late_callback_wrong_address
+[  FAILED  ] test_late_callback_uses_submit_protocol_for_scale
+[  FAILED  ] test_late_failure_does_not_retry_shifted_index
+
+ 3 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.02 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+
+===== GREEN: 800e6eba (fix commit) =====
+$ cd build && ctest -R dcu_poller --output-on-failure
+
+Test project /tmp/edgec-land/f5-late-callback/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.04 sec
+
+===== GREEN: ctest -R 'dcu|dlt698' (final tree) =====
+Test project /tmp/edgec-land/f5-late-callback/build
+      Start   9: test_dlt698_axdr
+ 1/45 Test   #9: test_dlt698_axdr .....................   Passed    0.04 sec
+      Start  10: test_dlt698_action
+ 2/45 Test  #10: test_dlt698_action ...................   Passed    0.02 sec
+      Start  11: test_dlt698_get_list
+ 3/45 Test  #11: test_dlt698_get_list .................   Passed    0.04 sec
+      Start  13: test_dcu_inventory
+ 4/45 Test  #13: test_dcu_inventory ...................   Passed    1.10 sec
+      Start  14: test_dcu_polling_loop
+ 5/45 Test  #14: test_dcu_polling_loop ................   Passed    0.04 sec
+      Start  15: test_dcu_storage
+ 6/45 Test  #15: test_dcu_storage .....................   Passed    0.10 sec
+      Start  16: test_dcu_integration
+ 7/45 Test  #16: test_dcu_integration .................   Passed   10.52 sec
+      Start  17: test_dcu_router
+ 8/45 Test  #17: test_dcu_router ......................   Passed    0.53 sec
+      Start  18: test_dcu_north_source
+ 9/45 Test  #18: test_dcu_north_source ................   Passed    0.02 sec
+      Start  19: test_dcu_advanced_modules
+10/45 Test  #19: test_dcu_advanced_modules ............   Passed    0.12 sec
+      Start  20: test_dcu_business_engines
+11/45 Test  #20: test_dcu_business_engines ............   Passed    0.01 sec
+      Start  21: test_dcu_phase1_delivery
+12/45 Test  #21: test_dcu_phase1_delivery .............   Passed    0.00 sec
+      Start  22: test_dcu_node
+13/45 Test  #22: test_dcu_node ........................   Passed    0.64 sec
+      Start  23: test_dcu_runtime_health
+14/45 Test  #23: test_dcu_runtime_health ..............   Passed   13.41 sec
+      Start  24: test_dcu_runtime_health_concurrent
+15/45 Test  #24: test_dcu_runtime_health_concurrent ...   Passed   29.78 sec
+      Start  25: test_dcu_698_object_model
+16/45 Test  #25: test_dcu_698_object_model ............   Passed    0.02 sec
+      Start  26: test_dcu_698_archive
+17/45 Test  #26: test_dcu_698_archive .................   Passed    3.35 sec
+      Start  27: test_dcu_698_catalog
+18/45 Test  #27: test_dcu_698_catalog .................   Passed    0.00 sec
+      Start  28: test_dcu_698_var
+19/45 Test  #28: test_dcu_698_var .....................   Passed    0.00 sec
+      Start  29: test_dcu_698_report
+20/45 Test  #29: test_dcu_698_report ..................   Passed    0.00 sec
+      Start  30: test_dcu_698_axdr
+21/45 Test  #30: test_dcu_698_axdr ....................   Passed    0.01 sec
+      Start  31: test_dcu_698_param
+22/45 Test  #31: test_dcu_698_param ...................   Passed    0.05 sec
+      Start  32: test_dcu_698_record
+23/45 Test  #32: test_dcu_698_record ..................   Passed    0.48 sec
+      Start  33: test_dcu_698_value_table
+24/45 Test  #33: test_dcu_698_value_table .............   Passed    0.00 sec
+      Start  34: test_dcu_698_class22
+25/45 Test  #34: test_dcu_698_class22 .................   Passed    0.00 sec
+      Start  35: test_dcu_698_tasks
+26/45 Test  #35: test_dcu_698_tasks ...................   Passed    1.07 sec
+      Start  36: test_dcu_698_schemes
+27/45 Test  #36: test_dcu_698_schemes .................   Passed    1.15 sec
+      Start  37: test_dcu_698_scheme_mgmt
+28/45 Test  #37: test_dcu_698_scheme_mgmt .............   Passed    1.08 sec
+      Start  38: test_dcu_698_rules
+29/45 Test  #38: test_dcu_698_rules ...................   Passed    0.49 sec
+      Start  39: test_dcu_698_freeze
+30/45 Test  #39: test_dcu_698_freeze ..................   Passed    3.21 sec
+      Start  40: test_dcu_runtime_self_exit
+31/45 Test  #40: test_dcu_runtime_self_exit ...........   Passed    0.00 sec
+      Start  41: test_dcu_heartbeat_stop
+32/45 Test  #41: test_dcu_heartbeat_stop ..............   Passed    0.08 sec
+      Start  42: test_dlt698_conformance_suite
+33/45 Test  #42: test_dlt698_conformance_suite ........   Passed    0.00 sec
+      Start  91: test_fuzz_dlms_dlt698
+34/45 Test  #91: test_fuzz_dlms_dlt698 ................   Passed    0.01 sec
+      Start 101: test_driver_dlt698
+35/45 Test #101: test_driver_dlt698 ...................   Passed    5.11 sec
+      Start 102: test_dlt698_appconn
+36/45 Test #102: test_dlt698_appconn ..................   Passed    0.50 sec
+      Start 103: test_dcu_698_appconn
+37/45 Test #103: test_dcu_698_appconn .................   Passed    0.00 sec
+      Start 141: test_dcu_poller
+38/45 Test #141: test_dcu_poller ......................   Passed    0.41 sec
+      Start 146: test_dcu_scale_benchmark
+39/45 Test #146: test_dcu_scale_benchmark .............   Passed    3.38 sec
+      Start 181: test_dcu
+40/45 Test #181: test_dcu .............................   Passed    0.00 sec
+      Start 241: test_driver_registry_dcu
+41/45 Test #241: test_driver_registry_dcu .............   Passed    0.00 sec
+      Start 261: test_dcu_power_quality
+42/45 Test #261: test_dcu_power_quality ...............   Passed    0.00 sec
+      Start 269: test_web_dcu_power_quality
+43/45 Test #269: test_web_dcu_power_quality ...........   Passed    0.00 sec
+      Start 343: test_dcu_mutex_marathon
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    1.31 sec
+      Start 344: test_dcu_topology_phase_id
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  78.23 sec
+
+===== ROUND 2 GREEN: 8b2b827c (tests) + f26118c6 (fix) =====
+$ ctest --test-dir build -R dcu_poller --output-on-failure
+Test project /tmp/edgec-land/f5-late-callback/build
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.06 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.06 sec
+
+$ ctest --test-dir build -R 'dcu|dlt698' --output-on-failure
+Test project /tmp/edgec-land/f5-late-callback/build
+      Start   9: test_dlt698_axdr
+ 1/45 Test   #9: test_dlt698_axdr .....................   Passed    0.00 sec
+      Start  10: test_dlt698_action
+ 2/45 Test  #10: test_dlt698_action ...................   Passed    0.00 sec
+      Start  11: test_dlt698_get_list
+ 3/45 Test  #11: test_dlt698_get_list .................   Passed    0.00 sec
+      Start  13: test_dcu_inventory
+ 4/45 Test  #13: test_dcu_inventory ...................   Passed    0.15 sec
+      Start  14: test_dcu_polling_loop
+ 5/45 Test  #14: test_dcu_polling_loop ................   Passed    0.00 sec
+      Start  15: test_dcu_storage
+ 6/45 Test  #15: test_dcu_storage .....................   Passed    0.00 sec
+      Start  16: test_dcu_integration
+ 7/45 Test  #16: test_dcu_integration .................   Passed   10.01 sec
+      Start  17: test_dcu_router
+ 8/45 Test  #17: test_dcu_router ......................   Passed    0.01 sec
+      Start  18: test_dcu_north_source
+ 9/45 Test  #18: test_dcu_north_source ................   Passed    0.00 sec
+      Start  19: test_dcu_advanced_modules
+10/45 Test  #19: test_dcu_advanced_modules ............   Passed    0.01 sec
+      Start  20: test_dcu_business_engines
+11/45 Test  #20: test_dcu_business_engines ............   Passed    0.00 sec
+      Start  21: test_dcu_phase1_delivery
+12/45 Test  #21: test_dcu_phase1_delivery .............   Passed    0.00 sec
+      Start  22: test_dcu_node
+13/45 Test  #22: test_dcu_node ........................   Passed    0.49 sec
+      Start  23: test_dcu_runtime_health
+14/45 Test  #23: test_dcu_runtime_health ..............   Passed    3.67 sec
+      Start  24: test_dcu_runtime_health_concurrent
+15/45 Test  #24: test_dcu_runtime_health_concurrent ...   Passed   24.62 sec
+      Start  25: test_dcu_698_object_model
+16/45 Test  #25: test_dcu_698_object_model ............   Passed    0.00 sec
+      Start  26: test_dcu_698_archive
+17/45 Test  #26: test_dcu_698_archive .................   Passed    1.47 sec
+      Start  27: test_dcu_698_catalog
+18/45 Test  #27: test_dcu_698_catalog .................   Passed    0.00 sec
+      Start  28: test_dcu_698_var
+19/45 Test  #28: test_dcu_698_var .....................   Passed    0.00 sec
+      Start  29: test_dcu_698_report
+20/45 Test  #29: test_dcu_698_report ..................   Passed    0.00 sec
+      Start  30: test_dcu_698_axdr
+21/45 Test  #30: test_dcu_698_axdr ....................   Passed    0.02 sec
+      Start  31: test_dcu_698_param
+22/45 Test  #31: test_dcu_698_param ...................   Passed    0.10 sec
+      Start  32: test_dcu_698_record
+23/45 Test  #32: test_dcu_698_record ..................   Passed    0.65 sec
+      Start  33: test_dcu_698_value_table
+24/45 Test  #33: test_dcu_698_value_table .............   Passed    0.00 sec
+      Start  34: test_dcu_698_class22
+25/45 Test  #34: test_dcu_698_class22 .................   Passed    0.00 sec
+      Start  35: test_dcu_698_tasks
+26/45 Test  #35: test_dcu_698_tasks ...................   Passed    0.58 sec
+      Start  36: test_dcu_698_schemes
+27/45 Test  #36: test_dcu_698_schemes .................   Passed    0.50 sec
+      Start  37: test_dcu_698_scheme_mgmt
+28/45 Test  #37: test_dcu_698_scheme_mgmt .............   Passed    0.90 sec
+      Start  38: test_dcu_698_rules
+29/45 Test  #38: test_dcu_698_rules ...................   Passed    0.32 sec
+      Start  39: test_dcu_698_freeze
+30/45 Test  #39: test_dcu_698_freeze ..................   Passed    0.49 sec
+      Start  40: test_dcu_runtime_self_exit
+31/45 Test  #40: test_dcu_runtime_self_exit ...........   Passed    0.00 sec
+      Start  41: test_dcu_heartbeat_stop
+32/45 Test  #41: test_dcu_heartbeat_stop ..............   Passed    0.04 sec
+      Start  42: test_dlt698_conformance_suite
+33/45 Test  #42: test_dlt698_conformance_suite ........   Passed    0.00 sec
+      Start  91: test_fuzz_dlms_dlt698
+34/45 Test  #91: test_fuzz_dlms_dlt698 ................   Passed    0.01 sec
+      Start 101: test_driver_dlt698
+35/45 Test #101: test_driver_dlt698 ...................   Passed    5.10 sec
+      Start 102: test_dlt698_appconn
+36/45 Test #102: test_dlt698_appconn ..................   Passed    0.00 sec
+      Start 103: test_dcu_698_appconn
+37/45 Test #103: test_dcu_698_appconn .................   Passed    0.00 sec
+      Start 141: test_dcu_poller
+38/45 Test #141: test_dcu_poller ......................   Passed    0.05 sec
+      Start 146: test_dcu_scale_benchmark
+39/45 Test #146: test_dcu_scale_benchmark .............   Passed    1.85 sec
+      Start 181: test_dcu
+40/45 Test #181: test_dcu .............................   Passed    0.00 sec
+      Start 241: test_driver_registry_dcu
+41/45 Test #241: test_driver_registry_dcu .............   Passed    0.00 sec
+      Start 261: test_dcu_power_quality
+42/45 Test #261: test_dcu_power_quality ...............   Passed    0.00 sec
+      Start 269: test_web_dcu_power_quality
+43/45 Test #269: test_web_dcu_power_quality ...........   Passed    0.00 sec
+      Start 343: test_dcu_mutex_marathon
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    0.59 sec
+      Start 344: test_dcu_topology_phase_id
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  51.69 sec

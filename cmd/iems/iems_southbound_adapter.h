@@ -94,15 +94,17 @@ int iems_southbound_connect_in(uv_loop_t *loop, datahub_t *hub, bus_orchestrator
  * @brief 启动一路 tcp://host:port。
  *
  * slot 非 NULL 时建 link（失败也返回 true，进入 BACKOFF）；slot 为 NULL 时
- * 退回旧的一次性连接。open_io 由组合根传入（通常是 io_executor_create_tcp），
- * 链路模块不自己装配 edge_io。
+ * 退回旧的一次性连接，此时 open_io 必填（通常是 io_executor_create_tcp）。
+ * 链路经 io 端口异步 connect，成功后经 adopt_fd（io_executor_create_from_fd）接管 fd。
+ * path 中的 host 必须是数字 IPv4；主机名会被拒绝并返回 false。
  *
  * @return 该总线是否已启动；地址非法或句柄创建失败返回 false
  */
 bool iems_tcp_link_start_bus(uv_loop_t *loop, bus_orchestrator_t *orch, int bus_id,
                              const char *label, const char *path, bus_conn_state_t *bus_state,
                              iems_tcp_link_slot_t *slot, const iems_tcp_link_config_t *cfg,
-                             iems_tcp_link_open_fn open_io, net_buf_pool_t *io_pool);
+                             iems_tcp_link_open_fn open_io, iems_tcp_link_adopt_fn adopt_fd,
+                             net_buf_pool_t *io_pool);
 
 #ifdef __cplusplus
 }

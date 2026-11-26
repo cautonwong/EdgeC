@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "description": "Refutation: a basename owned by two components is an ambiguous gap.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

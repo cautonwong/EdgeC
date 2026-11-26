@@ -6,7 +6,6 @@
 _Static_assert(IEMS_POINT_MAX_SLOTS == 1024, "slot math must stay at 1024");
 
 const iems_point_name_entry_t g_iems_point_names[] = {
-    /* EdgeC 14 条元数据短名；dense_idx 与 iems_tag_map_fn 的静态表一致。 */
     {.name = "VOLTAGE_PHASE_A", .tag_id = 1001, .dense_idx = 0},
     {.name = "CURRENT_PHASE_A", .tag_id = 1002, .dense_idx = 1},
     {.name = "GRID_POWER", .tag_id = 1003, .dense_idx = 2},
@@ -21,6 +20,12 @@ const iems_point_name_entry_t g_iems_point_names[] = {
     {.name = "SOLAR_VOLTS", .tag_id = 8003, .dense_idx = 11},
     {.name = "SOLAR_RELAY", .tag_id = 8004, .dense_idx = 12},
     {.name = "PCS_CONTROL", .tag_id = 8005, .dense_idx = 13},
+    /* 系统级硬件健康点：UA 名可查，无设备槽（dense NONE；DataHub 回退 idx=tag）。 */
+    {.name = "EMS.EMSPower", .tag_id = 9001, .dense_idx = IEMS_POINT_DENSE_NONE},
+    {.name = "EMS.EMSCpuHigh", .tag_id = 9002, .dense_idx = IEMS_POINT_DENSE_NONE},
+    {.name = "EMS.EMSMemHigh", .tag_id = 9003, .dense_idx = IEMS_POINT_DENSE_NONE},
+    {.name = "EMS.EmmcDiskHigh", .tag_id = 9004, .dense_idx = IEMS_POINT_DENSE_NONE},
+    {.name = "EMS.SsdDiskHigh", .tag_id = 9005, .dense_idx = IEMS_POINT_DENSE_NONE},
     /* iems_v3 旧名样例：名字已确认，tag_id 待 B1-B4 模板/点表输入。
      * LC6..LC10.PCS.* 与 BMS2.* 是前缀类，不是可列表的完整名。 */
     {.name = "LC1.PCS.SmokeDetectStatus",

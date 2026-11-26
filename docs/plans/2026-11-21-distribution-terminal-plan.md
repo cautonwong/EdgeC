@@ -121,7 +121,7 @@ TTU（配变终端）不属于首版。台区监测与线损已在 `cmd/dcu` 的
 
 ## 4. 组件地图
 
-新增组件按仓库规则登记 `component.meta`：subdomain、ports、ROM/RAM/栈预算、owner、maturity。预算先给初值，实现后按归档尺寸回填，只降不涨。
+新增组件按仓库规则登记 `component.meta`：subdomain、ports、RAM/栈预算、owner、maturity。预算先给初值，实现后按归档尺寸回填，只降不涨。
 
 | 组件 | 类型 | subdomain | 端口 | 初始预算 | 复用方 |
 | --- | --- | --- | --- | --- | --- |

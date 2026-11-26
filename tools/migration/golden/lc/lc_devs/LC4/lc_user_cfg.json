@@ -1,0 +1,15 @@
+{
+  "config": [
+    {
+      "double_value": 80,
+      "name": "PowerLimit",
+      "type": 1
+    },
+    {
+      "double_value": 80,
+      "name": "Installedcab_coeff",
+      "type": 1
+    }
+  ],
+  "schema_version": "1.0.0"
+}

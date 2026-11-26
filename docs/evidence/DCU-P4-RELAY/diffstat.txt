@@ -1,0 +1,36 @@
+ cmd/dcu/CMakeLists.txt                    |   1 +
+ cmd/dcu/dcu_698_class_control.c           |  18 +-
+ cmd/dcu/dcu_node.c                        |  15 ++
+ cmd/dcu/dcu_node.h                        |  13 +
+ cmd/dcu/dcu_relay_map.c                   |  42 +++
+ cmd/dcu/dcu_relay_map.h                   |  52 ++++
+ docs/evidence/DCU-P4-RELAY/baseline.log   |  95 +++++++
+ docs/evidence/DCU-P4-RELAY/comments.md    |  10 +
+ docs/evidence/DCU-P4-RELAY/ctest.log      |  95 +++++++
+ docs/evidence/DCU-P4-RELAY/design.md      |  67 +++++
+ docs/evidence/DCU-P4-RELAY/diffstat.txt   |  20 ++
+ docs/evidence/DCU-P4-RELAY/mutation-a.log |  22 ++
+ docs/evidence/DCU-P4-RELAY/mutation-b.log |  31 +++
+ docs/evidence/DCU-P4-RELAY/red.log        |  15 ++
+ docs/evidence/DCU-P4-RELAY/tests.log      | 408 ++++++++++++++++++++++++++++++
+ tests/test_dcu_698_axdr.c                 |  72 ++++++
+ tests/test_dcu_node.c                     |  52 ++++
+ 17 files changed, 1024 insertions(+), 4 deletions(-)
+
+1	0	cmd/dcu/CMakeLists.txt
+14	4	cmd/dcu/dcu_698_class_control.c
+15	0	cmd/dcu/dcu_node.c
+13	0	cmd/dcu/dcu_node.h
+42	0	cmd/dcu/dcu_relay_map.c
+52	0	cmd/dcu/dcu_relay_map.h
+95	0	docs/evidence/DCU-P4-RELAY/baseline.log
+10	0	docs/evidence/DCU-P4-RELAY/comments.md
+95	0	docs/evidence/DCU-P4-RELAY/ctest.log
+67	0	docs/evidence/DCU-P4-RELAY/design.md
+20	0	docs/evidence/DCU-P4-RELAY/diffstat.txt
+22	0	docs/evidence/DCU-P4-RELAY/mutation-a.log
+31	0	docs/evidence/DCU-P4-RELAY/mutation-b.log
+15	0	docs/evidence/DCU-P4-RELAY/red.log
+408	0	docs/evidence/DCU-P4-RELAY/tests.log
+72	0	tests/test_dcu_698_axdr.c
+52	0	tests/test_dcu_node.c

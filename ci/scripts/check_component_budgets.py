@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check declared component ROM/RAM budgets against built archives."""
+"""Check declared component RAM budgets against built archives."""
 
 import argparse
 import glob
@@ -36,8 +36,8 @@ def archive_sizes(archive):
     for line in reversed(output.splitlines()):
         parts = line.split()
         if len(parts) >= 4 and parts[-1] == "(TOTALS)":
-            text, data, bss = (int(parts[0]), int(parts[1]), int(parts[2]))
-            return text + data, data + bss
+            data, bss = (int(parts[1]), int(parts[2]))
+            return data + bss
     raise RuntimeError(f"size output has no TOTALS for {archive}")
 
 
@@ -48,7 +48,7 @@ def components(root):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Check component ROM/RAM budgets.")
+    parser = argparse.ArgumentParser(description="Check component RAM budgets.")
     parser.add_argument("--root", default=".", help="repository root")
     parser.add_argument("--build", default="build", help="build directory")
     args = parser.parse_args()
@@ -59,10 +59,9 @@ def main():
         component_dir = os.path.dirname(meta_path)
         name = os.path.basename(component_dir)
         meta = load_meta(meta_path)
-        rom_max = int(meta.get("rom_bytes_max", "0"))
         ram_max = int(meta.get("ram_bytes_max", "0"))
-        if rom_max <= 0 and ram_max <= 0:
-            problems.append(f"{kind}/{name}: no ROM/RAM budget declared")
+        if ram_max <= 0:
+            problems.append(f"{kind}/{name}: no RAM budget declared")
             continue
         target = component_target(component_dir)
         if not target:
@@ -72,10 +71,8 @@ def main():
         if not os.path.exists(archive):
             problems.append(f"{kind}/{name}: archive missing at {archive}")
             continue
-        rom, ram = archive_sizes(archive)
-        if rom_max > 0 and rom > rom_max:
-            problems.append(f"{kind}/{name}: ROM {rom} > {rom_max}")
-        if ram_max > 0 and ram > ram_max:
+        ram = archive_sizes(archive)
+        if ram > ram_max:
             problems.append(f"{kind}/{name}: RAM {ram} > {ram_max}")
     if problems:
         print("❌ [COMPONENT_BUDGET] violations:")

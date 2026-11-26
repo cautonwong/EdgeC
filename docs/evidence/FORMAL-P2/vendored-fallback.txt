@@ -1,0 +1,6 @@
+✅ [FORMAL] 1 shard(s), 4 row(s), 21s; CBMC 5.12 (cbmc-5.12), 1012 properties, 2 aux run(s); TLA+ 2026.11.15.002146, 84083 states
+
+real	0m20.943s
+user	0m21.904s
+sys	0m0.724s
+FALLBACK_RC=0

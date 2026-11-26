@@ -1,0 +1,28 @@
+== build (clean, source HEAD b23b79c6) ==
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WEB_BUILD=OFF \
+      -DPython3_EXECUTABLE=/home/edge/EdgeC/.venv/bin/python3
+cmake --build build --clean-first -j4 -> rc=0 (1267/1267)
+warning: 1（third-party open62541 unused-parameter，仓库源文件 0）
+
+$ python3 ci/scripts/check_build_warnings.py --log clean-build.log --root .
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+$ python3 ci/scripts/check_build_freshness.py --root . --build build
+✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/heartbeat-slot
+
+$ python3 ci/scripts/check_doc_references.py --root .
+exit 0
+
+== tests ==
+$ ./build/tests/test_dcu_runtime_health
+[  PASSED  ] 4 test(s).
+
+$ python3 ci/scripts/run_mutation_guards.py --build build --only DCU-F5-heartbeat-slot
+✅ [MUTATION] DCU-F5-heartbeat-slot: red under mutation (rc=8), green after restore
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+
+$ ctest --test-dir build -R 'dcu|dlt698' --output-on-failure
+100% tests passed, 0 tests failed out of 45
+Total Test time (real) =  67.26 sec
+
+注：clean build 与测试在源码 HEAD b23b79c6 上执行；docs 提交只新增本证据目录与计划状态行。

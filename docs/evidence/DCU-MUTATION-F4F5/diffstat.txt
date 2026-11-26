@@ -1,0 +1,11 @@
+# DCU-MUTATION-F4F5 diffstat (baseline feat/dcu 197d98b9)
+
+b0326f46 test(dcu): register F4/F5 invariant tests as mutation guards
+ ci/mutation_guards.tsv | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+# evidence commit (staged)
+ docs/evidence/DCU-MUTATION-F4F5/comments.md      |  18 ++
+ docs/evidence/DCU-MUTATION-F4F5/mutation-run.log | 219 +++++++++++++++++++++++
+ docs/evidence/DCU-MUTATION-F4F5/summary.md       |  96 ++++++++++
+ 3 files changed, 333 insertions(+)

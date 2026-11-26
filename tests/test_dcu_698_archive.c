@@ -21,8 +21,10 @@ static dcu_inventory_t g_inv;
 static dcu_poller_t g_poller;
 static sqlite3 *g_db;
 static char g_db_path[64];
+static bool g_fail_save;
 
 static int _save(void *ctx, const production_meter_t *m) {
+    if (g_fail_save) return -1;
     return dcu_inventory_save_meter((sqlite3 *)ctx, m);
 }
 
@@ -269,8 +271,100 @@ static void test_archive_array_carries_added_unit(void **state) {
     dcu_698_object_model_reset();
 }
 
+static bool _contains(const uint8_t *buf, size_t len, const char *needle) {
+    size_t n = strlen(needle);
+    for (size_t i = 0; i + n <= len; i++) {
+        if (memcmp(buf + i, needle, n) == 0) return true;
+    }
+    return false;
+}
+static void test_update_basic_save_failure_rolls_back(void **state) {
+    (void)state;
+    router_sink_ops_t sink = {.ctx = g_db, .archive_save = _save, .archive_delete = _delete,
+                              .archive_clear = _clear};
+    _init_model(&sink);
+    dcu_archive_op_t add = {0};
+    add.unit_count = 1;
+    add.units[0] = _unit("21000081", 22);
+    assert_int_equal(_call(127, &add), 0);
+    uint32_t revision = g_inv.revision;
+    g_fail_save = true;
+    dcu_archive_op_t upd = {0};
+    upd.method = 129;
+    upd.config_seq = 1;
+    upd.unit_count = 1;
+    upd.units[0] = _unit("21000082", 23);
+    assert_int_equal(_call(129, &upd), EDGE_SLAVE_SRC_TEMPORARY);
+    g_fail_save = false;
+    assert_int_equal(g_inv.count, 1);
+    assert_non_null(dcu_inventory_get(&g_inv, "21000081"));
+    assert_null(dcu_inventory_get(&g_inv, "21000082"));
+    const production_meter_t *m = dcu_inventory_by_seq(&g_inv, 1);
+    assert_non_null(m);
+    assert_int_equal(m->baud_code, 6);
+    assert_int_equal(m->channel_id, 22);
+    assert_int_equal(g_inv.revision, revision);
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_698_archive_encode_axdr(&g_inv, MK_OMD(OI_METER_ARCHIVE, 2), buf,
+                                                 sizeof(buf), &len),
+                     0);
+    assert_true(_contains(buf, len, "21000081"));
+    assert_false(_contains(buf, len, "21000082"));
+    dcu_inventory_t probe;
+    dcu_inventory_init(&probe);
+    assert_int_equal(dcu_inventory_load_from_db(&probe, g_db_path), 1);
+    assert_string_equal(probe.meters[0].address, "21000081");
+    dcu_698_object_model_reset();
+}
+static void test_update_extended_save_failure_rolls_back(void **state) {
+    (void)state;
+    router_sink_ops_t sink = {.ctx = g_db, .archive_save = _save, .archive_delete = _delete,
+                              .archive_clear = _clear};
+    _init_model(&sink);
+    dcu_archive_op_t add = {0};
+    add.unit_count = 1;
+    add.units[0] = _unit("21000091", 22);
+    assert_int_equal(_call(127, &add), 0);
+    uint32_t revision = g_inv.revision;
+    g_fail_save = true;
+    dcu_archive_op_t upd = {0};
+    upd.method = 130;
+    upd.config_seq = 1;
+    upd.unit_count = 1;
+    upd.units[0].config_seq = 1;
+    strncpy(upd.units[0].collector_addr, "COLL-1", sizeof(upd.units[0].collector_addr) - 1);
+    strncpy(upd.units[0].asset_no, "ASSET-1", sizeof(upd.units[0].asset_no) - 1);
+    upd.units[0].pt_ratio = 100;
+    upd.units[0].ct_ratio = 200;
+    assert_int_equal(_call(130, &upd), EDGE_SLAVE_SRC_TEMPORARY);
+    g_fail_save = false;
+    const production_meter_t *m = dcu_inventory_by_seq(&g_inv, 1);
+    assert_non_null(m);
+    assert_string_equal(m->collector_addr, "");
+    assert_string_equal(m->asset_no, "");
+    assert_int_equal(m->pt_ratio, 0);
+    assert_int_equal(m->ct_ratio, 0);
+    assert_int_equal(g_inv.revision, revision);
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_698_archive_encode_axdr(&g_inv, MK_OMD(OI_METER_ARCHIVE, 2), buf,
+                                                 sizeof(buf), &len),
+                     0);
+    assert_false(_contains(buf, len, "COLL-1"));
+    assert_false(_contains(buf, len, "ASSET-1"));
+    assert_int_equal(_call(130, &upd), 0);
+    m = dcu_inventory_by_seq(&g_inv, 1);
+    assert_non_null(m);
+    assert_string_equal(m->collector_addr, "COLL-1");
+    assert_string_equal(m->asset_no, "ASSET-1");
+    assert_int_equal(m->pt_ratio, 100);
+    assert_int_equal(m->ct_ratio, 200);
+    dcu_698_object_model_reset();
+}
 static int setup(void **state) {
     (void)state;
+    g_fail_save = false;
     snprintf(g_db_path, sizeof(g_db_path), "/tmp/test_dcu_698_archive_%d.db", (int)getpid());
     unlink(g_db_path);
     assert_int_equal(sqlite3_open(g_db_path, &g_db), SQLITE_OK);
@@ -298,6 +392,10 @@ int main(void) {
         cmocka_unit_test(test_decode_add_param_from_axdr),
         cmocka_unit_test_setup_teardown(test_load_assigns_config_seq_from_one, setup, teardown),
         cmocka_unit_test_setup_teardown(test_archive_array_carries_added_unit, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_update_basic_save_failure_rolls_back, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_update_extended_save_failure_rolls_back, setup,
+                                        teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

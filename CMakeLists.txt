@@ -199,7 +199,10 @@ target_compile_options(edge_common_interface INTERFACE -Wall -Wextra -Wformat=2 
     -Wstrict-prototypes -Wold-style-definition
     -Wduplicated-cond -Wduplicated-branches -Wlogical-op
     -Wjump-misses-init -Wshadow -Wvla -Wpointer-arith -Wundef
-    -Wmissing-prototypes)
+    -Wmissing-prototypes
+    # 隐式函数声明在 C17 只是 warning；增量构建/未重编的测试会漏网（D1-21
+    # 合并树 clean build 才抓到）。按错误处理，与构建方式无关。
+    -Werror=implicit-function-declaration -Werror=implicit-int)
 if(COVERAGE OR ENABLE_COVERAGE)
     target_compile_options(edge_common_interface INTERFACE --coverage)
     target_link_options(edge_common_interface INTERFACE --coverage)

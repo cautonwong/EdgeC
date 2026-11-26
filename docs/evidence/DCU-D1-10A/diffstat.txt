@@ -1,0 +1,13 @@
+ ci/mutation_guards.tsv                           |   1 +
+ docs/design/DCU_698_OI_CATALOG.json              | 152 ++++++++++++++++++++++-
+ docs/design/DCU_698_OI_CATALOG.md                |  40 ++++++
+ docs/evidence/DCU-D1-10A/comments.md             |  37 ++++++
+ docs/evidence/DCU-D1-10A/diffstat.txt            |  13 ++
+ docs/evidence/DCU-D1-10A/runtime.log             |  55 ++++++++
+ docs/evidence/DCU-D1-10A/summary.md              |  94 ++++++++++++++
+ docs/evidence/DCU-D1-10A/tests.log               |  80 ++++++++++++
+ docs/plans/2026-11-21-dcu-698-production-plan.md |   2 +-
+ scripts/extract_dcu_698_catalog.py               |  53 ++++++--
+ tests/fixtures/dcu_698_catalog_expected.h        | 150 ++++++++++++++++++----
+ tests/test_dcu_698_catalog.c                     |  25 ++++
+ 12 files changed, 666 insertions(+), 36 deletions(-)

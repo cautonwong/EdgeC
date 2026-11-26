@@ -1,0 +1,96 @@
+=== BEFORE FIX: test_dcu_698_archive (Release) ===
+[==========] tests: Running 9 test(s).
+[ RUN      ] test_add_delete_clear_round_trip
+[       OK ] test_add_delete_clear_round_trip
+[ RUN      ] test_add_batch_is_all_or_nothing
+[       OK ] test_add_batch_is_all_or_nothing
+[ RUN      ] test_update_and_delete_forms
+[       OK ] test_update_and_delete_forms
+[ RUN      ] test_add_without_persistence_is_refused
+[       OK ] test_add_without_persistence_is_refused
+[ RUN      ] test_decode_add_param_from_axdr
+[       OK ] test_decode_add_param_from_axdr
+[ RUN      ] test_load_assigns_config_seq_from_one
+[       OK ] test_load_assigns_config_seq_from_one
+[ RUN      ] test_archive_array_carries_added_unit
+[       OK ] test_archive_array_carries_added_unit
+[ RUN      ] test_update_basic_save_failure_rolls_back
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/fix2-archive-rollback/tests/test_dcu_698_archive.c:301: error: Failure!
+[  FAILED  ] test_update_basic_save_failure_rolls_back
+[ RUN      ] test_update_extended_save_failure_rolls_back
+[  ERROR   ] --- "COLL-1" != ""
+[   LINE   ] --- /tmp/edgec-land/fix2-archive-rollback/tests/test_dcu_698_archive.c:345: error: Failure!
+[  FAILED  ] test_update_extended_save_failure_rolls_back
+[==========] tests: 9 test(s) run.
+[  PASSED  ] 7 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_update_basic_save_failure_rolls_back
+[  FAILED  ] test_update_extended_save_failure_rolls_back
+
+ 2 FAILED TEST(S)
+
+=== AFTER FIX: 9 DCU tests (ctest) ===
+Test project /tmp/edgec-land/fix2-archive-rollback/build
+    Start  13: test_dcu_inventory
+1/9 Test  #13: test_dcu_inventory ...............   Passed    0.37 sec
+    Start  17: test_dcu_router
+2/9 Test  #17: test_dcu_router ..................   Passed    0.04 sec
+    Start  22: test_dcu_node
+3/9 Test  #22: test_dcu_node ....................   Passed    0.72 sec
+    Start  25: test_dcu_698_object_model
+4/9 Test  #25: test_dcu_698_object_model ........   Passed    0.02 sec
+    Start  26: test_dcu_698_archive
+5/9 Test  #26: test_dcu_698_archive .............   Passed    4.22 sec
+    Start  28: test_dcu_698_var
+6/9 Test  #28: test_dcu_698_var .................   Passed    0.01 sec
+    Start  34: test_dcu_698_tasks
+7/9 Test  #34: test_dcu_698_tasks ...............   Passed    1.34 sec
+    Start  35: test_dcu_698_schemes
+8/9 Test  #35: test_dcu_698_schemes .............   Passed    1.32 sec
+    Start 129: test_dcu_poller
+9/9 Test #129: test_dcu_poller ..................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =   8.08 sec
+
+=== AFTER FIX: ASAN build ===
+Test project /tmp/edgec-land/fix2-archive-rollback/build-asan
+    Start 26: test_dcu_698_archive
+1/1 Test #26: test_dcu_698_archive .............   Passed    4.86 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   4.91 sec
+
+=== BUILD WARNING GATE ===
+[1/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_task_store.c.o
+[2/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_inventory.c.o
+[3/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_poller.c.o
+[4/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_object_model.c.o
+[5/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_bus_source.c.o
+[6/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_acq.c.o
+[7/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_scheme_store.c.o
+[8/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_param.c.o
+[9/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_security.c.o
+[10/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_event.c.o
+[11/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_control.c.o
+[12/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_report.c.o
+[13/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_var.c.o
+[14/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_axdr.c.o
+[15/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_event_monitor.c.o
+[16/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_record.c.o
+[17/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_router.c.o
+[18/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_source.c.o
+[19/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_twin_source.c.o
+[20/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_driver_adapter.c.o
+[21/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_node.c.o
+[22/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_pipeline_adapter.c.o
+[23/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_adapter.c.o
+[24/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_bus_adapter.c.o
+[25/28] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_heartbeat.c.o
+[26/28] Linking C static library cmd/dcu/libdcu_app_lib.a
+[27/28] Building C object tests/CMakeFiles/test_dcu_698_archive.dir/test_dcu_698_archive.c.o
+[28/28] Linking C executable tests/test_dcu_698_archive
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

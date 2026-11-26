@@ -82,15 +82,20 @@ def pinned_debt(root):
 
 
 def composition_root_lines(root):
-    listing = root / "ci/composition_roots.txt"
-    if not listing.exists():
-        return 0
-    total = 0
-    for line in read(listing).splitlines():
-        line = line.strip()
-        if line and not line.startswith("#") and line.startswith("cmd/"):
-            total += lines_in(root / line)
-    return total
+    matrix = root / "ci/baseline/architecture_graph.json"
+    if matrix.exists():
+        entries = json.loads(read(matrix)).get("composition_roots", [])
+        paths = [entry["path"] if isinstance(entry, dict) else entry for entry in entries]
+    else:
+        listing = root / "ci/composition_roots.txt"
+        if not listing.exists():
+            return 0
+        paths = [
+            line.strip()
+            for line in read(listing).splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+    return sum(lines_in(root / path) for path in paths if path.startswith("cmd/"))
 
 
 def modules_linked_by_all_products(root):
@@ -146,7 +151,7 @@ def collect(root):
         "composition_root_lines": {
             "value": composition_root_lines(root),
             "unit": "lines",
-            "evidence": "ci/composition_roots.txt",
+            "evidence": "ci/baseline/architecture_graph.json composition_roots",
         },
         "pinned_debt_items": {
             "value": pinned_debt(root),

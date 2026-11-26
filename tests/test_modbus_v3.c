@@ -475,6 +475,36 @@ static void test_modbus_rtu_hicrc_driver_encodes(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+/* 从站地址只有 1 字节：驱动必须在 prepare 拒绝，而不是截断后发到别的从站
+ * （RTU 248..255 截成 0 广播，256 -> 0，65535 -> 255）。 */
+static void test_modbus_slave_id_width(void** state) {
+    (void)state;
+    alignas(max_align_t) uint8_t priv[256];
+    memset(priv, 0, sizeof(priv));
+
+    assert_int_equal(modbus_rtu_driver.req_prepare(priv, 247, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                   0, false, 0.0),
+                     0);
+    assert_int_equal(modbus_rtu_driver.req_prepare(priv, 248, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                   0, false, 0.0),
+                     -1);
+    assert_int_equal(modbus_rtu_driver.req_prepare(priv, 256, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                   0, false, 0.0),
+                     -1);
+    assert_int_equal(modbus_rtu_hicrc_driver.req_prepare(priv, 247, MODBUS_NATIVE(5, 1), NULL, 0,
+                                                         NULL, 0, false, 0.0),
+                     0);
+    assert_int_equal(modbus_rtu_hicrc_driver.req_prepare(priv, 248, MODBUS_NATIVE(5, 1), NULL, 0,
+                                                         NULL, 0, false, 0.0),
+                     -1);
+    assert_int_equal(modbus_tcp_driver.req_prepare(priv, 255, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                   0, false, 0.0),
+                     0);
+    assert_int_equal(modbus_tcp_driver.req_prepare(priv, 256, MODBUS_NATIVE(5, 1), NULL, 0, NULL,
+                                                   0, false, 0.0),
+                     -1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_modbus_v3_master_cycle),
@@ -492,6 +522,7 @@ int main(void) {
         cmocka_unit_test(test_modbus_rtu_read_rejects_write_echo),
         cmocka_unit_test(test_modbus_rtu_hicrc_wire_order),
         cmocka_unit_test(test_modbus_rtu_hicrc_driver_encodes),
+        cmocka_unit_test(test_modbus_slave_id_width),
     };
     return cmocka_run_group_tests(tests, setup, teardown);
 }

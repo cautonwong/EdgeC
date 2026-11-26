@@ -1,0 +1,396 @@
+================================================================================
+🚀 [REFUTATION_TESTING] Running Architecture Guard Refutation Self-Tests (Testing the Gates)
+================================================================================
+  ✅ [PASS] check_plane_isolation.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plane_isolation.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (include cycle) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (include cycle) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (layer direction) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (layer direction) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (unregistered skip) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (unregistered skip) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (include direction and basename fallback) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (include direction and basename fallback) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (forbidden header) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (forbidden header) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (ALIAS) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (ALIAS) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (semicolon list) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (semicolon list) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (bracket args and comments) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (bracket args and comments) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (macro include) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (macro include) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (comment between # and include) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (comment between # and include) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (// line continuation) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (BOM, digraph and backslash continuation) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (BOM, digraph and backslash continuation) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (quoted include containing '>') (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (quoted include containing '>') (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (escaped '(' in a CMake command) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (escaped '(' in a CMake command) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (keyword case sensitivity) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (keyword case sensitivity) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (list APPEND) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (list APPEND) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (PARENT_SCOPE) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (PARENT_SCOPE) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (include relative to CMAKE_CURRENT_SOURCE_DIR) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (include relative to CMAKE_CURRENT_SOURCE_DIR) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (CMAKE_MODULE_PATH) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (CMAKE_MODULE_PATH) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (missing custom module) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (missing custom module) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (quoted semicolon escape) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (quoted semicolon escape) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (target ownership by definition file) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (target ownership by definition file) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (module-internal fixtures dir) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (module-internal fixtures dir) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (cmake/CMakeLists.txt parsed) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (cmake/CMakeLists.txt parsed) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (composition_roots missing path) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (composition_roots missing path) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (composition_roots stale path) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (composition_roots stale path) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (forbidden_headers non-normalized files path) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (forbidden_headers non-normalized files path) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (sources whitelist) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (sources whitelist) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (duplicate sources entry) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (duplicate sources entry) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (duplicate matrix entry) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (duplicate matrix entry) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (layer-qualified shared surface) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (layer-qualified shared surface) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (IMPORTED/ALIAS case sensitivity) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (IMPORTED/ALIAS case sensitivity) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (variable target and link) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (variable target and link) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (include recursion) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (include recursion) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (include cycle) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (include cycle) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (unparseable include) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (unparseable include) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (layer-qualified cycle nodes) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (layer-qualified cycle nodes) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (other layer scan) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (other layer scan) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (ambiguous basename) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (ambiguous basename) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (unique basename owner) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (unique basename owner) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (ambiguous basename outside include roots) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (ambiguous basename outside include roots) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (declared but unregistered target) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (declared but unregistered target) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (schema unknown key) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (schema unknown key) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (schema missing section) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (schema missing section) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (schema missing composition_roots) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (schema missing composition_roots) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (schema dead file) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (schema dead file) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (schema bad JSON) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (schema bad JSON) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (stale known skip) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_architecture_graph.py (stale known skip) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_architecture_graph.py (self-owned forbidden header) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_app_isolation.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_app_isolation.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_no_dynamic_memory.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_no_dynamic_memory.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_no_dynamic_memory.py (rt-alloc-ok) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_no_dynamic_memory.py (rt-alloc-ok) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_no_dynamic_memory.py (rt-alloc-ok block comment) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_no_dynamic_memory.py (rt-alloc-ok block comment) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_stack_usage.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_stack_usage.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_stack_usage.py (opt-out) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_stack_usage.py (opt-out) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_dependencies.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_dependencies.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_sbom.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_sbom.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_exemptions.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_exemptions.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_caller_allocated_storage.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_caller_allocated_storage.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_aggregate_boundary.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_aggregate_boundary.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_composition_root.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_composition_root.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_guard_path_independence.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_guard_path_independence.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_open_closed_plugins.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_open_closed_plugins.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_single_responsibility.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_single_responsibility.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_single_responsibility.py (multiline) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_single_responsibility.py (multiline) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_component_boundary.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_component_boundary.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_product_build_graph.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_product_build_graph.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_component_metadata.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_component_metadata.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_baseline_caps.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_baseline_caps.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_composition_root_budget.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_composition_root_budget.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_composition_root_budget.py (matrix without composition_roots) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_composition_root_budget.py (matrix without composition_roots) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_net_buf_alloc_timeout.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_net_buf_alloc_timeout.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_net_buf_alloc_timeout.py (null pool) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_net_buf_alloc_timeout.py (null pool) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_script_permissions.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_script_permissions.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_test_registration.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_test_registration.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_app_host_no_exec.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_app_host_no_exec.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_stage_registry.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_stage_registry.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_app_abi_surface.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_app_abi_surface.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_crypto_boundary.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_crypto_boundary.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_build_warnings.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_build_warnings.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_strncpy_bounds.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_strncpy_bounds.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_ftell_checked.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ftell_checked.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_alloc_null.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_alloc_null.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_sanitizer_perf_gates.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_sanitizer_perf_gates.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_app_export_dispatch.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_app_export_dispatch.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_sdk_signature.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_sdk_signature.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_dcu_698_catalog.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ci_gate_parity.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ci_gate_parity.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped argument) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped argument) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped formal job) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped formal job) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_formal_isolation.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_formal_isolation.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped environment assignment) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_ci_gate_parity.py (dropped environment assignment) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_privileged_test_runs.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_privileged_test_runs.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_acceptance_tasks.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_acceptance_tasks.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_acceptance_tasks.py (nonzero) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_acceptance_tasks.py (nonzero) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_test_io_eintr.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_test_io_eintr.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_test_io_eintr.py (MSG_DONTWAIT) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_test_io_eintr.py (EINTR branch) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_test_io_eintr.py (EINTR branch) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_protocol_selection.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_protocol_selection.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_protocol_selection.py (comments) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_protocol_selection.py (comments) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_iems_control_slave.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_iems_control_slave.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_iems_stdout_line_buffered.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_iems_stdout_line_buffered.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_iems_control_slave.py (hex literal) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_iems_control_slave.py (hex literal) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_acceptance_wrapper_signals.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_acceptance_wrapper_signals.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_doc_references.py (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_doc_references.py (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (missing file) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (missing file) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (extra file) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (extra file) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (hash mismatch) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (hash mismatch) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (invalid JSON) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (invalid JSON) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (missing manifest) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (missing manifest) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_inventory.py (malformed manifest) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_inventory.py (malformed manifest) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (unknown key) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (unknown key) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (missing required) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (missing required) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (bad reference) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (bad reference) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (plaintext secret) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (plaintext secret) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (missing schema_version) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (missing schema_version) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (missing template) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (missing template) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (bad pub tag) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (bad pub tag) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (P2 unknown key) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (P2 unknown key) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (P2 missing required) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (P2 missing required) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (P2 bad type) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (P2 bad type) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (north map tuple type) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (north map tuple type) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] config_schema.py (rate_fig bad type) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] config_schema.py (rate_fig bad type) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] convert_config.py (unknown key) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] convert_config.py (unknown key) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] convert_config.py (missing required) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] convert_config.py (missing required) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] convert_config.py (bad channel reference) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] convert_config.py (bad channel reference) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] convert_config.py (missing schema_version) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] convert_config.py (missing schema_version) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] convert_config.py (plaintext secret in expected artifact) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] convert_config.py (plaintext secret in expected artifact) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_plaintext_secrets.py (json plaintext) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plaintext_secrets.py (json plaintext) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_plaintext_secrets.py (yaml plaintext) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plaintext_secrets.py (yaml plaintext) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_plaintext_secrets.py (env plaintext) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plaintext_secrets.py (env plaintext) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_plaintext_secrets.py (outside allowlist) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plaintext_secrets.py (outside allowlist) (Refutation / Bad Fixture correctly caught and rejected)
+  ✅ [PASS] check_plaintext_secrets.py (stale allowlist) (Positive Assertion / Good Fixture passed as expected)
+  ✅ [PASS] check_plaintext_secrets.py (stale allowlist) (Refutation / Bad Fixture correctly caught and rejected)
+
+================================================================================
+🧬 [MUTATION] Deleting one parser rule must silence its fixture
+================================================================================
+  ✅ [MUTATION] ALIAS resolution: deletion silences 'UNDECLARED_EDGE' (rc=1)
+  ✅ [MUTATION] semicolon list split: deletion silences 'UNDECLARED_EDGE' (rc=0)
+  ✅ [MUTATION] C comment strip before include scan: deletion silences 'UNDECLARED_EDGE' (rc=0)
+  ✅ [MUTATION] macro include gap: deletion silences 'include-macro' (rc=0)
+  ✅ [MUTATION] variable expansion: deletion silences 'link foundation_base' (rc=1)
+  ✅ [MUTATION] forbidden header: deletion silences 'FORBIDDEN_HEADER' (rc=1)
+  ✅ [MUTATION] matrix schema unknown key: deletion silences 'MATRIX_SCHEMA' (rc=0)
+  ✅ [MUTATION] stale known skip: deletion silences 'STALE_KNOWN_SKIP' (rc=0)
+
+================================================================================
+🧾 [LEDGER_DECOY] A layer-decoy plane entry cannot buy a false clean ledger
+================================================================================
+  ✅ [PASS] layer-qualified plane comparison rejects the adapters decoy
+  ✅ [PASS] an unmarked modules include permission is rejected
+
+================================================================================
+🔬 [STRONG_MODE] Preprocessor closure catches what the text scan cannot see
+================================================================================
+  ✅ [PASS] strong-mode fixture (text mode stays green on the angle include)
+  ✅ [PASS] strong-mode fixture (preprocessor closure finds the first-party angle include)
+  ✅ [PASS] -MF/-MD/-MT stripped, dependencies still reach stdout
+  ✅ [PASS] a closure without the TU source fails closed
+
+================================================================================
+🧪 [FORMAL_ISOLATION_PATH] Testing the isolation guard under a path containing 'formal'
+================================================================================
+  ✅ [PASS] check_formal_isolation.py (generated tree under a 'formal' path ignored)
+  ✅ [PASS] check_formal_isolation.py (tracked formal/ include still rejected)
+
+================================================================================
+🧪 [FORMAL_MANIFESTS] Testing manifest discovery, schema and registration refutations
+================================================================================
+  ✅ [PASS] test_formal_manifests.py (all manifest refutations caught)
+
+================================================================================
+📚 [CATALOG_GATE] Testing the 698 catalog gate on a real docs copy
+================================================================================
+  ✅ [PASS] check_dcu_698_catalog.py (unmodified copy accepted)
+  ✅ [PASS] check_dcu_698_catalog.py (corrupted copy rejected)
+  ✅ [PASS] check_dcu_698_catalog.py (unrecorded conflict rejected)
+
+================================================================================
+📈 [COVERAGE_GATE] Testing coverage floor sensitivity
+================================================================================
+  ✅ [PASS] check_coverage.py (good fixture, rc=0)
+  ✅ [PASS] check_coverage.py (bad fixture, rc=1)
+
+================================================================================
+🔬 [FANALYZER_SCOPE] Testing the analyzer finding filter
+================================================================================
+  ✅ [PASS] fanalyzer scope (vendored build tree -> 0 finding(s))
+  ✅ [PASS] fanalyzer scope (vendored source -> 0 finding(s))
+  ✅ [PASS] fanalyzer scope (first-party source -> 1 finding(s))
+
+================================================================================
+🏗️  [BUILD_FRESHNESS] Testing the build-artifact freshness gate
+================================================================================
+  ✅ [PASS] check_build_freshness.py (build with no pending work accepted)
+  ✅ [PASS] check_build_freshness.py (build from another tree rejected)
+  ✅ [PASS] check_build_freshness.py (pending work rejected)
+================================================================================
+📊 Refutation Test Results: 286/286 passed (100% sensitivity)
+================================================================================
+
+================================================================================
+🎯 [INJECTION_REGRESSION] Replaying the 8 probes from issue #410
+================================================================================
+  ⚪ [GAP]     i01  hub->shadow_table field penetration  -> check_aggregate_boundary.py  (#413, tracked)
+  ✅ [CAUGHT]  i02  library module calls datahub_init()  -> check_composition_root.py
+  ⚪ [GAP]     i03  plain malloc in a non-critical helper  -> check_no_dynamic_memory.py  (#412, tracked)
+  ✅ [CAUGHT]  i04  single-line _create_in() that allocates  -> check_caller_allocated_storage.py
+  ✅ [CAUGHT]  i05  edge_core includes stream_engine_priv.h  -> check_plane_isolation.py
+  ✅ [CAUGHT]  i06  multi-line _create_in() that allocates  -> check_caller_allocated_storage.py
+  ✅ [CAUGHT]  i07  _storage_t without alignas  -> check_caller_allocated_storage.py
+  ✅ [CAUGHT]  i08  _storage_t without _Static_assert  -> check_caller_allocated_storage.py
+📊 Injection coverage: 6 caught / 2 known gap(s) of 8 probes
+
+🔍 Running live architecture guards on active repository...
+  ✅ [LIVE_PASS] check_plane_isolation.py
+  ✅ [LIVE_PASS] check_architecture_graph.py
+  ✅ [LIVE_PASS] check_app_isolation.py
+  ✅ [LIVE_PASS] check_caller_allocated_storage.py
+  ✅ [LIVE_PASS] check_dependencies.py
+  ✅ [LIVE_PASS] check_exemptions.py
+  ✅ [LIVE_PASS] check_aggregate_boundary.py
+  ✅ [LIVE_PASS] check_composition_root.py
+  ✅ [LIVE_PASS] check_open_closed_plugins.py
+  ✅ [LIVE_PASS] check_single_responsibility.py
+  ✅ [LIVE_PASS] check_no_dynamic_memory.py
+  ✅ [LIVE_PASS] check_stack_usage.py
+  ✅ [LIVE_PASS] check_component_boundary.py
+  ✅ [LIVE_PASS] check_product_build_graph.py
+  ✅ [LIVE_PASS] check_component_metadata.py
+  ✅ [LIVE_PASS] check_public_structs.py
+  ✅ [LIVE_PASS] check_resource_discipline.py
+  ✅ [LIVE_PASS] check_composition_root_budget.py
+  ✅ [LIVE_PASS] check_baseline_caps.py
+  ✅ [LIVE_PASS] check_sdk_wit.py
+  ✅ [LIVE_PASS] check_net_buf_alloc_timeout.py
+  ✅ [LIVE_PASS] check_script_permissions.py
+  ✅ [LIVE_PASS] check_test_registration.py
+  ✅ [LIVE_PASS] check_app_host_no_exec.py
+  ✅ [LIVE_PASS] check_stage_registry.py
+  ✅ [LIVE_PASS] check_app_abi_surface.py
+  ✅ [LIVE_PASS] check_crypto_boundary.py
+  ✅ [LIVE_PASS] check_strncpy_bounds.py
+  ✅ [LIVE_PASS] check_ftell_checked.py
+  ✅ [LIVE_PASS] check_alloc_null.py
+  ✅ [LIVE_PASS] check_sanitizer_perf_gates.py
+  ✅ [LIVE_PASS] check_app_export_dispatch.py
+  ✅ [LIVE_PASS] check_sdk_signature.py
+  ✅ [LIVE_PASS] check_protocol_selection.py
+  ✅ [LIVE_PASS] check_privileged_test_runs.py
+  ✅ [LIVE_PASS] check_dcu_698_catalog.py
+  ✅ [LIVE_PASS] check_iems_control_slave.py
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+  ✅ [LIVE_PASS] check_acceptance_wrapper_signals.py
+  ✅ [LIVE_PASS] check_doc_references.py
+  ✅ [LIVE_PASS] check_guard_path_independence.py
+  ✅ [ARCH_LEDGER] fallbacks match the matrix (18 plane pairs, 3 components, 4 file rules)
+  ✅ [DOC_REFS] 30 AGENTS.md script reference(s) resolve
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!

@@ -1,0 +1,153 @@
+== environment ==
+branch: dcu/D1-10B-line-window
+base: 4da3a938 (feat/dcu tip)
+worktree: /tmp/edgec-land/d1-10b-window
+Python 3.10.12
+gcc (Ubuntu 11.4.0-1ubuntu1~22.04.2) 11.4.0
+cmake version 4.2.1
+1.10.1
+
+== red: tests/test_dcu_698_catalog_source_window.py against generator at 4da3a938 ==
+FFFFFF
+======================================================================
+FAIL: test_duplicate_appendix_a_title_is_rejected (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 104, in test_duplicate_appendix_a_title_is_rejected
+    self.assertNotEqual(proc.returncode, 0, "generator accepted a duplicate Appendix A title")
+AssertionError: 0 == 0 : generator accepted a duplicate Appendix A title
+
+======================================================================
+FAIL: test_duplicate_object_table_title_is_rejected (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 116, in test_duplicate_object_table_title_is_rejected
+    self.assertNotEqual(proc.returncode, 0, "generator accepted a duplicate table A.7 title")
+AssertionError: 0 == 0 : generator accepted a duplicate table A.7 title
+
+======================================================================
+FAIL: test_missing_appendix_a_title_is_rejected (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 97, in test_missing_appendix_a_title_is_rejected
+    self.assertNotEqual(proc.returncode, 0, "generator accepted a source with no Appendix A title")
+AssertionError: 0 == 0 : generator accepted a source with no Appendix A title
+
+======================================================================
+FAIL: test_missing_object_table_title_is_rejected (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 110, in test_missing_object_table_title_is_rejected
+    self.assertNotEqual(proc.returncode, 0, "generator accepted a source missing table A.7")
+AssertionError: 0 == 0 : generator accepted a source missing table A.7
+
+======================================================================
+FAIL: test_shifted_source_keeps_the_catalog (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 77, in test_shifted_source_keeps_the_catalog
+    self.assertEqual(
+AssertionError: Items in the second set but not the first:
+'F301'
+'F300' : shifted source changed the OI set; missing ['F300', 'F301'], extra []
+
+======================================================================
+FAIL: test_table_without_object_header_is_rejected (__main__.CatalogSourceWindowTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/d1-10b-window/tests/test_dcu_698_catalog_source_window.py", line 129, in test_table_without_object_header_is_rejected
+    self.assertNotEqual(proc.returncode, 0, "generator accepted a table title with no header")
+AssertionError: 0 == 0 : generator accepted a table title with no header
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.485s
+
+FAILED (failures=6)
+
+== green: same test after 768d7ed7 (rerun after comment trims) ==
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.956s
+
+OK
+
+== generator --check on the real docs ==
+catalog_check_exit=0
+
+== regenerate then diff generated outputs ==
+wrote docs/design/DCU_698_OI_CATALOG.md (26 classes, 514 OIs)
+wrote docs/design/DCU_698_OI_CATALOG.json
+wrote tests/fixtures/dcu_698_catalog_expected.h
+regen_exit=0
+generated_diff_exit=0
+
+== check_dcu_698_catalog.py ==
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+catalog_gate_exit=0
+
+== check_doc_references.py ==
+doc_refs_exit=0
+
+== check_guard_path_independence.py ==
+✅ [GUARD_PATH_INDEPENDENCE] No checkout-path-keyed exemptions.
+path_independence_exit=0
+
+== check_build_warnings.py on the clean build log ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+warning_gate_exit=0
+(full build log has 1 warning in build/third-party/open62541 generated config.h; ignored by the gate)
+
+== test_dcu_698_catalog ==
+== build warnings ==
+1
+
+== test_dcu_698_catalog ==
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_methods_stay_within_the_oi_definition
+[       OK ] test_methods_stay_within_the_oi_definition
+[ RUN      ] test_class_attr_limit_matches_catalog
+[       OK ] test_class_attr_limit_matches_catalog
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).
+catalog_test_exit=0
+
+== ctest -R 'dcu|catalog' ==
+      Start 343: test_dcu_mutex_marathon
+37/38 Test #343: test_dcu_mutex_marathon ..............   Passed    0.79 sec
+      Start 344: test_dcu_topology_phase_id
+38/38 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 38
+
+Total Test time (real) =  67.09 sec
+ctest_exit=0
+
+== mutation guard DCU-D1-10B-fixed-line-window ==
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d1-10b-window/build ===
+
+[MUTATION] DCU-D1-10B-fixed-line-window (scripts/extract_dcu_698_catalog.py)
+  [mutate] scripts/extract_dcu_698_catalog.py: 1 occurrence replaced
+  [mutated] build rc=0, test rc=1
+  [restore] scripts/extract_dcu_698_catalog.py: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D1-10B-fixed-line-window: red under mutation (rc=1), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+
+== run_guard_selftest.py --root . ==
+314:  ✅ [PASS] test_dcu_698_catalog_source_window.py (shifted source accepted, broken titles rejected)
+  ✅ [LIVE_PASS] check_iems_stdout_line_buffered.py
+  ✅ [LIVE_PASS] check_acceptance_wrapper_signals.py
+  ✅ [LIVE_PASS] check_doc_references.py
+  ✅ [LIVE_PASS] check_guard_path_independence.py
+  ✅ [ARCH_LEDGER] fallbacks match the matrix (18 plane pairs, 3 components, 4 file rules)
+  ✅ [DOC_REFS] 30 AGENTS.md script reference(s) resolve
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+guard_selftest_exit=0

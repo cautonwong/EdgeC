@@ -42,6 +42,11 @@ int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg) {
     return -1;
 }
 
+int sqlite_svc_insert_at(sqlite_svc_t *svc, const PipeMsg *msg, uint64_t wall_ts_us) {
+    (void)svc; (void)msg; (void)wall_ts_us;
+    return -1;
+}
+
 int sqlite_svc_query(sqlite_svc_t *svc, uint64_t start_ts, uint64_t end_ts, sqlite_svc_query_cb cb, void *user_data) {
     (void)svc; (void)start_ts; (void)end_ts; (void)cb; (void)user_data;
     return -1;

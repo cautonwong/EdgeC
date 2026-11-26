@@ -1,0 +1,26 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  31 ++++
+ cmd/dcu/CMakeLists.txt                      |   1 +
+ cmd/dcu/dcu_698_appconn.c                   |   2 +
+ cmd/dcu/dcu_698_axdr.c                      |  18 +--
+ cmd/dcu/dcu_698_axdr.h                      |   4 +
+ cmd/dcu/dcu_698_axdr_internal.h             |   9 ++
+ cmd/dcu/dcu_698_class_acq.c                 |   9 ++
+ cmd/dcu/dcu_698_object_internal.h           |   2 +
+ cmd/dcu/dcu_698_object_model.c              |  10 ++
+ cmd/dcu/dcu_698_scheme_axdr.c               | 137 ++++++++++++++++
+ cmd/dcu/dcu_north_adapter.c                 |   2 +-
+ cmd/dcu/dcu_report_scheme_store.c           | 233 ++++++++++++++++++++++++++++
+ cmd/dcu/dcu_router.h                        |   2 +
+ cmd/dcu/dcu_scheme_store.c                  |  14 +-
+ cmd/dcu/dcu_scheme_store.h                  |  34 ++++
+ cmd/dcu/dcu_scheme_store_internal.h         |  27 ++++
+ docs/evidence/DCU-D2-06/comments.md         |  24 +++
+ docs/evidence/DCU-D2-06/diffstat.txt        |   0
+ docs/evidence/DCU-D2-06/runtime.log         |  38 +++++
+ docs/evidence/DCU-D2-06/summary.md          |  19 ++-
+ docs/evidence/DCU-D2-06/tests.log           |  68 ++++++++
+ tests/test_dcu_698_appconn.c                |   2 +-
+ tests/test_dcu_698_object_model.c           |   2 +-
+ tests/test_dcu_698_scheme_mgmt.c            | 179 ++++++++++++++++++++-
+ tests/test_driver_dlt698.c                  |   2 +-
+ 25 files changed, 849 insertions(+), 20 deletions(-)

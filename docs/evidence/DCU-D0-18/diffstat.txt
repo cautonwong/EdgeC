@@ -1,0 +1,5 @@
+ acceptance/dcu/dcu_product.py |  9 ++++----
+ cmd/dcu/dcu_poller.c          | 42 +++++++++++++++++--------------------
+ cmd/dcu/dcu_poller.h          | 11 ++++++----
+ tests/test_dcu_poller.c       | 48 +++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 79 insertions(+), 31 deletions(-)

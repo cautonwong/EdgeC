@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "proto_trigger",
+  "description": "P6-04a round 2. Covers proto_trigger_cfg.json (trigger rule container). 结构冻结、语义未确认 (structure frozen, semantics unconfirmed): no parser or executor exists in iems_v3; ems_ua.c only writes and reads the document back (src/ems/ems_ua.c:528-537, :991-997). The element schema of triggers is unconfirmed, so only the empty array observed in the snapshot is accepted; any rule element hard-fails until the format is confirmed.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "version",
+    "triggers"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "version": {
+      "type": "string"
+    },
+    "triggers": {
+      "type": "array",
+      "maxItems": 0
+    }
+  },
+  "additionalProperties": false
+}

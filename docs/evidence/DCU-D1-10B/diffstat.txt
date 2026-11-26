@@ -1,0 +1,11 @@
+ ci/mutation_guards.tsv                           |   1 +
+ ci/scripts/run_guard_selftest.py                 |  16 +++
+ docs/evidence/DCU-D1-10B/comments.md             |  40 ++++++
+ docs/evidence/DCU-D1-10B/diffstat.txt            |  11 ++
+ docs/evidence/DCU-D1-10B/runtime.log             |  15 +++
+ docs/evidence/DCU-D1-10B/summary.md              |  55 ++++++++
+ docs/evidence/DCU-D1-10B/tests.log               | 153 +++++++++++++++++++++++
+ docs/plans/2026-11-21-dcu-698-production-plan.md |   2 +-
+ scripts/extract_dcu_698_catalog.py               |  77 +++++++++---
+ tests/test_dcu_698_catalog_source_window.py      | 133 ++++++++++++++++++++
+ 10 files changed, 482 insertions(+), 21 deletions(-)

@@ -104,18 +104,23 @@ int iems_node_update_bms_rack(iems_node_t *node, uint8_t rack_id, double voltage
  * @brief 南向轮询采样的镜像写入口 (镜像聚合的唯一写路径)
  *
  * 不变量:sample_ts 是采样(读帧编码发出)时刻,单位与 pipe_msg_t.ts 相同(uv_hrtime 纳秒);
- * 比 shadow 当前内容更旧的采样被丢弃,迟到的轮询结果不能覆盖更晚的控制写。
- * 未采集过的 tag 读到 ts==0。
- * 局限:镜像按 tag 唯一,不带 device_id —— 多机共用同一 tag 会互相覆盖。
+ * 比 (device_id, tag_id) 槽当前内容更旧的采样被丢弃,迟到的轮询结果不能覆盖更晚的
+ * 控制写。device_id 是 inventory 的稠密身份(1..63),不是从站地址;0 表示 tag 级视图,
+ * 只写 device 0 槽。
+ *
+ * 每笔采样先写 (device_id, tag_id) 槽(按设备守卫),再派生 device 0 的 tag 级视图
+ * (按视图自己的 ts 守卫)。tag-only 读者(REST/app/UI/CLI)读视图,多机同 tag 互不覆盖。
+ * 未采集过的槽读到 ts==0。
  * 调用方须在轮询回调里调用,热路径无堆分配。
  *
  * @param node 聚合根句柄
+ * @param device_id 设备身份(inventory id),0 = tag 级视图
  * @param tag_id 采集点
  * @param value 采样值
  * @param sample_ts 采样时刻(请求编码发出时,不是结果到达时)
  * @return 0 成功(含旧采样被丢弃), <0 参数非法或镜像写入失败
  */
-int iems_node_ingest_sample(iems_node_t *node, uint32_t tag_id, double value,
+int iems_node_ingest_sample(iems_node_t *node, uint32_t device_id, uint32_t tag_id, double value,
                             uint64_t sample_ts);
 
 /**
@@ -144,10 +149,22 @@ int iems_node_get_watchdog_stats(iems_node_t *node, iems_loop_watchdog_stats_t *
  */
 int iems_node_reset_watchdog_degrade(iems_node_t *node);
 
+/* 执行完成状态（消费者定接口）：北向回执只关心成功/失败/超时三态。
+ * 总线 cmd_status_t 到这三态的映射由执行适配器负责，聚合根与端口调用方不依赖总线错误码。 */
+typedef enum {
+    IEMS_WRITE_DONE_OK = 0,
+    IEMS_WRITE_DONE_FAILED = 1,
+    IEMS_WRITE_DONE_TIMEOUT = 2
+} iems_write_done_status_t;
+
+/* 完成回调可能在总线/IO 线程触发，实现方必须自己保证线程安全（北向用 uv_async 回投）。
+ * on_done 为 NULL 时行为与旧接口一致：只提交，不要结果。 */
+typedef void (*iems_write_done_fn)(void *user, iems_write_done_status_t status);
+
 typedef struct {
     void *ctx;
     int (*write_tag)(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
-                     const char *proto);
+                     const char *proto, iems_write_done_fn on_done, void *on_done_user);
 } iems_execution_port_t;
 
 /**
@@ -159,9 +176,13 @@ int iems_node_set_execution_port(iems_node_t *node, iems_execution_port_t port);
  * @brief 领域写入口：先过聚合根校验，再经执行端口下发。
  *
  * slave_id 是点位的物理设备地址，由调用方的轮询路由决定；聚合根不猜默认值。
+ * device_id 是 inventory 身份（影子槽键），0 表示只写 tag 级视图。
+ * on_done/on_done_user 可选；PCS_CONTROL 的完成回调只覆盖最终这一路写，
+ * iems_node_dispatch_power 内部的多路分摊结果本轮不聚合（accepted 语义仍有效）。
  */
-int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t tag_id,
-                        double value, const char *proto);
+int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32_t device_id,
+                        uint32_t tag_id, double value, const char *proto,
+                        iems_write_done_fn on_done, void *on_done_user);
 
 #ifdef __cplusplus
 }

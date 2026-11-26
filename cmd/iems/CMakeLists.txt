@@ -19,7 +19,10 @@ target_include_directories(iems_points PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/points
 
 add_library(iems_app_lib STATIC
     iems_node.c
+    iems_bess_aggregate.c
     iems_app.c
+    iems_health_monitor.c
+    iems_pcs_settings.c
     iems_wal_start.c
     iems_app_manager_adapter.c
     iems_app_runtime.c
@@ -29,11 +32,16 @@ add_library(iems_app_lib STATIC
     iems_north_adapter.c
     iems_driver_adapter.c
     iems_microgrid_coordinator.c
+    iems_tou_demand.c
     iems_pcs_controller.c
     iems_bms_cluster_engine.c
     iems_multi_pcs_dispatcher.c
     iems_fire_safety_interlock.c
     iems_commissioning_tool.c
+    iems_alarm_registry.c
+    iems_alarm_state.c
+    iems_config_loader.c
+    iems_bmser_ipc.c
     iems_task_loader.c
     iems_poll_scheduler.c
     iems_southbound_adapter.c
@@ -65,6 +73,7 @@ target_include_directories(iems_app_lib PUBLIC
 )
 
 target_link_libraries(iems_app_lib PUBLIC
+    cjson
     edge_bootstrap
     edge_io
     edge_io_drivers
@@ -85,6 +94,7 @@ target_link_libraries(iems_app_lib PUBLIC
     edge_mgmt
     edge_app_host
     edge_linux_platform
+    iems_points
     iems_vendor
 )
 

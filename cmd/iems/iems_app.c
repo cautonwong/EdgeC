@@ -33,6 +33,7 @@
 #include "edge_params.h"
 #include "iems_app_manager_adapter.h"
 #include "iems_app_runtime.h"
+#include "iems_config_loader.h"
 #include "iems_driver_adapter.h"
 #include "iems_execution_adapter.h"
 #include "iems_internal_bus_adapter.h"
@@ -40,6 +41,8 @@
 #include "iems_north_iec104.h"
 #include "iems_task_loader.h"
 #include "iems_north_listener.h"
+#include "iems_health_monitor.h"
+#include "iems_pcs_settings.h"
 #include "iems_poll_scheduler.h"
 #include "iems_pressure_adapter.h"
 #include "iems_southbound_adapter.h"
@@ -95,6 +98,13 @@ struct iems_app_s {
 
     iems_poll_scheduler_t poll;
     iems_internal_bus_t internal_bus;
+
+    /* P6-02b: 硬件健康门控（1s 读 /proc/stat、/proc/meminfo、statvfs） */
+    iems_health_monitor_t health;
+    iems_health_linux_source_t health_linux;
+
+    /* P2-02a: 转换后的 PCS/EMS 设置（启动期加载，只读 getter 暴露） */
+    iems_pcs_settings_t pcs_settings;
 
     bool buses_attempted;
     iems_bus_wiring_t wiring;
@@ -184,7 +194,7 @@ static bool _iems_production_env(void) {
 
 /* 北向控制写的取数与路由都在产品侧：driver 不认识点位模型。 */
 static void _iems_north_bind(iems_north_ctx_t *adapter, void *north, sqlite_svc_t *db) {
-    adapter->north = north;
+    atomic_store_explicit(&adapter->north, north, memory_order_release);
     adapter->route_for_tag = iems_control_route_for_tag;
     adapter->route_ctx = db;
 }
@@ -281,6 +291,42 @@ static void _setup_buses(iems_app_t* app) {
     }
 }
 
+/* 微运行时与北向通信：WASM 总线、MQTT 管理器、取数/控制端口。 */
+static void _setup_northbound(iems_app_t* app, const iems_app_config_t* cfg) {
+    stream_bus_port_t wasm_bus = stream_bus_datahub_port(app->hub);
+    wasm_mgr_init(&wasm_bus);
+
+    app->north = (northbound_mgr_t*)calloc(1, sizeof(northbound_mgr_t));
+    const char* mqtt_url = (cfg && cfg->mqtt_url) ? cfg->mqtt_url : "tcp://localhost:1883";
+    nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
+    nb_source_ops_t nb_source = northbound_source_from_datahub(app->hub);
+    if (app->db_service) app->snf_store = snf_sqlite_store_port(app->db_service);
+    northbound_mgr_init_ex(app->north, nb_source, "IEMS_V4",
+                           app->db_service ? &app->snf_store : NULL, transport);
+    northbound_mgr_set_driver_port(app->north,
+                                   north_driver_adapter_init(&app->north_driver_storage));
+    /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
+    northbound_mgr_set_address(app->north, NULL, getenv("MQTT_GROUP_ID"), getenv("MQTT_NODE_ID"));
+    /* 北向取数端口：metric 名与当前值由产品给，驱动不反查 datahub。 */
+    _iems_north_bind(&app->north_adapter, app->north, app->db_service);
+    northbound_mgr_set_north_source(app->north, iems_north_source_ops(), &app->north_adapter);
+    /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
+     * 现场默认仍是 Sparkplug B）。换协议时地址模板跟着换。 */
+    const char* nb_proto = getenv("MQTT_PROTOCOL");
+    if (nb_proto && *nb_proto && northbound_mgr_set_protocol(app->north, nb_proto) != 0) {
+        LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
+    }
+}
+
+/* P2-02a: ems/lc 设置从同一个 EDGE_CONFIG_DIR 读；失败信息交给启动链拒启。 */
+static int _load_pcs_settings(iems_app_t *app, const char *config_dir, char *err,
+                              size_t err_size) {
+    iems_config_file_source_t pcs_source;
+    iems_config_file_source_init(&pcs_source, config_dir);
+    iems_config_source_t pcs_port = iems_config_file_source_port(&pcs_source);
+    return iems_pcs_settings_load(&pcs_port, &app->pcs_settings, err, err_size);
+}
+
 iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (!loop) return NULL;
 
@@ -312,6 +358,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->north_adapter.hub = app->hub;
     app->north_adapter.submit_control = iems_control_submit;
     app->north_adapter.submit_ctx = app->node;
+    iems_north_results_reset(&app->north_adapter);
     iems_node_set_execution_port(app->node, iems_execution_port_create(app));
 
     // =========================================================================
@@ -358,6 +405,29 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
         }
     }
     iems_poll_scheduler_init(&app->poll, loop, app->node, app->db_service);
+    iems_health_linux_source_init(&app->health_linux);
+    iems_health_monitor_init(&app->health, app->hub,
+                             iems_health_linux_source_port(&app->health_linux));
+
+    /* P6-04b: 显式配置了 EDGE_CONFIG_DIR 就 fail closed: 错误路由会把控制写落到错误从站。 */
+    if (cfg && cfg->config_dir && cfg->config_dir[0]) {
+        char config_err[256];
+        if (iems_config_load_apply(cfg->config_dir, app->db_service, config_err,
+                                   sizeof(config_err)) != 0) {
+            LOG_ERROR(LOG_CAT_CORE, "IEMS config load failed at %s: %s; boot aborted",
+                      cfg->config_dir, config_err);
+            iems_app_destroy(app);
+            return NULL;
+        }
+        /* P2-02a: 转换后的 ems/lc 设置；坏文件与 device/port 一样拒启。 */
+        char pcs_err[256];
+        if (_load_pcs_settings(app, cfg->config_dir, pcs_err, sizeof(pcs_err)) != 0) {
+            LOG_ERROR(LOG_CAT_CORE, "IEMS pcs settings load failed at %s: %s; boot aborted",
+                      cfg->config_dir, pcs_err);
+            iems_app_destroy(app);
+            return NULL;
+        }
+    }
 
     app->stream_eng =
         stream_engine_create_datahub(app->hub, NULL, app->orch, edge_stage_factory_get_registry());
@@ -370,31 +440,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     // =========================================================================
     // Phase 5: 微运行时与北向通信 (WASM & Northbound MQTT)
     // =========================================================================
-    stream_bus_port_t wasm_bus = stream_bus_datahub_port(app->hub);
-    wasm_mgr_init(&wasm_bus);
-
-    app->north = (northbound_mgr_t*)calloc(1, sizeof(northbound_mgr_t));
-    const char* mqtt_url = (cfg && cfg->mqtt_url) ? cfg->mqtt_url : "tcp://localhost:1883";
-    nb_transport_ops_t transport = mqtt_producer_create(mqtt_url, "IEMS_EDGE_NODE");
-    nb_source_ops_t nb_source = northbound_source_from_datahub(app->hub);
-    if (app->db_service) app->snf_store = snf_sqlite_store_port(app->db_service);
-    northbound_mgr_init_ex(app->north, nb_source, "IEMS_V4",
-                           app->db_service ? &app->snf_store : NULL, transport);
-    northbound_mgr_set_driver_port(app->north,
-                                   north_driver_adapter_init(&app->north_driver_storage));
-    /* 主题身份在这里读一次 env 并交给北向管理器，深层模块不再自己 getenv。 */
-    northbound_mgr_set_address(app->north, NULL, getenv("MQTT_GROUP_ID"),
-                               getenv("MQTT_NODE_ID"));
-    /* 北向取数端口：metric 名与当前值由产品给，驱动不反查 datahub。 */
-    _iems_north_bind(&app->north_adapter, app->north, app->db_service);
-    northbound_mgr_set_north_source(app->north, iems_north_source_ops(),
-                                    &app->north_adapter);
-    /* 协议可由部署选（E2E 用 MqttJson：载荷是 JSON，平台侧能解；
-     * 现场默认仍是 Sparkplug B）。换协议时地址模板跟着换。 */
-    const char* nb_proto = getenv("MQTT_PROTOCOL");
-    if (nb_proto && *nb_proto && northbound_mgr_set_protocol(app->north, nb_proto) != 0) {
-        LOG_WARN(LOG_CAT_NB, "Northbound: unknown protocol '%s', keeping default", nb_proto);
-    }
+    _setup_northbound(app, cfg);
 
     // =========================================================================
     // Phase 6: 系统服务、REST API 与 UI 伴随通道
@@ -495,6 +541,7 @@ int iems_app_start(iems_app_t* app) {
     iems_node_start(app->node);
 
     iems_poll_scheduler_start(&app->poll);
+    iems_health_monitor_start(&app->health, app->loop, 1000);
 
     uv_timer_init(app->loop, &app->timer_monitor);
     app->timer_monitor.data = app;
@@ -518,6 +565,7 @@ void iems_app_destroy(iems_app_t* app) {
     if (!app) return;
 
     iems_poll_scheduler_stop(&app->poll);
+    iems_health_monitor_stop(&app->health);
 
     // timer_monitor 的 uv_init 在 iems_app_start 里;
     // 启动前就调用 destroy 时(组合根在 connect 失败后退场)不能 uv_close 未初始化的 handle。
@@ -554,6 +602,8 @@ void iems_app_destroy(iems_app_t* app) {
     if (app->stream_eng) stream_engine_destroy(app->stream_eng);
     wasm_mgr_cleanup();
     iems_app_manager_destroy(app->app_mgr, app->app_mgr_mem);
+    /* 先清在途结果上下文并断开 ctx->north，再停北向线程：停后迟到的完成回调只能丢弃。 */
+    iems_north_results_reset(&app->north_adapter);
     if (app->north) northbound_mgr_stop(app->north);
     if (app->svc) service_delete(app->svc);
     if (app->pipeline_params) edge_params_destroy(app->pipeline_params);
@@ -575,4 +625,8 @@ void iems_app_destroy(iems_app_t* app) {
 
 iems_node_t* iems_app_get_node(iems_app_t* app) {
     return app ? app->node : NULL;
+}
+
+const iems_pcs_settings_t *iems_app_get_pcs_settings(iems_app_t *app) {
+    return app ? &app->pcs_settings : NULL;
 }

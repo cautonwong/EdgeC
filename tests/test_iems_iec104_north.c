@@ -58,8 +58,10 @@ typedef struct {
 } fixture_t;
 
 static int fake_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
-                      const char *proto) {
+                      const char *proto, iems_write_done_fn on_done, void *on_done_user) {
     (void)proto;
+    (void)on_done;
+    (void)on_done_user;
     fake_exec_t *exec = (fake_exec_t *)ctx;
     exec->calls++;
     exec->bus_id = bus_id;

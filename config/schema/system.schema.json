@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "system_cfg",
+  "description": "P6-04a round 1. Covers system_cfg.json. Every key accepted by cabinet_info_tab is optional; total_capacity/total_power are consumed by nobody (x-ignored).",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "id": {
+      "type": "string"
+    },
+    "cnt_id": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "capacity": {
+      "type": "integer"
+    },
+    "power": {
+      "type": "integer"
+    },
+    "time": {
+      "type": "string"
+    },
+    "local": {
+      "type": "string"
+    },
+    "station_name": {
+      "type": "string"
+    },
+    "en_cloud": {
+      "type": "integer"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "en_mqtt_dp": {
+      "type": "integer"
+    },
+    "en_mqtt_emms2": {
+      "type": "integer"
+    },
+    "en_mqtt_emms2_write": {
+      "type": "integer"
+    },
+    "en_mqtt_stactrl": {
+      "type": "integer"
+    },
+    "en_mqtt_stactrl_write": {
+      "type": "integer"
+    },
+    "en_lc": {
+      "type": "integer"
+    },
+    "en_lc_ctrl": {
+      "type": "integer"
+    },
+    "mode": {
+      "type": "integer"
+    },
+    "mode_microgrid": {
+      "type": "integer"
+    },
+    "en_diesel_generator": {
+      "type": "integer"
+    },
+    "en_photovoltaic": {
+      "type": "integer"
+    },
+    "en_mains": {
+      "type": "integer"
+    },
+    "en_charging_pile": {
+      "type": "integer"
+    },
+    "en_esc": {
+      "type": "integer"
+    },
+    "en_sts": {
+      "type": "integer"
+    },
+    "en_icb": {
+      "type": "integer"
+    },
+    "en_lcb": {
+      "type": "integer"
+    },
+    "en_ats": {
+      "type": "integer"
+    },
+    "en_north_mqtt": {
+      "type": "integer"
+    },
+    "en_custom_mqtt": {
+      "type": "integer"
+    },
+    "ms_mode": {
+      "type": "integer"
+    },
+    "is_slave": {
+      "type": "integer"
+    },
+    "en_swb": {
+      "type": "integer"
+    },
+    "en_hybrid": {
+      "type": "integer"
+    },
+    "en_mcb": {
+      "type": "integer"
+    },
+    "total_capacity": {
+      "type": "integer"
+    },
+    "total_power": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false,
+  "x-ignored": [
+    "total_capacity",
+    "total_power"
+  ]
+}

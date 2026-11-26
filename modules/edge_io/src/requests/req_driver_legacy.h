@@ -23,13 +23,15 @@ typedef void (*legacy_on_complete_cb)(int status, const pipe_msg_t *result, void
 /**
  * @param native_id     驱动认识的协议原生点位标识（645 的 DI / CAN 的 CAN ID / 寄存器地址）
  * @param result_tag_id 回调里 result->tag_id 用的标识（调用方自己的 tag_id）
+ * @param result_device_id 回调里 result->device_id 用的设备身份（inventory 稠密 id），
+ *                      原样使用；0 = tag 级视图（合法身份），不回退从站地址
  * @param scale         解码值 × scale 后交给回调；<=0 视为 1.0
  */
 edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
-                                     double scale, double value, const void *meta_list,
-                                     uint32_t meta_list_len, const void *point_desc,
-                                     size_t point_desc_len, legacy_on_complete_cb user_cb,
-                                     void *user_data);
+                                     uint32_t result_device_id, double scale, double value,
+                                     const void *meta_list, uint32_t meta_list_len,
+                                     const void *point_desc, size_t point_desc_len,
+                                     legacy_on_complete_cb user_cb, void *user_data);
 
 #endif

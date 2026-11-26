@@ -1,0 +1,55 @@
+== RED: 修复前（fix commit b23b79c6 之前），新用例在旧码上变红 ==
+$ ./build/tests/test_dcu_runtime_health
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[       OK ] test_demo_mode_restores_bench_behavior
+[ RUN      ] test_node_lifecycle_runs_on_one_thread
+[       OK ] test_node_lifecycle_runs_on_one_thread
+[ RUN      ] test_demo_freeze_trigger_uses_slot_identity
+[  ERROR   ] --- 0 != 3
+[   LINE   ] --- /tmp/edgec-land/heartbeat-slot/tests/test_dcu_runtime_health.c:306: error: Failure!
+[  FAILED  ] test_demo_freeze_trigger_uses_slot_identity
+[  PASSED  ] 3 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_demo_freeze_trigger_uses_slot_identity
+ 1 FAILED TEST(S)
+
+注：该次运行后测试只做 whitespace 重排（clang-format），断言与场景未变；
+下面 mutation guard 在最终提交上重新证明红/绿。
+
+== GREEN: 修复后（HEAD b23b79c6） ==
+$ ./build/tests/test_dcu_runtime_health
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[       OK ] test_demo_mode_restores_bench_behavior
+[ RUN      ] test_node_lifecycle_runs_on_one_thread
+[       OK ] test_node_lifecycle_runs_on_one_thread
+[ RUN      ] test_demo_freeze_trigger_uses_slot_identity
+[       OK ] test_demo_freeze_trigger_uses_slot_identity
+[  PASSED  ] 4 test(s).
+
+== MUTATION GUARD: 缺陷重现必须变红 ==
+$ python3 ci/scripts/run_mutation_guards.py --build build --only DCU-F5-heartbeat-slot
+=== Mutation guards: 1 entries, build /tmp/edgec-land/heartbeat-slot/build ===
+
+[MUTATION] DCU-F5-heartbeat-slot (cmd/dcu/dcu_heartbeat.c)
+  [mutate] cmd/dcu/dcu_heartbeat.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_heartbeat.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-F5-heartbeat-slot: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+
+== TARGETED SUITE: ctest -R 'dcu|dlt698' ==
+$ ctest --test-dir build -R 'dcu|dlt698' --output-on-failure
+      Start 343: test_dcu_mutex_marathon
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    0.92 sec
+      Start 344: test_dcu_topology_phase_id
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  67.26 sec

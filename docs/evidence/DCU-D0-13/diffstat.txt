@@ -1,0 +1,11 @@
+ acceptance/dcu/dcu_product.py      | 31 +++++++++++++++++--
+ ci/scripts/run_guard_selftest.py   |  8 +++++
+ cmd/dcu/CMakeLists.txt             |  1 +
+ cmd/dcu/dcu_heartbeat.c            | 17 +++++++++++
+ cmd/dcu/dcu_heartbeat.h            |  8 +++++
+ cmd/dcu/dcu_runtime_self_exit.c    | 25 ++++++++++++++++
+ cmd/dcu/dcu_runtime_self_exit.h    | 19 ++++++++++++
+ cmd/dcu/main.c                     | 10 +++----
+ tests/CMakeLists.txt               |  6 ++++
+ tests/test_dcu_runtime_self_exit.c | 61 ++++++++++++++++++++++++++++++++++++++
+ 10 files changed, 178 insertions(+), 8 deletions(-)

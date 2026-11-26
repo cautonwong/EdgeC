@@ -1,0 +1,25 @@
+✅ [FORMAL] 1 shard(s), 4 row(s), 22s; CBMC 5.12 (cbmc-5.12), 1012 properties, 2 aux run(s); TLA+ 2026.11.15.002146, 84083 states
+
+real	0m21.780s
+user	0m22.923s
+sys	0m0.672s
+RC=0
+
+=== build/formal/iems/run-manifest.tsv
+artifact	mode	status	count	seconds
+formal/cbmc/modbus_decode.c	proof	PASS	1012	18
+formal/cbmc/modbus_decode.c	cover	PASS	n/a	2
+formal/cbmc/modbus_decode.c	function	PASS	n/a	0
+formal/tla/Arbiter.tla	tla	PASS	84083	1
+
+=== proof summary
+** 0 of 1012 failed (1 iterations)
+=== cover assertion
+[main.coverage.1] file /tmp/iems-formal/wt/formal/cbmc/modbus_decode.c line 39 function main condition 'rc == 0': SATISFIED
+=== function assertions
+[crc_reject.assertion.1] line 57 modbus_decode: valid frame accepted: SUCCESS
+[crc_reject.assertion.2] line 60 modbus_decode: corrupted CRC rejected: SUCCESS
+=== TLC banner/states
+TLC2 Version 2026.11.15.002146 (rev: bc1b506)
+Model checking completed. No error has been found.
+84083 states generated, 30538 distinct states found, 0 states left on queue.

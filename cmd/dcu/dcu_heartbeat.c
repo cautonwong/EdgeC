@@ -28,6 +28,20 @@ static void _self_terminate(dcu_heartbeat_t *hb) {
     if (hb->svc) service_stop(hb->svc);
 }
 
+void dcu_heartbeat_stop(dcu_heartbeat_t *hb) {
+    if (!hb || !hb->timers_inited) return;
+    uv_timer_stop(&hb->freeze_timer);
+    uv_timer_stop(&hb->control_timer);
+    if (!hb->freeze_closed) {
+        uv_close((uv_handle_t *)&hb->freeze_timer, NULL);
+        hb->freeze_closed = true;
+    }
+    if (!hb->control_closed) {
+        uv_close((uv_handle_t *)&hb->control_timer, NULL);
+        hb->control_closed = true;
+    }
+}
+
 void dcu_heartbeat_tick(dcu_heartbeat_t *hb) {
     if (!hb) return;
 
@@ -51,20 +65,22 @@ void dcu_heartbeat_tick(dcu_heartbeat_t *hb) {
         dcu_storage_begin_trans(storage);
 
         for (int i = 0; i < inv->count; i++) {
+            // pipe 消息的 device_id 是稳定 slot_id；档案下标删除后会变，不能当身份。
+            uint32_t slot = inv->meters[i].slot_id;
             pipe_msg_t trigger;
             memset(&trigger, 0, sizeof(pipe_msg_t));
             trigger.tag_id = OAD_DAILY_FREEZE;
             trigger.type = PIPEMSG_TYPE_SCALAR;
-            trigger.device_id = (uint32_t)i;
+            trigger.device_id = slot;
             trigger.ts = (uint64_t)time(NULL);
             if (hb->se) stream_engine_push(hb->se, &trigger);
             hb->demo_freezes++;
 
             if (i > 0 && i % 200 == 0) {
                 uint8_t action = (cycle % 2 == 0) ? 1 : 0;  // 0/2 cycle Trip, 1 cycle Restore
-                printf("🎛️ [RELAY] Dev %d: Triggering Action %d\n", i, action);
+                printf("🎛️ [RELAY] Dev %u: Triggering Action %d\n", slot, action);
                 hb->demo_relays++;
-                dcu_698_control_legacy_action((uint32_t)i, action);
+                dcu_698_control_legacy_action(slot, action);
             }
         }
 
@@ -118,6 +134,9 @@ void dcu_heartbeat_start(dcu_heartbeat_t *hb, uv_loop_t *loop, dcu_node_t *node,
         if (env_cycles && env_cycles[0]) hb->max_cycles = atoi(env_cycles);
     }
 
+    hb->timers_inited = true;
+    hb->freeze_closed = false;
+    hb->control_closed = false;
     uv_timer_init(loop, &hb->freeze_timer);
     hb->freeze_timer.data = hb;
     uv_timer_start(&hb->freeze_timer, _freeze_trigger_cb, 5000, 5000);

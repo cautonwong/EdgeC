@@ -1,0 +1,8 @@
+ adapters/io_drivers/src/driver_dlt698.c  |  11 +-
+ docs/evidence/DCU-FIX-578-1/comments.md  |  50 +++++++
+ docs/evidence/DCU-FIX-578-1/diffstat.txt |   8 ++
+ docs/evidence/DCU-FIX-578-1/summary.md   |  63 +++++++++
+ docs/evidence/DCU-FIX-578-1/tests.log    | 128 ++++++++++++++++++
+ foundation/src/protocol/dlt698_codec.c   |  17 +++
+ tests/test_dcu_698_record.c              | 216 +++++++++++++++++++++++++++++++
+ 7 files changed, 491 insertions(+), 2 deletions(-)

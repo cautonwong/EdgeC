@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "proto_sys",
+  "description": "P6-04a round 2. Covers proto_sys.json (sampling, history, snapshot and DB intervals). Every key is optional because load_sys_cfg keeps defaults on a missing file or key (src/ems/main.c:1271-1340). history is undocumented in p1-03a but read as a number at src/ems/main.c:1297-1301; it is accepted here and no other unknown key is.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "sample_rate": {
+      "type": "integer"
+    },
+    "history": {
+      "type": "integer"
+    },
+    "data_persistence": {
+      "type": "integer"
+    },
+    "history_rolling": {
+      "type": "integer"
+    },
+    "snapshoot_interval": {
+      "type": "integer"
+    },
+    "db_update_interval": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": false
+}

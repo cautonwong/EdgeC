@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "pub_dev_list": [
+    {
+      "type": "METER",
+      "tags": [
+        "METER1.P",
+        "METER1.Q"
+      ]
+    },
+    {
+      "type": "PCS",
+      "tags": [
+        "PCS1.STATE"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Refutation fixture: CMake target cycle alpha <-> beta.",
+  "allowed_layer_edges": [
+    {
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "reason": "fixture lets the cycle be the only failure"
+    }
+  ],
+  "allowed_component_edges": [
+    {
+      "from_component": "alpha",
+      "to_component": "beta",
+      "reason": "fixture",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "link"
+      ]
+    },
+    {
+      "from_component": "beta",
+      "to_component": "alpha",
+      "reason": "fixture",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "link"
+      ]
+    }
+  ],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

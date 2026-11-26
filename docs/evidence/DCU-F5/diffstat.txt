@@ -1,0 +1,42 @@
+# dcu/F5-late-callback-write vs 563c9f6f
+
+## per commit (code)
+f26118c6 fix(dcu): bind one visit and one retry to one archive revision
+8b2b827c test(dcu): pin one visit and one retry to one archive revision
+ba906f46 docs(evidence): DCU F5 late-callback identity fix
+800e6eba fix(dcu): snapshot read identity at submit time
+a695fd09 test(dcu): pin late read callbacks to submit-time identity
+
+## round 2 test commit 8b2b827c
+8b2b827c test(dcu): pin one visit and one retry to one archive revision
+ tests/test_dcu_poller.c | 238 +++++++++++++++++++++++++++++++++++++++++++++++-
+ 1 file changed, 237 insertions(+), 1 deletion(-)
+
+## round 2 fix commit f26118c6
+f26118c6 fix(dcu): bind one visit and one retry to one archive revision
+ cmd/dcu/dcu_bus_source.c | 47 ++++++++++++++++++++---------------------------
+ cmd/dcu/dcu_poller.c     | 19 +++++++++++--------
+ cmd/dcu/dcu_poller.h     | 21 +++++++++++----------
+ 3 files changed, 42 insertions(+), 45 deletions(-)
+
+## total code vs 563c9f6f
+ cmd/dcu/dcu_bus_source.c |  25 ++-
+ cmd/dcu/dcu_node.c       |  28 +--
+ cmd/dcu/dcu_poller.c     |  97 ++++++----
+ cmd/dcu/dcu_poller.h     |  33 +++-
+ tests/CMakeLists.txt     |   3 +
+ tests/test_dcu_poller.c  | 466 ++++++++++++++++++++++++++++++++++++++++++++++-
+ 6 files changed, 583 insertions(+), 69 deletions(-)
+
+## round 1 commits (unchanged)
+a695fd09 test(dcu): pin late read callbacks to submit-time identity
+ tests/CMakeLists.txt    |   3 +
+ tests/test_dcu_poller.c | 230 +++++++++++++++++++++++++++++++++++++++++++++++-
+ 2 files changed, 231 insertions(+), 2 deletions(-)
+
+800e6eba fix(dcu): snapshot read identity at submit time
+ cmd/dcu/dcu_bus_source.c | 54 ++++++++++++++++++------------
+ cmd/dcu/dcu_node.c       | 28 +++++++++-------
+ cmd/dcu/dcu_poller.c     | 86 +++++++++++++++++++++++++++++-------------------
+ cmd/dcu/dcu_poller.h     | 30 +++++++++++++----
+ 4 files changed, 125 insertions(+), 73 deletions(-)

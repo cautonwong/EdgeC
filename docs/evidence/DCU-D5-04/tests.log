@@ -1,0 +1,229 @@
+== RED on 197d98b9 (test commit 6ae69e78 only): 5/5 targeted binaries fail ==
+Test project /tmp/edgec-land/d5-04-class12/build
+    Start  25: test_dcu_698_object_model
+1/5 Test  #25: test_dcu_698_object_model ........***Failed    0.00 sec
+[==========] tests: Running 20 test(s).
+[ RUN      ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- 105 != 106
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[ RUN      ] test_catalog_instance_attr_limits_are_defined
+[       OK ] test_catalog_instance_attr_limits_are_defined
+[ RUN      ] test_mask_bitmap_supports_wide_ids
+[       OK ] test_mask_bitmap_supports_wide_ids
+[ RUN      ] test_mask_rejects_missing_attr_and_method
+[       OK ] test_mask_rejects_missing_attr_and_method
+[ RUN      ] test_discovery_oi_attributes_beyond_class_table
+[       OK ] test_discovery_oi_attributes_beyond_class_table
+[ RUN      ] test_task_scheduler_reset_and_add
+[       OK ] test_task_scheduler_reset_and_add
+[ RUN      ] test_discovery_exposes_results_count_and_status
+[       OK ] test_discovery_exposes_results_count_and_status
+[ RUN      ] test_dar_classification_by_class_definition
+[2026-11-26 12:07:15][WARN][CORE] OI 8000 method 127: 产品没有告警输出，拒绝执行
+[2026-11-26 12:07:15][WARN][CORE] OI 8000 method 128: 产品没有告警输出，拒绝执行
+[       OK ] test_dar_classification_by_class_definition
+[ RUN      ] test_dispatch_read_write_call
+[       OK ] test_dispatch_read_write_call
+[ RUN      ] test_event_class24_attr_reads
+[       OK ] test_event_class24_attr_reads
+[ RUN      ] test_event_class24_attr_writes
+[       OK ] test_event_class24_attr_writes
+[ RUN      ] test_event_class7_attr_numbers_are_not_served
+[       OK ] test_event_class7_attr_numbers_are_not_served
+[ RUN      ] test_event_method1_resets_records
+🧹 [EVENT] ACTION: 成功复位事件 3000 的历史事件记录表。
+[       OK ] test_event_method1_resets_records
+[ RUN      ] test_facade_and_table_api_agree
+[       OK ] test_facade_and_table_api_agree
+[ RUN      ] test_discovery_snapshot_and_clear
+[       OK ] test_discovery_snapshot_and_clear
+[ RUN      ] test_class14_15_16_stats_rows_are_empty
+[       OK ] test_class14_15_16_stats_rows_are_empty
+[ RUN      ] test_class17_display_rows_are_empty
+[       OK ] test_class17_display_rows_are_empty
+[ RUN      ] test_class11_collection_rows_are_empty
+[       OK ] test_class11_collection_rows_are_empty
+[ RUN      ] test_class12_pulse_row_is_empty
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_object_model.c:600: error: Failure!
+[  FAILED  ] test_class12_pulse_row_is_empty
+[ RUN      ] test_reset_returns_to_uninitialized
+[       OK ] test_reset_returns_to_uninitialized
+[==========] tests: 20 test(s) run.
+[  PASSED  ] 18 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class12_pulse_row_is_empty
+
+ 2 FAILED TEST(S)
+
+...
+[       OK ] test_product_class2_and_5_have_no_value_yet
+[ RUN      ] test_product_class14_15_16_have_no_value_yet
+[       OK ] test_product_class14_15_16_have_no_value_yet
+[ RUN      ] test_product_class17_has_no_value_yet
+[       OK ] test_product_class17_has_no_value_yet
+[ RUN      ] test_product_class11_collection_sets_have_no_value_yet
+[       OK ] test_product_class11_collection_sets_have_no_value_yet
+[ RUN      ] test_product_class12_pulse_has_no_value_yet
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_axdr.c:515: error: Failure!
+[  FAILED  ] test_product_class12_pulse_has_no_value_yet
+[ RUN      ] test_product_accept_set_event_attrs
+...
+[ RUN      ] test_submit_failure_counts_no_tx
+[       OK ] test_submit_failure_counts_no_tx
+[ RUN      ] test_archive_change_reopens_execution
+[       OK ] test_archive_change_reopens_execution
+[ RUN      ] test_rule_delete_clear_keep_internal_rows
+[       OK ] test_rule_delete_clear_keep_internal_rows
+[ RUN      ] test_object_list_advertises_new_ois
+[  ERROR   ] --- 91 != 92
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 20 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+
+ 1 FAILED TEST(S)
+
+...
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e600: Unref (1 -> 0)
+[       OK ] test_get_maps_source_rc_to_dar
+[ RUN      ] test_slave_accepts_product_object_list_42
+[  ERROR   ] --- 91 != 92
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_driver_dlt698.c:874: error: Failure!
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[ RUN      ] test_slave_class17_display_dar
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f280: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f710: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f710: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f710: Unref (1 -> 0)
+[       OK ] test_slave_class17_display_dar
+[ RUN      ] test_slave_class11_collection_dar
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f240: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460f700: Unref (1 -> 0)
+[       OK ] test_slave_class11_collection_dar
+[ RUN      ] test_slave_class12_pulse_dar
+[NETBUF][INFO] NetBufPool 0x7ffe0460efa0: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_driver_dlt698.c:920: error: Failure!
+[  FAILED  ] test_slave_class12_pulse_dar
+[ RUN      ] test_slave_set_read_only_is_denied
+[NETBUF][INFO] NetBufPool 0x7ffe0460e6e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e6e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e6e0: Unref (1 -> 0)
+[       OK ] test_slave_set_read_only_is_denied
+[ RUN      ] test_slave_rejects_over_cap_object_list
+[NETBUF][INFO] NetBufPool 0x7ffe0460e270: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e270: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe0460e270: Unref (1 -> 0)
+[       OK ] test_slave_rejects_over_cap_object_list
+[==========] tests: 22 test(s) run.
+[  PASSED  ] 20 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[  FAILED  ] test_slave_class12_pulse_dar
+
+ 2 FAILED TEST(S)
+
+...
+    Start 103: test_dcu_698_appconn
+5/5 Test #103: test_dcu_698_appconn .............***Failed    0.00 sec
+[==========] tests: Running 9 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[  ERROR   ] --- 91 != 92
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_appconn.c:37: error: Failure!
+[  FAILED  ] test_object_list_shape_and_capacity
+[ RUN      ] test_class22_acl_advertises_read_only_attrs
+[       OK ] test_class22_acl_advertises_read_only_attrs
+[ RUN      ] test_class14_15_16_acl_is_read_only
+[       OK ] test_class14_15_16_acl_is_read_only
+[ RUN      ] test_class17_acl_is_read_only
+[       OK ] test_class17_acl_is_read_only
+[ RUN      ] test_class11_acl_is_read_only
+[       OK ] test_class11_acl_is_read_only
+[ RUN      ] test_class12_pulse_acl_is_read_only
+[  ERROR   ] --- acl.seen[attr] is not true
+[   LINE   ] --- /tmp/edgec-land/d5-04-class12/tests/test_dcu_698_appconn.c:317: error: Failure!
+[  FAILED  ] test_class12_pulse_acl_is_read_only
+[ RUN      ] test_class22_object_masks_are_covered_by_acl
+[       OK ] test_class22_object_masks_are_covered_by_acl
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 9 test(s) run.
+[  PASSED  ] 7 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_object_list_shape_and_capacity
+[  FAILED  ] test_class12_pulse_acl_is_read_only
+
+ 2 FAILED TEST(S)
+
+...
+The following tests FAILED:
+	 25 - test_dcu_698_object_model (Failed)
+	 30 - test_dcu_698_axdr (Failed)
+	 37 - test_dcu_698_scheme_mgmt (Failed)
+	101 - test_driver_dlt698 (Failed)
+	103 - test_dcu_698_appconn (Failed)
+Errors while running CTest
+
+== GREEN at HEAD 05547042 (clean build): 45/45 ==
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  38.69 sec
+
+== new cases (individual, HEAD) ==
+== test_dcu_698_object_model::test_class12_pulse_row_is_empty
+[ RUN      ] test_class12_pulse_row_is_empty
+[       OK ] test_class12_pulse_row_is_empty
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn::test_class12_pulse_acl_is_read_only
+[ RUN      ] test_class12_pulse_acl_is_read_only
+[       OK ] test_class12_pulse_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr::test_product_class12_pulse_has_no_value_yet
+[ RUN      ] test_product_class12_pulse_has_no_value_yet
+[       OK ] test_product_class12_pulse_has_no_value_yet
+[  PASSED  ] 1 test(s).
+== test_dcu_698_scheme_mgmt::test_object_list_advertises_new_ois
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698::test_slave_class12_pulse_dar
+[ RUN      ] test_slave_class12_pulse_dar
+[       OK ] test_slave_class12_pulse_dar
+[  PASSED  ] 1 test(s).

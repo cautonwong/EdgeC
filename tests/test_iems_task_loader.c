@@ -3,6 +3,7 @@
 #include <setjmp.h>
 #include <sqlite3.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,6 +59,23 @@ static void test_protocol_loader_cb(const iems_loaded_task_t *task, void *user_d
     // 未知或空协议的行必须被跳过，不能走到这里。
     assert_true(matched);
     g_protocol_task_count++;
+}
+
+typedef struct {
+    uint32_t tag_id;
+    uint32_t device_id;
+} loaded_seen_t;
+
+static loaded_seen_t g_seen[16];
+static int g_seen_count;
+
+static void test_devices_loader_cb(const iems_loaded_task_t *task, void *user_data) {
+    (void)user_data;
+    assert_non_null(task);
+    assert_true(g_seen_count < (int)(sizeof(g_seen) / sizeof(g_seen[0])));
+    g_seen[g_seen_count].tag_id = task->tag_id;
+    g_seen[g_seen_count].device_id = task->device_id;
+    g_seen_count++;
 }
 
 static void test_iems_task_loading_direct_product_code(void **state) {
@@ -261,6 +279,9 @@ static void test_protocol_canonical(void **state) {
         {"modbus_rtu", "ModbusRTUHiCRC"},
         {"modbus_rtu_rcrc", "ModbusRTU"},
         {"ModbusRTUHiCRC", "ModbusRTUHiCRC"},
+        {"YDT1363", "YDT1363"},
+        {"ydt1363_2014", "YDT1363"},
+        {"YDT1363-2014", "YDT1363"},
     };
     char out[16];
     for (size_t i = 0; i < sizeof(good) / sizeof(good[0]); i++) {
@@ -321,6 +342,75 @@ static void test_protocol_selection_from_inventory(void **state) {
     unlink(db_path);
 }
 
+/* P6-04b1 A1: 轮询任务带 inventory device_id；同 tag 两台设备各一条任务，
+ * 控制写路由按 device_id 判歧义（同 bus/从站/协议但不同设备也必须拒绝）。 */
+static void test_device_identity_in_tasks_and_route(void **state) {
+    (void)state;
+    const char *db_path = "test_iems_task_loader_devices.db";
+    unlink(db_path);
+
+    uv_loop_t *loop = uv_default_loop();
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+
+    sqlite3 *raw_db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    assert_non_null(raw_db);
+    const char *schema_sql =
+        "CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY, addr TEXT, protocol TEXT);"
+        "CREATE TABLE IF NOT EXISTS poll_tasks (bus_id INTEGER, device_id INTEGER, tag_id INTEGER);";
+    assert_int_equal(sqlite3_exec(raw_db, schema_sql, NULL, NULL, NULL), SQLITE_OK);
+
+    const char *seed_sql =
+        "INSERT INTO inventory (id, addr, protocol) VALUES (1, '01', 'MODBUS');"
+        "INSERT INTO inventory (id, addr, protocol) VALUES (5, '05', 'MODBUS');"
+        "INSERT INTO inventory (id, addr, protocol) VALUES (0, '09', 'MODBUS');"
+        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 1, 4001);"
+        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 5, 4001);"
+        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 1, 1001);"
+        "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 0, 1002);";
+    assert_int_equal(sqlite3_exec(raw_db, seed_sql, NULL, NULL, NULL), SQLITE_OK);
+
+    g_seen_count = 0;
+    assert_int_equal(iems_poll_tasks_load(svc, test_devices_loader_cb, NULL), 4);
+    assert_int_equal(g_seen_count, 4);
+    bool seen_dev1 = false, seen_dev5 = false, seen_view = false;
+    for (int i = 0; i < g_seen_count; i++) {
+        if (g_seen[i].tag_id == 4001 && g_seen[i].device_id == 1) seen_dev1 = true;
+        if (g_seen[i].tag_id == 4001 && g_seen[i].device_id == 5) seen_dev5 = true;
+        /* legacy 任务 device_id=0：视图身份，不能被从站地址(09)冒充 */
+        if (g_seen[i].tag_id == 1002 && g_seen[i].device_id == 0) seen_view = true;
+    }
+    assert_true(seen_dev1);
+    assert_true(seen_dev5);
+    assert_true(seen_view);
+
+    iems_device_route_t route;
+    memset(&route, 0, sizeof(route));
+    assert_int_equal(iems_poll_task_route(svc, 1001, &route), 0);
+    assert_int_equal(route.device_id, 1);
+    /* 同 tag 两台设备：控制写歧义 */
+    assert_int_equal(iems_poll_task_route(svc, 4001, &route), -2);
+
+    /* legacy device_id=0：路由是视图身份，从站地址只留在 slave_id */
+    assert_int_equal(iems_poll_task_route(svc, 1002, &route), 0);
+    assert_int_equal(route.device_id, 0);
+    assert_int_equal(route.slave_id, 9);
+
+    /* device_id 也是身份：同 bus/从站/协议、不同设备仍是不同设备 */
+    assert_int_equal(sqlite3_exec(raw_db,
+                                  "INSERT INTO inventory (id, addr, protocol) VALUES (6, '01', "
+                                  "'MODBUS');"
+                                  "INSERT INTO poll_tasks (bus_id, device_id, tag_id) VALUES (0, 6, "
+                                  "1001);",
+                                  NULL, NULL, NULL),
+                     SQLITE_OK);
+    assert_int_equal(iems_poll_task_route(svc, 1001, &route), -2);
+
+    sqlite_svc_destroy(svc);
+    unlink(db_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_iems_task_loading_direct_product_code),
@@ -329,6 +419,7 @@ int main(void) {
         cmocka_unit_test(test_tag_scale_modbus_family_is_one_calibration),
         cmocka_unit_test(test_protocol_canonical),
         cmocka_unit_test(test_protocol_selection_from_inventory),
+        cmocka_unit_test(test_device_identity_in_tasks_and_route),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

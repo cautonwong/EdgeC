@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "description": "Refutation: modules/io and adapters/io are different cycle nodes.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [
+    {
+      "from_layer": "modules",
+      "from_component": "io",
+      "to_layer": "adapters",
+      "to_component": "io",
+      "kinds": [
+        "include"
+      ],
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "adapters",
+      "from_component": "io",
+      "to_layer": "modules",
+      "to_component": "io",
+      "kinds": [
+        "include"
+      ],
+      "reason": "fixture"
+    }
+  ],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

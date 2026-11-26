@@ -13,7 +13,8 @@ Two rule families run together:
 2. CROSS_CONTEXT rules (owner-aware). Every header under `modules/<m>/include/**`
    is owned by module `<m>`; every header under `include/**` is shared (ROOT).
    A source file in `modules/<m>/` may only include headers it owns, headers
-   owned by a module listed in MODULE_ALLOWED[<m>], or shared ROOT headers.
+   owned by a module listed for `<m>` in `ci/baseline/architecture_graph.json`,
+   or shared ROOT headers.
 
 Rule 2 is what the previous version of this guard could not see: the codebase
 includes headers by bare basename (`#include "datahub.h"`), so a regex on
@@ -24,6 +25,7 @@ import sys
 import os
 import re
 import glob
+import json
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -80,15 +82,7 @@ MODULE_ALLOWED = {
     "edge_bootstrap": {"edge_core", "edge_infra", "edge_infra_security", "edge_stream", "edge_io", "edge_mcp", "edge_mgmt", "edge_north"},
 }
 
-def _scanning_fixture(target_dir: str) -> bool:
-    """True when the scan target itself lives under tests/guards/fixtures.
-
-    The previous heuristic keyed off a ``good_*`` / ``bad_*`` directory-name
-    prefix, so any other fixture (e.g. ``fixtures/injection/i05_*``) was skipped
-    silently: the refutation run passed without ever reading the probe file.
-    """
-    return "/fixtures" in target_dir.replace("\\", "/")
-
+from c_source_scan import SHARED_PRUNE_DIRS, skip_subtree
 
 PRUNE_DIRS = {
     ".git",
@@ -102,7 +96,7 @@ PRUNE_DIRS = {
     "docs",
     "web",
     "docker",
-}
+} | SHARED_PRUNE_DIRS
 
 INCLUDE_RE = re.compile(r'^\s*#\s*include\s*"([^"]+)"')
 
@@ -124,13 +118,32 @@ def _build_owner_map(repo_root):
     return owner
 
 
+def _load_module_allowed(root):
+    path = os.path.join(root, "ci", "baseline", "architecture_graph.json")
+    if not os.path.exists(path):
+        return MODULE_ALLOWED
+    try:
+        with open(path, encoding="utf-8") as handle:
+            matrix = json.load(handle)
+    except (OSError, ValueError) as error:
+        raise SystemExit(
+            f"[PLANE_ISOLATION_GUARD] cannot read {path}: {error}"
+        )
+    allowed = {}
+    for entry in matrix.get("allowed_component_edges", []):
+        if "plane_isolation" not in entry.get("sources", []):
+            continue
+        allowed.setdefault(entry["from_component"], set()).add(entry["to_component"])
+    return allowed
+
+
 def _module_of(rel_path):
     if rel_path.startswith("modules/"):
         return rel_path.split("/")[1]
     return None
 
 
-def check_file(file_path, repo_root, owner_map):
+def check_file(file_path, repo_root, owner_map, module_allowed):
     rel_path = os.path.relpath(file_path, repo_root).replace("\\", "/")
     violations = []
 
@@ -160,9 +173,7 @@ def check_file(file_path, repo_root, owner_map):
     # Family 2
     mod = _module_of(rel_path)
     if mod:
-        # Unknown modules default to an empty allow-list: a new module must declare its
-        # dependencies in MODULE_ALLOWED instead of silently escaping the guard.
-        allowed = MODULE_ALLOWED.get(mod, set())
+        allowed = module_allowed.get(mod, set())
         for idx, line in enumerate(lines, 1):
             m = INCLUDE_RE.match(line)
             if not m:
@@ -191,16 +202,22 @@ def check_file(file_path, repo_root, owner_map):
 def check_directory(target_dir):
     target_dir = os.path.abspath(target_dir)
     owner_map = _build_owner_map(target_dir)
+    module_allowed = _load_module_allowed(target_dir)
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        if "fixtures" in root and not _scanning_fixture(target_dir):
-            continue
-        if "tests" in root and "guards" not in root:
+        if skip_subtree(root, target_dir):
             continue
         for name in files:
             if name.endswith((".c", ".h", ".cpp", ".hpp")):
-                violations.extend(check_file(os.path.join(root, name), target_dir, owner_map))
+                violations.extend(
+                    check_file(
+                        os.path.join(root, name),
+                        target_dir,
+                        owner_map,
+                        module_allowed,
+                    )
+                )
     return violations
 
 
@@ -216,13 +233,12 @@ def main():
     baseline_path = args.baseline or guard_baseline.baseline_path_for(__file__)
 
     # Fixture directories are validated strictly, never against the repo ledger.
-    is_fixture = os.path.basename(root_dir).startswith(("good_", "bad_"))
     return guard_baseline.apply(
         violations,
         baseline_path,
         args.update_baseline,
         "PLANE_ISOLATION_GUARD",
-        allow_missing_baseline=is_fixture,
+        allow_missing_baseline=guard_baseline.is_selftest_fixture(root_dir),
     )
 
 

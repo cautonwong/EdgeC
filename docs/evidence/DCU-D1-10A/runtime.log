@@ -1,0 +1,55 @@
+== red: OI 7000 advertises method 130 (A.7 defines 127-129 for 7000; 130 is 7010's) ==
+mutation applied to cmd/dcu/dcu_698_object_model.c:
+  {.oi = OI_FILE_SET, .class_id = IC_COLLECTION, .scope = DCU_OBJ_SINGLETON,
+   .method_mask = {[BYTE(130)] = BIT(130)}},
+Class 11 max_method=131, so test_masks_stay_within_the_class_definition passes;
+only the new per-OI test fails.
+
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_methods_stay_within_the_oi_definition
+[  ERROR   ] --- catalog_oi_defines_method(obj->oi, (uint8_t)id) is not true
+[   LINE   ] --- /tmp/edgec-land/d1-10a-methods/tests/test_dcu_698_catalog.c:81: error: Failure!
+[  FAILED  ] test_methods_stay_within_the_oi_definition
+[ RUN      ] test_class_attr_limit_matches_catalog
+[       OK ] test_class_attr_limit_matches_catalog
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 4 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_methods_stay_within_the_oi_definition
+
+ 1 FAILED TEST(S)
+mut_test_exit=1
+
+== green: source restored byte-for-byte (cmp) and rebuilt ==
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_methods_stay_within_the_oi_definition
+[       OK ] test_methods_stay_within_the_oi_definition
+[ RUN      ] test_class_attr_limit_matches_catalog
+[       OK ] test_class_attr_limit_matches_catalog
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).
+green_test_exit=0
+
+== mutation guard runner ==
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d1-10a-methods/build ===
+
+[MUTATION] DCU-D1-10A-wrong-oi-method (cmd/dcu/dcu_698_object_model.c)
+  [mutate] cmd/dcu/dcu_698_object_model.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_object_model.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D1-10A-wrong-oi-method: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

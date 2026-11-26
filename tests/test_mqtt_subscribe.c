@@ -84,6 +84,14 @@ static int _wait_connected(nb_transport_ops_t* t, int ms) {
     return -1;
 }
 
+static int _wait_disconnected(nb_transport_ops_t* t, int ms) {
+    for (int i = 0; i < ms / 20; i++) {
+        if (!t->is_connected(t->ctx)) return 0;
+        usleep(20000);
+    }
+    return -1;
+}
+
 /* 收到消息就记下来 */
 static char g_topic[128];
 static char g_payload[128];
@@ -163,6 +171,61 @@ static void test_duplicate_subscribe_updates_callback(void** state) {
     mqtt_producer_destroy(&t);
 }
 
+static void test_connect_before_broker_starts(void** state) {
+    (void)state;
+    /* 组合根可能先建 producer，broker 晚就绪。automaticReconnect 是否覆盖
+     * 首次连接失败由本用例判定；Paho 文档只承诺"连接丢失"后重连。 */
+    _stop_broker(g_broker);
+    g_broker = -1;
+
+    nb_transport_ops_t t = mqtt_producer_create("tcp://127.0.0.1:18831", "edge-test-late-broker");
+    assert_non_null(t.ctx);
+
+    usleep(300000); /* 让首次 connect 先失败，再起 broker */
+    g_broker = _start_broker(TEST_PORT);
+    assert_true(g_broker > 0);
+    for (int i = 0; i < WAIT_MS / 50; i++) {
+        if (_port_open(TEST_PORT)) break;
+        usleep(50000);
+    }
+    assert_int_equal(_wait_connected(&t, 15000), 0);
+
+    mqtt_producer_destroy(&t);
+}
+
+static void test_resubscribe_after_broker_restart(void** state) {
+    (void)state;
+    nb_transport_ops_t t = mqtt_producer_create("tcp://127.0.0.1:18831", "edge-test-restart");
+    assert_non_null(t.ctx);
+    assert_int_equal(_wait_connected(&t, WAIT_MS), 0);
+
+    assert_int_equal(t.subscribe(t.ctx, "ipc/E4B853F333/#", _on_msg, NULL), 0);
+    usleep(200000); /* 等 SUBACK */
+
+    /* 杀 broker：cleansession=1 会丢订阅，重连后必须由传输层重订。 */
+    _stop_broker(g_broker);
+    g_broker = -1;
+    assert_int_equal(_wait_disconnected(&t, WAIT_MS), 0);
+
+    g_broker = _start_broker(TEST_PORT);
+    assert_true(g_broker > 0);
+    for (int i = 0; i < WAIT_MS / 50; i++) {
+        if (_port_open(TEST_PORT)) break;
+        usleep(50000);
+    }
+    assert_int_equal(_wait_connected(&t, 15000), 0);
+
+    usleep(300000); /* 重订在同一回调链上；给 SUBACK 一点时间 */
+    g_hits = 0;
+    const char* topic = "ipc/E4B853F333/env/ems/emsctrl/Set/binaryFlow";
+    assert_int_equal(t.publish(t.ctx, topic, (const uint8_t*)"x", 1), 0);
+    for (int i = 0; i < 100 && g_hits == 0; i++) usleep(20000);
+
+    assert_int_equal(g_hits, 1);
+    assert_string_equal(g_topic, topic);
+    mqtt_producer_destroy(&t);
+}
+
 static int setup(void** state) {
     (void)state;
     /* 这里**不能**用"返回非 0 表示跳过"：cmocka 把 group setup 的非 0 返回判成
@@ -205,6 +268,9 @@ int main(void) {
         cmocka_unit_test(test_subscribe_receives_message),
         cmocka_unit_test(test_wildcard_subscription),
         cmocka_unit_test(test_duplicate_subscribe_updates_callback),
+        cmocka_unit_test(test_connect_before_broker_starts),
+        /* 放最后：它会杀掉并重启共享 broker。 */
+        cmocka_unit_test(test_resubscribe_after_broker_restart),
     };
     return cmocka_run_group_tests(tests, setup, teardown);
 }

@@ -1,0 +1,22 @@
+mutation A: mapped relay OAD returns DAR 2 (pre-fix behavior)
+sed: return EDGE_SLAVE_SRC_CLASS_MISMATCH -> EDGE_SLAVE_SRC_TEMPORARY
+
+[ RUN      ] test_action_129_131_empty_relay_map_dar2
+[       OK ] test_action_129_131_empty_relay_map_dar2
+[ RUN      ] test_action_129_131_relay_map_resolves_target
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_698_axdr.c:1481: error: Failure!
+[  FAILED  ] test_action_129_131_relay_map_resolves_target
+[ RUN      ] test_relay_map_set_find_and_limits
+[       OK ] test_relay_map_set_find_and_limits
+[  PASSED  ] 45 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_action_129_131_relay_map_resolves_target
+ 1 FAILED TEST(S)
+
+[ RUN      ] test_relay_map_resolution_keeps_execution_rejected
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_node.c:314: error: Failure!
+[  FAILED  ] test_relay_map_resolution_keeps_execution_rejected
+[  PASSED  ] 4 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_relay_map_resolution_keeps_execution_rejected
+ 1 FAILED TEST(S)

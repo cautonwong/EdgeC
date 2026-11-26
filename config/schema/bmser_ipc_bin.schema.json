@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "bmser_ipc_bin",
+  "description": "P6-04a round 2. Covers bmser_ipc_bin.json (binary IPC northbound). dev is functionally required (src/ems/mqtt_north.c:125-145); dev_id/module/type requiredness is unconfirmed because LVT GET_JSON_VALUE_* macros fill a calloc'd struct. sub type is the mqtt_north.c:12-29 enum; tag is functionally required (find_tag_by_name).",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "dev"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "dev": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "dev_id": {
+            "type": "string"
+          },
+          "module": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "block_id": {
+                  "type": "string"
+                },
+                "cycle": {
+                  "type": "integer"
+                },
+                "sub_id": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "type",
+                      "tag"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "type": {
+                        "type": "string",
+                        "enum": [
+                          "U16",
+                          "S16",
+                          "U32",
+                          "S32",
+                          "FLOAT",
+                          "BI16"
+                        ]
+                      },
+                      "tag": {
+                        "type": "string",
+                        "pattern": "^.+$"
+                      },
+                      "scale": {
+                        "type": "number"
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

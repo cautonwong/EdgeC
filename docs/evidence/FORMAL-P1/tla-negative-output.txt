@@ -1,0 +1,82 @@
+# FORMAL-P1 TLC negative output
+
+## Run 1: repo cfg (RecoveryGate = FALSE), shortest violation
+# Command (run in a temporary directory with copies of the spec and cfg):
+# java -XX:+UseParallelGC -cp /opt/formal/tla2tools.jar tlc2.TLC -cleanup -workers auto -config ArbiterNoRecovery.cfg Arbiter.tla
+
+TLC2 Version 2026.11.15.002146 (rev: bc1b506)
+Error: Invariant NoDispatchInRecovery is violated.
+Error: The behavior up to this point is:
+3229 states generated, 1418 distinct states found, 782 states left on queue.
+The depth of the complete state graph search is 8.
+
+Action sequence:
+State 1: <Initial predicate>
+State 2: <Submit(1,0) line 70, col 5 to line 78, col 81 of module Arbiter>
+State 3: <Submit(2,1) line 70, col 5 to line 78, col 81 of module Arbiter>
+State 4: <Dispatch line 97, col 5 to line 111, col 61 of module Arbiter>
+State 5: <Tick line 114, col 5 to line 119, col 66 of module Arbiter>
+State 6: <Tick line 114, col 5 to line 119, col 66 of module Arbiter>
+State 7: <ArbiterTimeout(2) line 124, col 5 to line 135, col 66 of module Arbiter>
+State 8: <Dispatch line 97, col 5 to line 111, col 61 of module Arbiter>
+
+State 7 and 8 key variables:
+State 7: <ArbiterTimeout(2) line 124, col 5 to line 135, col 66 of module Arbiter>
+/\ engineSent = {2}
+/\ timeoutAt = <<0, 2>>
+/\ dispatchedInRecovery = FALSE
+/\ now = 2
+/\ settleCount = <<0, 1>>
+/\ assignedTo = <<0, 0>>
+/\ owner = 0
+/\ recoveryUntil = 4
+/\ lateArrived = <<FALSE, FALSE>>
+/\ engineRead = {}
+/\ engineCurrent = 0
+State 8: <Dispatch line 97, col 5 to line 111, col 61 of module Arbiter>
+/\ engineSent = {1, 2}
+/\ timeoutAt = <<0, 2>>
+/\ dispatchedInRecovery = TRUE
+/\ now = 2
+/\ settleCount = <<0, 1>>
+/\ assignedTo = <<0, 0>>
+/\ owner = 1
+/\ recoveryUntil = 4
+/\ lateArrived = <<FALSE, FALSE>>
+/\ engineRead = {}
+/\ engineCurrent = 1
+
+## Run 2: temporary cfg with NoDispatchInRecovery removed, cross-talk violation
+# Command: same temp dir, cfg generated with: grep -vx 'INVARIANT NoDispatchInRecovery' ArbiterNoRecovery.cfg > crosstalk.cfg
+# java -XX:+UseParallelGC -cp /opt/formal/tla2tools.jar tlc2.TLC -cleanup -workers auto -config crosstalk.cfg Arbiter.tla
+
+TLC2 Version 2026.11.15.002146 (rev: bc1b506)
+Error: Invariant LateResponseNotAssignedToNext is violated.
+Error: The behavior up to this point is:
+5953 states generated, 2524 distinct states found, 1331 states left on queue.
+The depth of the complete state graph search is 9.
+
+Action sequence:
+State 1: <Initial predicate>
+State 2: <Submit(1,0) line 70, col 5 to line 78, col 81 of module Arbiter>
+State 3: <Submit(2,0) line 70, col 5 to line 78, col 81 of module Arbiter>
+State 4: <Dispatch line 97, col 5 to line 111, col 61 of module Arbiter>
+State 5: <Tick line 114, col 5 to line 119, col 66 of module Arbiter>
+State 6: <Tick line 114, col 5 to line 119, col 66 of module Arbiter>
+State 7: <ArbiterTimeout(1) line 124, col 5 to line 135, col 66 of module Arbiter>
+State 8: <Dispatch line 97, col 5 to line 111, col 61 of module Arbiter>
+State 9: <LateResponseArrives(1) line 186, col 5 to line 197, col 81 of module Arbiter>
+
+State 9 key variables (misassignment):
+State 9: <LateResponseArrives(1) line 186, col 5 to line 197, col 81 of module Arbiter>
+/\ engineSent = {1, 2}
+/\ timeoutAt = <<2, 0>>
+/\ dispatchedInRecovery = TRUE
+/\ now = 2
+/\ settleCount = <<1, 0>>
+/\ assignedTo = <<2, 0>>
+/\ owner = 2
+/\ recoveryUntil = 4
+/\ lateArrived = <<TRUE, FALSE>>
+/\ engineRead = {2}
+/\ engineCurrent = 2

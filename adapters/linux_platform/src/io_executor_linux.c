@@ -7,6 +7,7 @@
 #include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -616,6 +617,35 @@ static const io_ops_t udp_ops = {.enable_read = _udp_enable_read,
                                  .ioctl = NULL,
                                  .destroy = _linux_destroy};
 
+/* keepalive 探测失败只告警：内核拒绝探测参数不能断链。 */
+static void _tcp_apply_keepalive(int fd, uint32_t idle_s, uint32_t intvl_s, uint32_t cnt) {
+    int on = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on)) != 0) {
+        int err = errno;
+        LOG_WARN(LOG_CAT_IO, "io_executor: SO_KEEPALIVE failed on FD %d: %s (%d)", fd,
+                 strerror(err), err);
+        return;
+    }
+    int idle = (int)(idle_s ? idle_s : IO_TCP_KEEPALIVE_IDLE_S);
+    int intvl = (int)(intvl_s ? intvl_s : IO_TCP_KEEPALIVE_INTVL_S);
+    int probes = (int)(cnt ? cnt : IO_TCP_KEEPALIVE_CNT);
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &idle, sizeof(idle)) != 0) {
+        int err = errno;
+        LOG_WARN(LOG_CAT_IO, "io_executor: TCP_KEEPIDLE failed on FD %d: %s (%d)", fd,
+                 strerror(err), err);
+    }
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl)) != 0) {
+        int err = errno;
+        LOG_WARN(LOG_CAT_IO, "io_executor: TCP_KEEPINTVL failed on FD %d: %s (%d)", fd,
+                 strerror(err), err);
+    }
+    if (setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &probes, sizeof(probes)) != 0) {
+        int err = errno;
+        LOG_WARN(LOG_CAT_IO, "io_executor: TCP_KEEPCNT failed on FD %d: %s (%d)", fd, strerror(err),
+                 err);
+    }
+}
+
 static int _tcp_connect_fd(const char* host, uint16_t port) {
     struct addrinfo hints;
     struct addrinfo* res = NULL;
@@ -659,10 +689,17 @@ static int _tcp_connect_fd(const char* host, uint16_t port) {
                 continue;
             }
         }
+        /* TCP 半开探测：对端消失无 RST 时由内核 keepalive 触发断链 */
+        _tcp_apply_keepalive(fd, 0, 0, 0);
         break;
     }
     freeaddrinfo(res);
     return fd;
+}
+
+int io_executor_linux_fd(const io_handle_t* h) {
+    if (!h) return -1;
+    return ((const linux_io_handle_t*)h)->fd;
 }
 
 io_handle_t* io_executor_create(uv_loop_t* loop, const io_config_t* cfg, net_buf_pool_t* pool) {
@@ -863,4 +900,126 @@ void io_executor_http_request(uv_loop_t* loop, const char* url, const char* meth
         h->cb = _on_http_simple_cb;
         h->ops->enable_read(h, true);
     }
+}
+
+/* --- 6. 异步 TCP 连接端口 --- */
+
+struct io_tcp_connect_s {
+    uv_poll_t poll;
+    int fd;
+    int connect_err; /* 0 表示按 SO_ERROR 判定 */
+    uint32_t idle_s;
+    uint32_t intvl_s;
+    uint32_t cnt;
+    io_tcp_connect_cb_t cb;
+    void* user_data;
+};
+
+static void _on_connect_close(uv_handle_t* handle) {
+    free(handle->data);
+}
+
+void io_tcp_connect_cancel(io_tcp_connect_t* op) {
+    if (!op) return;
+    int fd = op->fd;
+    op->fd = -1;
+    op->cb = NULL;
+    if (fd >= 0) close(fd);
+    if (!uv_is_closing((uv_handle_t*)&op->poll)) {
+        uv_poll_stop(&op->poll);
+        uv_close((uv_handle_t*)&op->poll, _on_connect_close);
+    }
+}
+
+static void _on_connect_poll(uv_poll_t* handle, int status, int events) {
+    io_tcp_connect_t* op = (io_tcp_connect_t*)handle->data;
+    if (!op || !op->cb) return;
+
+    int fd = op->fd;
+    int err = op->connect_err;
+    if (err == 0) {
+        socklen_t len = sizeof(err);
+        if (getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len) != 0) err = errno;
+    }
+    if (err == 0 && status != 0) err = -status; /* libuv 负数状态按 errno 上报 */
+    if (err == 0 && (events & UV_DISCONNECT)) err = ECONNABORTED;
+
+    io_tcp_connect_cb_t cb = op->cb;
+    void* user_data = op->user_data;
+    op->fd = -1; /* 已转移或即将关闭，cancel 不得再碰 */
+    op->cb = NULL;
+    /* 先摘掉连接 poll 再回调：调用方会对同一 fd 做 uv_poll_init。 */
+    uv_poll_stop(&op->poll);
+    uv_close((uv_handle_t*)&op->poll, _on_connect_close);
+    if (err != 0) {
+        close(fd);
+        fd = -1;
+    } else {
+        _tcp_apply_keepalive(fd, op->idle_s, op->intvl_s, op->cnt);
+    }
+    cb(user_data, fd, err != 0 ? -err : 0);
+}
+
+io_tcp_connect_t* io_executor_tcp_connect_async(uv_loop_t* loop, const io_tcp_connect_opts_t* opts,
+                                                io_tcp_connect_cb_t cb, void* user_data) {
+    if (!loop || !opts || !opts->host || !cb || opts->port == 0) {
+        errno = EINVAL;
+        return NULL;
+    }
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(opts->port);
+    if (inet_pton(AF_INET, opts->host, &addr.sin_addr) != 1) {
+        errno = EINVAL;
+        return NULL;
+    }
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return NULL;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        int err = errno;
+        close(fd);
+        errno = err;
+        return NULL;
+    }
+
+    io_tcp_connect_t* op = calloc(1, sizeof(*op));
+    if (!op) {
+        int err = errno;
+        close(fd);
+        errno = err;
+        return NULL;
+    }
+    op->fd = fd;
+    op->cb = cb;
+    op->user_data = user_data;
+    op->idle_s = opts->keepalive_idle_s;
+    op->intvl_s = opts->keepalive_intvl_s;
+    op->cnt = opts->keepalive_cnt;
+    op->poll.data = op;
+
+    int rc = uv_poll_init(loop, &op->poll, fd);
+    if (rc < 0) {
+        free(op);
+        close(fd);
+        errno = -rc;
+        return NULL;
+    }
+    /* 立即成功或失败都先武装 poll：完成回调始终异步，拒绝也经 cb 上报。 */
+    if (connect(fd, (struct sockaddr*)&addr, sizeof(addr)) != 0) {
+        if (errno != EINPROGRESS && errno != EINTR) op->connect_err = errno;
+    }
+    rc = uv_poll_start(&op->poll, UV_WRITABLE, _on_connect_poll);
+    if (rc < 0) {
+        int err = -rc;
+        int poll_fd = op->fd;
+        op->fd = -1;
+        op->cb = NULL;
+        uv_close((uv_handle_t*)&op->poll, _on_connect_close);
+        close(poll_fd);
+        errno = err;
+        return NULL;
+    }
+    return op;
 }

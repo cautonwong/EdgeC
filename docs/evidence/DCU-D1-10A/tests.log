@@ -1,0 +1,80 @@
+== environment ==
+branch: dcu/D1-10a-oi-methods
+base: 34aae98e (feat/dcu tip)
+worktree: /tmp/edgec-land/d1-10a-methods
+gcc: gcc (Ubuntu 11.4.0-1ubuntu1~22.04.2) 11.4.0
+cmake: cmake version 4.2.1
+ninja: 1.10.1
+
+== configure: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WEB_BUILD=OFF ==
+-- Generating done (2.2s)
+-- Build files have been written to: /tmp/edgec-land/d1-10a-methods/build
+
+== clean build target test_dcu_698_catalog (fresh build dir) ==
+[489/491] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_heartbeat.c.o
+[490/491] Linking C static library cmd/dcu/libdcu_app_lib.a
+[491/491] Linking C executable tests/test_dcu_698_catalog
+warnings: 0
+
+== rebuild after comment cleanup ==
+[1/2] Building C object tests/CMakeFiles/test_dcu_698_catalog.dir/test_dcu_698_catalog.c.o
+[2/2] Linking C executable tests/test_dcu_698_catalog
+warnings: 0
+
+== test_dcu_698_catalog (green, 5 cases) ==
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_methods_stay_within_the_oi_definition
+[       OK ] test_methods_stay_within_the_oi_definition
+[ RUN      ] test_class_attr_limit_matches_catalog
+[       OK ] test_class_attr_limit_matches_catalog
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).
+green_exit=0
+
+== ctest -R 'dcu|catalog' --output-on-failure ==
+      Start 344: test_dcu_topology_phase_id
+38/38 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 38
+
+Total Test time (real) =  49.98 sec
+
+== check_dcu_698_catalog.py ==
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+catalog_exit=0
+
+== check_doc_references.py --root . ==
+doc_refs_exit=0
+
+== run_guard_selftest.py --root . (tail) ==
+  ✅ [ARCH_LEDGER] fallbacks match the matrix (18 plane pairs, 3 components, 4 file rules)
+  ✅ [DOC_REFS] 30 AGENTS.md script reference(s) resolve
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+== run_mutation_guards.py --selftest (tail) ==
+  ✅ [SELFTEST] build failure is reported and source restored
+  ✅ [SELFTEST] \n and \t escapes decode
+
+✅ [SELFTEST] mutation runner decision logic verified
+
+== run_mutation_guards.py --build build --only DCU-D1-10A-wrong-oi-method ==
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d1-10a-methods/build ===
+
+[MUTATION] DCU-D1-10A-wrong-oi-method (cmd/dcu/dcu_698_object_model.c)
+  [mutate] cmd/dcu/dcu_698_object_model.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_object_model.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D1-10A-wrong-oi-method: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+
+== git diff --check ==
+clean

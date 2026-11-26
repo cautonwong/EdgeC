@@ -1,0 +1,24 @@
+{
+  "dev_class": [
+    {
+      "type": "METER",
+      "devs": [
+        {
+          "no": "M1",
+          "name": "meter1",
+          "type": "GRID",
+          "channel": "RS485_1",
+          "template": "METER.json",
+          "protocol": "modbus_rtu",
+          "user_def": "",
+          "addr": "1",
+          "period": 10
+        }
+      ]
+    },
+    {
+      "type": "OTHERS",
+      "devs": []
+    }
+  ]
+}

@@ -299,8 +299,9 @@ static void test_datahub_wal_write_failure_counted(void** state) {
     msg.payload.val.f = 1.0;
     assert_int_equal(datahub_publish(&hub, &msg), 0);
     assert_int_equal(atomic_load(&hub.wal_write_failures), 1);
+    assert_true(hub.wal_fd < 0); /* a failed write disables the WAL */
     assert_int_equal(datahub_publish(&hub, &msg), 0);
-    assert_int_equal(atomic_load(&hub.wal_write_failures), 2);
+    assert_int_equal(atomic_load(&hub.wal_write_failures), 1);
 
     datahub_destroy(&hub);
     while (uv_run(&loop, UV_RUN_NOWAIT))

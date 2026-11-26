@@ -1,0 +1,739 @@
+Test project /tmp/edgec-land/feat-dcu/build
+        Start 104: test_driver_iec104
+        Start 308: test_ci_architecture_guards
+  1/367 Test #308: test_ci_architecture_guards ..........   Passed   41.36 sec
+        Start  24: test_dcu_runtime_health_concurrent
+  2/367 Test  #24: test_dcu_runtime_health_concurrent ...   Passed    9.80 sec
+        Start 348: test_storage_powercut_resilience
+  3/367 Test #104: test_driver_iec104 ...................   Passed   52.35 sec
+        Start 354: test_iems_north_iec104
+  4/367 Test #348: test_storage_powercut_resilience .....   Passed    7.97 sec
+        Start 309: test_config_convert
+  5/367 Test #309: test_config_convert ..................   Passed    4.30 sec
+        Start 188: test_northbound_downlink_e2e
+  6/367 Test #188: test_northbound_downlink_e2e .........   Passed    6.64 sec
+        Start 164: test_northbound_wall_ts
+  7/367 Test #164: test_northbound_wall_ts ..............   Passed    6.10 sec
+        Start  78: test_app_host_server
+  8/367 Test #354: test_iems_north_iec104 ...............   Passed   28.82 sec
+        Start 190: test_northbound_ipc_dispatch
+  9/367 Test  #78: test_app_host_server .................   Passed   12.46 sec
+        Start 166: test_snf_delivery_confirm
+ 10/367 Test #190: test_northbound_ipc_dispatch .........   Passed    7.68 sec
+        Start  69: test_alarm_history_migration
+ 11/367 Test  #69: test_alarm_history_migration .........   Passed    1.06 sec
+        Start  16: test_dcu_integration
+ 12/367 Test #166: test_snf_delivery_confirm ............   Passed    9.46 sec
+        Start 186: test_mqtt_subscribe
+ 13/367 Test  #16: test_dcu_integration .................   Passed   10.01 sec
+        Start 163: test_northbound_snf_online
+ 14/367 Test #186: test_mqtt_subscribe ..................   Passed    8.19 sec
+        Start 234: test_iems_config_loader
+ 15/367 Test #163: test_northbound_snf_online ...........   Passed    6.51 sec
+        Start  68: test_alarm_history_archive
+ 16/367 Test  #68: test_alarm_history_archive ...........   Passed    2.02 sec
+        Start  75: test_web_server_path
+ 17/367 Test #234: test_iems_config_loader ..............   Passed    2.48 sec
+        Start 146: test_dcu_scale_benchmark
+ 18/367 Test  #75: test_web_server_path .................   Passed    4.16 sec
+        Start 167: test_snf_restart
+ 19/367 Test #167: test_snf_restart .....................   Passed    1.13 sec
+        Start  83: test_iems_app_runtime
+ 20/367 Test #146: test_dcu_scale_benchmark .............   Passed    6.39 sec
+        Start  54: test_sqlite_migration
+ 21/367 Test  #54: test_sqlite_migration ................   Passed    1.40 sec
+        Start  26: test_dcu_698_archive
+ 22/367 Test  #83: test_iems_app_runtime ................   Passed    3.12 sec
+        Start  23: test_dcu_runtime_health
+ 23/367 Test  #26: test_dcu_698_archive .................   Passed    1.84 sec
+        Start 112: test_rest_apps
+ 24/367 Test #112: test_rest_apps .......................   Passed    1.91 sec
+        Start  37: test_dcu_698_scheme_mgmt
+ 25/367 Test  #37: test_dcu_698_scheme_mgmt .............   Passed    1.36 sec
+        Start 264: test_dds_cli_diagnostics
+ 26/367 Test  #23: test_dcu_runtime_health ..............   Passed    5.49 sec
+        Start  55: test_edge_app_mgr
+ 27/367 Test #264: test_dds_cli_diagnostics .............   Passed    1.71 sec
+        Start  81: test_iems_app_host_ports
+ 28/367 Test  #55: test_edge_app_mgr ....................   Passed    1.72 sec
+        Start  76: test_web_server_limits
+ 29/367 Test  #81: test_iems_app_host_ports .............   Passed    1.75 sec
+        Start 357: test_iems_modbus_rtu_uart_pty
+ 30/367 Test  #76: test_web_server_limits ...............   Passed    2.04 sec
+        Start  39: test_dcu_698_freeze
+ 31/367 Test  #39: test_dcu_698_freeze ..................   Passed    0.90 sec
+        Start 343: test_dcu_mutex_marathon
+ 32/367 Test #357: test_iems_modbus_rtu_uart_pty ........   Passed    2.09 sec
+        Start  98: test_master_link_lifecycle
+ 33/367 Test #343: test_dcu_mutex_marathon ..............   Passed    1.75 sec
+        Start  32: test_dcu_698_record
+ 34/367 Test  #98: test_master_link_lifecycle ...........   Passed    1.66 sec
+        Start 236: test_iems_config_loader_assembly
+ 35/367 Test #236: test_iems_config_loader_assembly .....   Passed    0.39 sec
+        Start  35: test_dcu_698_tasks
+ 36/367 Test  #32: test_dcu_698_record ..................   Passed    0.67 sec
+        Start  70: test_snapshot_csv
+ 37/367 Test  #70: test_snapshot_csv ....................   Passed    0.55 sec
+        Start  52: test_sqlite_service
+ 38/367 Test  #35: test_dcu_698_tasks ...................   Passed    0.98 sec
+        Start  38: test_dcu_698_rules
+ 39/367 Test  #52: test_sqlite_service ..................   Passed    0.44 sec
+        Start  36: test_dcu_698_schemes
+ 40/367 Test  #38: test_dcu_698_rules ...................   Passed    0.54 sec
+        Start 235: test_iems_config_loader_linked
+ 41/367 Test  #36: test_dcu_698_schemes .................   Passed    0.71 sec
+        Start  49: test_passthrough
+ 42/367 Test #235: test_iems_config_loader_linked .......   Passed    0.64 sec
+        Start 127: test_sqlite_injection
+ 43/367 Test  #49: test_passthrough .....................   Passed    1.20 sec
+        Start 114: test_rest_boundaries
+ 44/367 Test #127: test_sqlite_injection ................   Passed    1.16 sec
+        Start  77: test_app_points
+ 45/367 Test  #77: test_app_points ......................   Passed    0.51 sec
+        Start  57: test_app_settings
+ 46/367 Test  #57: test_app_settings ....................   Passed    0.35 sec
+        Start  22: test_dcu_node
+ 47/367 Test #114: test_rest_boundaries .................   Passed    1.13 sec
+        Start  79: test_oom_injection
+ 48/367 Test  #22: test_dcu_node ........................   Passed    0.50 sec
+        Start 101: test_driver_dlt698
+ 49/367 Test  #79: test_oom_injection ...................   Passed    0.75 sec
+        Start 111: test_io_http
+ 50/367 Test #111: test_io_http .........................   Passed    0.49 sec
+        Start 359: test_iems_tcp_link
+ 51/367 Test #359: test_iems_tcp_link ...................   Passed    0.82 sec
+        Start 192: test_northbound_lifecycle
+ 52/367 Test #192: test_northbound_lifecycle ............   Passed    0.39 sec
+        Start 187: test_northbound_downlink
+ 53/367 Test #187: test_northbound_downlink .............   Passed    0.52 sec
+        Start 191: test_northbound_event_driven
+ 54/367 Test #191: test_northbound_event_driven .........   Passed    0.53 sec
+        Start   7: test_arbiter
+ 55/367 Test   #7: test_arbiter .........................   Passed    0.47 sec
+        Start  60: test_edge_authz_sqlite
+ 56/367 Test  #60: test_edge_authz_sqlite ...............   Passed    0.22 sec
+        Start  43: test_datahub
+ 57/367 Test  #43: test_datahub .........................   Passed    0.42 sec
+        Start  82: test_app_host_process
+ 58/367 Test  #82: test_app_host_process ................   Passed    0.43 sec
+        Start  74: test_rest_uds
+ 59/367 Test  #74: test_rest_uds ........................   Passed    0.41 sec
+        Start  13: test_dcu_inventory
+ 60/367 Test #101: test_driver_dlt698 ...................   Passed    5.14 sec
+        Start 193: test_iems_full_stack
+ 61/367 Test  #13: test_dcu_inventory ...................   Passed    0.21 sec
+        Start 165: test_snf_resilience
+ 62/367 Test #165: test_snf_resilience ..................   Passed    0.24 sec
+        Start  97: test_io_executor
+ 63/367 Test #193: test_iems_full_stack .................   Passed    0.37 sec
+        Start 233: test_iems_task_loader
+ 64/367 Test #233: test_iems_task_loader ................   Passed    0.22 sec
+        Start  66: test_edge_backup
+ 65/367 Test  #97: test_io_executor .....................   Passed    0.33 sec
+        Start  62: test_app_task
+ 66/367 Test  #62: test_app_task ........................   Passed    0.17 sec
+        Start 231: test_infra_interfaces
+ 67/367 Test  #66: test_edge_backup .....................   Passed    0.22 sec
+        Start  84: test_registry_snapshot
+ 68/367 Test  #84: test_registry_snapshot ...............   Passed    0.16 sec
+        Start 106: test_modbus_v3
+ 69/367 Test #231: test_infra_interfaces ................   Passed    0.24 sec
+        Start 133: test_iems_bess_aggregate
+ 70/367 Test #133: test_iems_bess_aggregate .............   Passed    0.34 sec
+        Start  71: test_time_trust
+ 71/367 Test #106: test_modbus_v3 .......................   Passed    0.53 sec
+        Start 124: test_wasm_scheduler
+ 72/367 Test  #71: test_time_trust ......................   Passed    0.18 sec
+        Start 162: test_northbound_restart
+ 73/367 Test #162: test_northbound_restart ..............   Passed    0.22 sec
+        Start  61: test_app_secret
+ 74/367 Test #124: test_wasm_scheduler ..................   Passed    0.27 sec
+        Start 310: test_caller_allocated_storage
+ 75/367 Test  #61: test_app_secret ......................   Passed    0.13 sec
+        Start  67: test_app_export
+ 76/367 Test #310: test_caller_allocated_storage ........   Passed    0.15 sec
+        Start 113: test_rest_limits
+ 77/367 Test  #67: test_app_export ......................   Passed    0.10 sec
+        Start  73: test_edgeos_pack_cli
+ 78/367 Test #113: test_rest_limits .....................   Passed    0.25 sec
+        Start 232: test_iems_control_route_e2e
+ 79/367 Test  #73: test_edgeos_pack_cli .................   Passed    0.25 sec
+        Start 248: test_tag_collision_checker
+ 80/367 Test #232: test_iems_control_route_e2e ..........   Passed    0.18 sec
+        Start 349: test_soak_memory_convergence
+ 81/367 Test #248: test_tag_collision_checker ...........   Passed    0.17 sec
+        Start  41: test_dcu_heartbeat_stop
+ 82/367 Test  #41: test_dcu_heartbeat_stop ..............   Passed    0.12 sec
+        Start 358: test_iems_modbus_tcp_loopback
+ 83/367 Test #349: test_soak_memory_convergence .........   Passed    0.35 sec
+        Start 141: test_dcu_poller
+ 84/367 Test #358: test_iems_modbus_tcp_loopback ........   Passed    0.20 sec
+        Start  53: test_sqlite_app_registry
+ 85/367 Test  #53: test_sqlite_app_registry .............   Passed    0.13 sec
+        Start  85: test_edge_launcher
+ 86/367 Test #141: test_dcu_poller ......................   Passed    0.31 sec
+        Start 253: test_datahub_subscription
+ 87/367 Test  #85: test_edge_launcher ...................   Passed    0.21 sec
+        Start 356: test_iems_southbound_uart_pty
+ 88/367 Test #253: test_datahub_subscription ............   Passed    0.12 sec
+        Start  80: test_sdk_real_host_conformance
+ 89/367 Test #356: test_iems_southbound_uart_pty ........   Passed    0.13 sec
+        Start 118: test_stream_bus_port
+ 90/367 Test  #80: test_sdk_real_host_conformance .......   Passed    0.13 sec
+        Start 351: test_sdk_generated
+ 91/367 Test #118: test_stream_bus_port .................   Passed    0.15 sec
+        Start  31: test_dcu_698_param
+ 92/367 Test  #31: test_dcu_698_param ...................   Passed    0.11 sec
+        Start 254: test_telemetry_store_crash
+ 93/367 Test #351: test_sdk_generated ...................   Passed    0.22 sec
+        Start  30: test_dcu_698_axdr
+ 94/367 Test #254: test_telemetry_store_crash ...........   Passed    0.08 sec
+        Start 125: test_wasm_sandbox
+ 95/367 Test  #30: test_dcu_698_axdr ....................   Passed    0.07 sec
+        Start 350: test_sdk_conformance
+ 96/367 Test #350: test_sdk_conformance .................   Passed    0.02 sec
+        Start 251: test_cli_migrate
+ 97/367 Test #125: test_wasm_sandbox ....................   Passed    0.13 sec
+        Start 180: test_omnis_integration
+ 98/367 Test #251: test_cli_migrate .....................   Passed    0.10 sec
+        Start 287: test_battery_eis
+ 99/367 Test #180: test_omnis_integration ...............   Passed    0.08 sec
+        Start  40: test_dcu_runtime_self_exit
+100/367 Test  #40: test_dcu_runtime_self_exit ...........   Passed    0.01 sec
+        Start 147: test_protocol_bridge
+101/367 Test #287: test_battery_eis .....................   Passed    0.12 sec
+        Start 255: test_stream_yaml_assembly
+102/367 Test #147: test_protocol_bridge .................   Passed    0.10 sec
+        Start  15: test_dcu_storage
+103/367 Test  #15: test_dcu_storage .....................   Passed    0.01 sec
+        Start 281: test_mcp_uds
+104/367 Test #255: test_stream_yaml_assembly ............   Passed    0.08 sec
+        Start 159: test_ws_binary
+105/367 Test #159: test_ws_binary .......................   Passed    0.01 sec
+        Start 250: test_examples_integration
+106/367 Test #250: test_examples_integration ............   Passed    0.02 sec
+        Start 363: test_iems_cli_mcp
+107/367 Test #281: test_mcp_uds .........................   Passed    0.07 sec
+        Start 160: test_edge_guard
+108/367 Test #160: test_edge_guard ......................   Passed    0.02 sec
+        Start  51: test_fuzz_datahub
+109/367 Test #363: test_iems_cli_mcp ....................   Passed    0.06 sec
+        Start 258: test_dds_qos_matrix
+110/367 Test #258: test_dds_qos_matrix ..................   Passed    0.04 sec
+        Start 154: test_vibra_sense_rul
+111/367 Test  #51: test_fuzz_datahub ....................   Passed    0.09 sec
+        Start 259: test_dds_shm_zerocopy_perf
+112/367 Test #154: test_vibra_sense_rul .................   Passed    0.04 sec
+        Start 150: test_tinyml_overhead
+113/367 Test #150: test_tinyml_overhead .................   Passed    0.03 sec
+        Start 161: test_edge_params_store
+114/367 Test #259: test_dds_shm_zerocopy_perf ...........   Passed    0.07 sec
+        Start 126: test_wasm_tensor_abi
+115/367 Test #161: test_edge_params_store ...............   Passed    0.03 sec
+        Start 256: test_datahub_dds_mesh
+116/367 Test #126: test_wasm_tensor_abi .................   Passed    0.04 sec
+        Start  46: test_datahub_multi_backend
+117/367 Test #256: test_datahub_dds_mesh ................   Passed    0.04 sec
+        Start 279: test_mcp_dispatcher
+118/367 Test #279: test_mcp_dispatcher ..................   Passed    0.05 sec
+        Start  17: test_dcu_router
+119/367 Test  #46: test_datahub_multi_backend ...........   Passed    0.06 sec
+        Start 342: test_aggregate_roots_governance
+120/367 Test  #17: test_dcu_router ......................   Passed    0.03 sec
+        Start  19: test_dcu_advanced_modules
+121/367 Test #342: test_aggregate_roots_governance ......   Passed    0.03 sec
+        Start 172: test_stream_engine_industrial
+122/367 Test #172: test_stream_engine_industrial ........   Passed    0.04 sec
+        Start 117: test_stage_factory_extension
+123/367 Test  #19: test_dcu_advanced_modules ............   Passed    0.05 sec
+        Start 286: test_battery_spatial_matrix
+124/367 Test #286: test_battery_spatial_matrix ..........   Passed    0.04 sec
+        Start 240: test_driver_registry
+125/367 Test #117: test_stage_factory_extension .........   Passed    0.06 sec
+        Start 109: test_fuzz_modbus
+126/367 Test #240: test_driver_registry .................   Passed    0.02 sec
+        Start 323: test_ai_temporal_fault_net
+127/367 Test #109: test_fuzz_modbus .....................   Passed    0.03 sec
+        Start 312: test_vsg_control
+128/367 Test #323: test_ai_temporal_fault_net ...........   Passed    0.03 sec
+        Start 303: test_npu_self_healing
+129/367 Test #312: test_vsg_control .....................   Passed    0.01 sec
+        Start 123: test_wasm_host_api
+130/367 Test #303: test_npu_self_healing ................   Passed    0.04 sec
+        Start 265: test_web_design_tokens
+131/367 Test #265: test_web_design_tokens ...............   Passed    0.02 sec
+        Start 197: test_adc_dsp_local
+132/367 Test #123: test_wasm_host_api ...................   Passed    0.06 sec
+        Start 177: test_sdk_full_chain
+133/367 Test #197: test_adc_dsp_local ...................   Passed    0.03 sec
+        Start 257: test_dds_idl_codec
+134/367 Test #177: test_sdk_full_chain ..................   Passed    0.05 sec
+        Start  20: test_dcu_business_engines
+135/367 Test #257: test_dds_idl_codec ...................   Passed    0.03 sec
+        Start  48: test_datahub_walfd
+136/367 Test  #20: test_dcu_business_engines ............   Passed    0.02 sec
+        Start  99: test_arbiter_ownership
+137/367 Test  #48: test_datahub_walfd ...................   Passed    0.02 sec
+        Start 263: test_dds_discovery_liveliness
+138/367 Test  #99: test_arbiter_ownership ...............   Passed    0.03 sec
+        Start 268: test_smartbox_scope_double_auth
+139/367 Test #268: test_smartbox_scope_double_auth ......   Passed    0.01 sec
+        Start 252: test_developer_manuals
+140/367 Test #263: test_dds_discovery_liveliness ........   Passed    0.06 sec
+        Start 237: test_iems_vendor_semantics
+141/367 Test #237: test_iems_vendor_semantics ...........   Passed    0.02 sec
+        Start  65: test_edge_eapp
+142/367 Test #252: test_developer_manuals ...............   Passed    0.06 sec
+        Start 153: test_vibration_features
+143/367 Test  #65: test_edge_eapp .......................   Passed    0.04 sec
+        Start  93: test_dlms_hdlc
+144/367 Test  #93: test_dlms_hdlc .......................   Passed    0.03 sec
+        Start  89: test_edge_mesh
+145/367 Test #153: test_vibration_features ..............   Passed    0.08 sec
+        Start 224: test_multibus_bridge
+146/367 Test  #89: test_edge_mesh .......................   Passed    0.03 sec
+147/367 Test #224: test_multibus_bridge .................   Passed    0.01 sec
+        Start 314: test_pcp_mutex
+        Start 299: test_npu_nvidia_trt
+148/367 Test #299: test_npu_nvidia_trt ..................   Passed    0.00 sec
+        Start 138: test_foc_latency
+149/367 Test #138: test_foc_latency .....................   Passed    0.01 sec
+        Start  88: test_stream_dag
+150/367 Test #314: test_pcp_mutex .......................   Passed    0.02 sec
+        Start  42: test_dlt698_conformance_suite
+151/367 Test  #88: test_stream_dag ......................   Passed    0.02 sec
+152/367 Test  #42: test_dlt698_conformance_suite ........   Passed    0.01 sec
+        Start 242: test_driver_registry_smart_box
+        Start 136: test_sparkplug_b
+153/367 Test #242: test_driver_registry_smart_box .......   Passed    0.02 sec
+        Start 122: test_wasm_stage
+154/367 Test #136: test_sparkplug_b .....................   Passed    0.02 sec
+        Start 115: test_stream_engine
+155/367 Test #122: test_wasm_stage ......................   Passed    0.04 sec
+        Start 173: test_stream_engine_timeguard
+156/367 Test #115: test_stream_engine ...................   Passed    0.05 sec
+        Start 335: test_swarm_ai_offloading
+157/367 Test #173: test_stream_engine_timeguard .........   Passed    0.02 sec
+158/367 Test #335: test_swarm_ai_offloading .............   Passed    0.01 sec
+        Start 119: test_pipeline_loader
+        Start 339: test_cdd_tensor_schema
+159/367 Test #339: test_cdd_tensor_schema ...............   Passed    0.01 sec
+        Start 120: test_pipeline_hot_reload
+160/367 Test #119: test_pipeline_loader .................   Passed    0.06 sec
+        Start 116: test_stream_batch_ownership
+161/367 Test #120: test_pipeline_hot_reload .............   Passed    0.04 sec
+        Start 364: test_iems_cli_write
+162/367 Test #116: test_stream_batch_ownership ..........   Passed    0.03 sec
+        Start 320: test_mixed_criticality
+163/367 Test #320: test_mixed_criticality ...............   Passed    0.01 sec
+        Start 176: test_integration
+164/367 Test #364: test_iems_cli_write ..................   Passed    0.05 sec
+        Start 360: test_iems_dlt645_uart_pty
+165/367 Test #176: test_integration .....................   Passed    0.03 sec
+        Start 304: test_npu_pmu
+166/367 Test #360: test_iems_dlt645_uart_pty ............   Passed    0.02 sec
+        Start 148: test_wasm_secure
+167/367 Test #304: test_npu_pmu .........................   Passed    0.03 sec
+        Start 321: test_ai_quant_calibrator
+168/367 Test #148: test_wasm_secure .....................   Passed    0.03 sec
+        Start 346: test_northbound_dual_track_snf
+169/367 Test #346: test_northbound_dual_track_snf .......   Passed    0.01 sec
+        Start 121: test_js_engine
+170/367 Test #121: test_js_engine .......................   Passed    0.02 sec
+        Start 107: test_modbus_write_guard
+171/367 Test #321: test_ai_quant_calibrator .............   Passed    0.05 sec
+        Start  92: test_dlms_codec
+172/367 Test #107: test_modbus_write_guard ..............   Passed    0.02 sec
+        Start 274: test_web_app_store
+173/367 Test  #92: test_dlms_codec ......................   Passed    0.02 sec
+        Start 134: test_ekf_soc
+174/367 Test #274: test_web_app_store ...................   Passed    0.01 sec
+        Start 361: test_iems_ydt1363_uart_pty
+175/367 Test #134: test_ekf_soc .........................   Passed    0.03 sec
+        Start 139: test_wavelet_anomaly
+176/367 Test #361: test_iems_ydt1363_uart_pty ...........   Passed    0.02 sec
+        Start 132: test_iems_advanced_delivery
+177/367 Test #132: test_iems_advanced_delivery ..........   Passed    0.01 sec
+        Start 331: test_uns_sparkplug_opcua
+178/367 Test #139: test_wavelet_anomaly .................   Passed    0.02 sec
+        Start 137: test_cia402
+179/367 Test #331: test_uns_sparkplug_opcua .............   Passed    0.01 sec
+        Start  33: test_dcu_698_value_table
+180/367 Test #137: test_cia402 ..........................   Passed    0.01 sec
+        Start 225: test_stream_sql_dag
+181/367 Test  #33: test_dcu_698_value_table .............   Passed    0.02 sec
+182/367 Test #225: test_stream_sql_dag ..................   Passed    0.01 sec
+        Start 195: test_iems_execution_port
+        Start  91: test_fuzz_dlms_dlt698
+183/367 Test #195: test_iems_execution_port .............   Passed    0.02 sec
+        Start 194: test_iems_node
+184/367 Test  #91: test_fuzz_dlms_dlt698 ................   Passed    0.03 sec
+        Start 184: test_northbound_address
+185/367 Test #194: test_iems_node .......................   Passed    0.03 sec
+        Start  45: test_datahub_attach
+186/367 Test #184: test_northbound_address ..............   Passed    0.01 sec
+        Start 317: test_cpu_affinity
+187/367 Test #317: test_cpu_affinity ....................   Passed    0.01 sec
+        Start 262: test_smartbox_interlock_thermal
+188/367 Test  #45: test_datahub_attach ..................   Passed    0.03 sec
+        Start 171: test_standard_stages_math
+189/367 Test #262: test_smartbox_interlock_thermal ......   Passed    0.01 sec
+        Start  90: test_fuzz_iec104
+190/367 Test #171: test_standard_stages_math ............   Passed    0.02 sec
+        Start 196: test_iems_noio_completion
+191/367 Test  #90: test_fuzz_iec104 .....................   Passed    0.01 sec
+        Start 295: test_mcp_microservices_integration
+192/367 Test #196: test_iems_noio_completion ............   Passed    0.01 sec
+        Start 152: test_ecg_anomaly
+193/367 Test #295: test_mcp_microservices_integration ...   Passed    0.01 sec
+        Start  87: test_datahub_dynamic_chunk
+194/367 Test #152: test_ecg_anomaly .....................   Passed    0.01 sec
+        Start 307: test_composition_root
+195/367 Test  #87: test_datahub_dynamic_chunk ...........   Passed    0.01 sec
+        Start 135: test_mpc_dispatcher
+196/367 Test #307: test_composition_root ................   Passed    0.01 sec
+        Start 145: test_driver_iec101
+197/367 Test #135: test_mpc_dispatcher ..................   Passed    0.01 sec
+        Start 108: test_modbus_write_desc
+198/367 Test #145: test_driver_iec101 ...................   Passed    0.01 sec
+        Start 179: test_protocol_loopback
+199/367 Test #108: test_modbus_write_desc ...............   Passed    0.01 sec
+        Start 318: test_prio_booster
+200/367 Test #318: test_prio_booster ....................   Passed    0.01 sec
+        Start 333: test_amp_ipc_ring
+201/367 Test #179: test_protocol_loopback ...............   Passed    0.02 sec
+        Start  34: test_dcu_698_class22
+202/367 Test #333: test_amp_ipc_ring ....................   Passed    0.01 sec
+        Start 129: test_algorithm_sum
+203/367 Test  #34: test_dcu_698_class22 .................   Passed    0.02 sec
+        Start 272: test_web_metrics_matrix
+204/367 Test #129: test_algorithm_sum ...................   Passed    0.02 sec
+        Start 245: test_tag_domains_and_aliases
+205/367 Test #272: test_web_metrics_matrix ..............   Passed    0.02 sec
+        Start 151: test_notch_filter
+206/367 Test #245: test_tag_domains_and_aliases .........   Passed    0.02 sec
+        Start 273: test_web_channel_topology
+207/367 Test #151: test_notch_filter ....................   Passed    0.02 sec
+        Start 143: test_ipc_binary_flow_codec
+208/367 Test #273: test_web_channel_topology ............   Passed    0.02 sec
+        Start 249: test_sdk_public_headers
+209/367 Test #143: test_ipc_binary_flow_codec ...........   Passed    0.03 sec
+        Start 267: test_web_iems_energy_flow
+210/367 Test #249: test_sdk_public_headers ..............   Passed    0.03 sec
+        Start  14: test_dcu_polling_loop
+211/367 Test #267: test_web_iems_energy_flow ............   Passed    0.02 sec
+        Start  47: test_datahub_shm_legacy
+212/367 Test  #14: test_dcu_polling_loop ................   Passed    0.03 sec
+        Start 311: test_vsg_golden_trace
+213/367 Test #311: test_vsg_golden_trace ................   Passed    0.01 sec
+        Start 200: test_wasm_watchdog
+214/367 Test  #47: test_datahub_shm_legacy ..............   Passed    0.04 sec
+        Start  25: test_dcu_698_object_model
+215/367 Test #200: test_wasm_watchdog ...................   Passed    0.02 sec
+        Start 168: test_ccsds_driver
+216/367 Test  #25: test_dcu_698_object_model ............   Passed    0.02 sec
+        Start 189: test_northbound_ipc_topic
+217/367 Test #168: test_ccsds_driver ....................   Passed    0.03 sec
+        Start  86: test_no_exec_filter
+218/367 Test #189: test_northbound_ipc_topic ............   Passed    0.03 sec
+        Start  28: test_dcu_698_var
+219/367 Test  #86: test_no_exec_filter ..................   Passed    0.01 sec
+        Start 294: test_mcp_bus_security
+220/367 Test  #28: test_dcu_698_var .....................   Passed    0.03 sec
+        Start   4: test_net_buf
+221/367 Test #294: test_mcp_bus_security ................   Passed    0.03 sec
+        Start 341: test_ai_hetero_pipeline
+222/367 Test   #4: test_net_buf .........................   Passed    0.02 sec
+223/367 Test #341: test_ai_hetero_pipeline ..............   Passed    0.01 sec
+        Start 277: test_web_protocol_sniffer
+        Start 289: test_battery_balancer
+224/367 Test #289: test_battery_balancer ................   Passed    0.01 sec
+        Start  59: test_edge_authz
+225/367 Test #277: test_web_protocol_sniffer ............   Passed    0.03 sec
+        Start 203: test_protocol_converter
+226/367 Test  #59: test_edge_authz ......................   Passed    0.02 sec
+        Start 247: test_domain_scenarios
+227/367 Test #203: test_protocol_converter ..............   Passed    0.03 sec
+        Start 142: test_dlt645_codec
+228/367 Test #247: test_domain_scenarios ................   Passed    0.03 sec
+        Start 207: test_hrv_analyzer
+229/367 Test #142: test_dlt645_codec ....................   Passed    0.02 sec
+        Start 183: test_northbound_mqtt
+230/367 Test #207: test_hrv_analyzer ....................   Passed    0.02 sec
+        Start 302: test_npu_hal
+231/367 Test #183: test_northbound_mqtt .................   Passed    0.02 sec
+        Start 271: test_web_log_terminal
+232/367 Test #302: test_npu_hal .........................   Passed    0.02 sec
+        Start 158: test_license_engine
+233/367 Test #271: test_web_log_terminal ................   Passed    0.02 sec
+234/367 Test #158: test_license_engine ..................   Passed    0.01 sec
+        Start 243: test_smartbox_node
+        Start 269: test_web_dcu_power_quality
+235/367 Test #269: test_web_dcu_power_quality ...........   Passed    0.01 sec
+        Start 239: test_iems_tag_map
+236/367 Test #243: test_smartbox_node ...................   Passed    0.02 sec
+        Start  96: test_driver_manager
+237/367 Test #239: test_iems_tag_map ....................   Passed    0.01 sec
+        Start 319: test_coop_guard
+238/367 Test  #96: test_driver_manager ..................   Passed    0.01 sec
+        Start 305: test_npu_enclave
+239/367 Test #319: test_coop_guard ......................   Passed    0.01 sec
+        Start 226: test_wasm_host_bridge
+240/367 Test #305: test_npu_enclave .....................   Passed    0.01 sec
+241/367 Test #226: test_wasm_host_bridge ................   Passed    0.01 sec
+        Start 149: test_sensor_fusion
+        Start 315: test_edf_scheduler
+242/367 Test #149: test_sensor_fusion ...................   Passed    0.02 sec
+243/367 Test #315: test_edf_scheduler ...................   Passed    0.01 sec
+        Start 130: test_battery_algo
+        Start  56: test_app_manifest
+244/367 Test #130: test_battery_algo ....................   Passed    0.01 sec
+        Start 102: test_dlt698_appconn
+245/367 Test  #56: test_app_manifest ....................   Passed    0.02 sec
+        Start 185: test_driver_mqtt_json
+246/367 Test #102: test_dlt698_appconn ..................   Passed    0.01 sec
+        Start  10: test_dlt698_action
+247/367 Test #185: test_driver_mqtt_json ................   Passed    0.01 sec
+        Start 296: test_npu_ascend_acl
+248/367 Test  #10: test_dlt698_action ...................   Passed    0.01 sec
+        Start 332: test_tsn_engine
+249/367 Test #296: test_npu_ascend_acl ..................   Passed    0.01 sec
+250/367 Test #332: test_tsn_engine ......................   Passed    0.01 sec
+        Start 322: test_ai_awq_gptq_gemm
+        Start 276: test_web_cli_bridge
+251/367 Test #322: test_ai_awq_gptq_gemm ................   Passed    0.02 sec
+        Start 266: test_web_data_curves
+252/367 Test #276: test_web_cli_bridge ..................   Passed    0.02 sec
+253/367 Test #266: test_web_data_curves .................   Passed    0.01 sec
+        Start 347: test_iec104_type_test_suite
+        Start  95: test_dlms_set
+254/367 Test #347: test_iec104_type_test_suite ..........   Passed    0.01 sec
+        Start 355: test_iems_southbound_transport
+255/367 Test  #95: test_dlms_set ........................   Passed    0.01 sec
+        Start 216: test_shm_waitset
+256/367 Test #216: test_shm_waitset .....................   Passed    0.01 sec
+        Start   2: test_is_enabled
+257/367 Test #355: test_iems_southbound_transport .......   Passed    0.03 sec
+258/367 Test   #2: test_is_enabled ......................   Passed    0.01 sec
+        Start 336: test_operator_fusion
+        Start 283: test_mcp_industry_tools
+259/367 Test #336: test_operator_fusion .................   Passed    0.01 sec
+        Start 241: test_driver_registry_dcu
+260/367 Test #283: test_mcp_industry_tools ..............   Passed    0.03 sec
+261/367 Test #241: test_driver_registry_dcu .............   Passed    0.03 sec
+        Start 334: test_vsg_ffr
+        Start 270: test_web_event_stream
+262/367 Test #334: test_vsg_ffr .........................   Passed    0.02 sec
+        Start 213: test_apnea_detector
+263/367 Test #270: test_web_event_stream ................   Passed    0.02 sec
+264/367 Test #213: test_apnea_detector ..................   Passed    0.01 sec
+        Start 211: test_tremor_analyzer
+        Start 292: test_battery_thermal_mesh
+265/367 Test #211: test_tremor_analyzer .................   Passed    0.01 sec
+        Start 175: test_smart_box_hw
+266/367 Test #292: test_battery_thermal_mesh ............   Passed    0.01 sec
+        Start 218: test_device_twin
+267/367 Test #218: test_device_twin .....................   Passed    0.01 sec
+        Start 178: test_bus_orchestrator
+268/367 Test #175: test_smart_box_hw ....................   Passed    0.02 sec
+        Start 298: test_npu_horizon_bpu
+269/367 Test #178: test_bus_orchestrator ................   Passed    0.01 sec
+        Start 260: test_iems_energy_strategy
+270/367 Test #298: test_npu_horizon_bpu .................   Passed    0.01 sec
+        Start 208: test_ppg_spo2
+271/367 Test #260: test_iems_energy_strategy ............   Passed    0.01 sec
+272/367 Test #208: test_ppg_spo2 ........................   Passed    0.00 sec
+        Start 169: test_hl7_fhir
+        Start  29: test_dcu_698_report
+273/367 Test  #29: test_dcu_698_report ..................   Passed    0.00 sec
+        Start 297: test_npu_rockchip_rknn
+274/367 Test #169: test_hl7_fhir ........................   Passed    0.02 sec
+        Start 275: test_web_console_drawer
+275/367 Test #297: test_npu_rockchip_rknn ...............   Passed    0.01 sec
+        Start 198: test_fall_detection
+276/367 Test #275: test_web_console_drawer ..............   Passed    0.01 sec
+        Start 220: test_impedance_control
+277/367 Test #198: test_fall_detection ..................   Passed    0.01 sec
+278/367 Test #220: test_impedance_control ...............   Passed    0.01 sec
+        Start 325: test_ai_slm_kv_cache
+        Start  72: test_edge_eapp_build
+279/367 Test #325: test_ai_slm_kv_cache .................   Passed    0.02 sec
+        Start 362: test_datahub_subscription_capacity
+280/367 Test #362: test_datahub_subscription_capacity ...   Passed    0.01 sec
+        Start 290: test_battery_gas_early_warning
+281/367 Test  #72: test_edge_eapp_build .................   Passed    0.03 sec
+        Start 209: test_bia_estimator
+282/367 Test #290: test_battery_gas_early_warning .......   Passed    0.01 sec
+        Start 212: test_gait_balance
+283/367 Test #209: test_bia_estimator ...................   Passed    0.01 sec
+        Start 128: test_linalg
+284/367 Test #212: test_gait_balance ....................   Passed    0.01 sec
+        Start   9: test_dlt698_axdr
+285/367 Test #128: test_linalg ..........................   Passed    0.01 sec
+286/367 Test   #9: test_dlt698_axdr .....................   Passed    0.01 sec
+        Start 221: test_gait_safety
+        Start 324: test_ai_dynamic_tensor_pool
+287/367 Test #221: test_gait_safety .....................   Passed    0.01 sec
+288/367 Test #324: test_ai_dynamic_tensor_pool ..........   Passed    0.00 sec
+        Start 157: test_os_port
+        Start   5: test_shmring
+289/367 Test #157: test_os_port .........................   Passed    0.01 sec
+        Start  50: test_memfd_seals
+290/367 Test   #5: test_shmring .........................   Passed    0.01 sec
+        Start  11: test_dlt698_get_list
+291/367 Test  #50: test_memfd_seals .....................   Passed    0.02 sec
+        Start 300: test_npu_ti_sitara
+292/367 Test  #11: test_dlt698_get_list .................   Passed    0.01 sec
+        Start 366: test_fuzz_cp56time_seed
+293/367 Test #300: test_npu_ti_sitara ...................   Passed    0.01 sec
+        Start 244: test_dx_scaffolding
+294/367 Test #366: test_fuzz_cp56time_seed ..............   Passed    0.01 sec
+        Start  63: test_app_backfill
+295/367 Test #244: test_dx_scaffolding ..................   Passed    0.02 sec
+        Start 182: test_scheduler
+296/367 Test  #63: test_app_backfill ....................   Passed    0.01 sec
+        Start 144: test_ydt1363_codec
+297/367 Test #182: test_scheduler .......................   Passed    0.01 sec
+        Start 131: test_iems_business_engines
+298/367 Test #144: test_ydt1363_codec ...................   Passed    0.01 sec
+299/367 Test #131: test_iems_business_engines ...........   Passed    0.01 sec
+        Start  44: test_datahub_shadow
+        Start 246: test_anti_corruption_engine
+300/367 Test  #44: test_datahub_shadow ..................   Passed    0.01 sec
+301/367 Test #246: test_anti_corruption_engine ..........   Passed    0.01 sec
+        Start 285: test_battery_micro_isc
+        Start 156: test_ahrs_quaternion
+302/367 Test #285: test_battery_micro_isc ...............   Passed    0.01 sec
+        Start 278: test_web_console_rbac_audit
+303/367 Test #156: test_ahrs_quaternion .................   Passed    0.00 sec
+        Start 337: test_battery_thermal_pinn
+304/367 Test #337: test_battery_thermal_pinn ............   Passed    0.00 sec
+        Start 301: test_dma_buf_pool
+305/367 Test #278: test_web_console_rbac_audit ..........   Passed    0.01 sec
+        Start 352: test_iec_cp56time
+306/367 Test #301: test_dma_buf_pool ....................   Passed    0.01 sec
+        Start 222: test_facility_coordinator
+307/367 Test #352: test_iec_cp56time ....................   Passed    0.01 sec
+308/367 Test #222: test_facility_coordinator ............   Passed    0.01 sec
+        Start 367: test_fuzz_simd_cdd_seed
+        Start 210: test_ecg_arrhythmia
+309/367 Test #367: test_fuzz_simd_cdd_seed ..............   Passed    0.01 sec
+        Start 227: test_edge_cep_engine
+310/367 Test #210: test_ecg_arrhythmia ..................   Passed    0.01 sec
+        Start 306: test_npu_power_manager
+311/367 Test #227: test_edge_cep_engine .................   Passed    0.01 sec
+        Start 291: test_battery_pulse_heating
+312/367 Test #306: test_npu_power_manager ...............   Passed    0.01 sec
+        Start 365: test_fuzz_protocol_seed
+313/367 Test #291: test_battery_pulse_heating ...........   Passed    0.01 sec
+        Start 330: test_thermal_scheduler
+314/367 Test #365: test_fuzz_protocol_seed ..............   Passed    0.01 sec
+        Start 288: test_battery_soh_fusion
+315/367 Test #330: test_thermal_scheduler ...............   Passed    0.01 sec
+        Start 340: test_ai_pinn_evaluator
+316/367 Test #288: test_battery_soh_fusion ..............   Passed    0.01 sec
+        Start 282: test_web_ai_copilot
+317/367 Test #340: test_ai_pinn_evaluator ...............   Passed    0.01 sec
+        Start 140: test_kinematics
+318/367 Test #140: test_kinematics ......................   Passed    0.01 sec
+        Start 344: test_dcu_topology_phase_id
+319/367 Test #282: test_web_ai_copilot ..................   Passed    0.02 sec
+        Start 327: test_ai_fast_gemm
+320/367 Test #344: test_dcu_topology_phase_id ...........   Passed    0.01 sec
+        Start 223: test_simd_cdd_codec
+321/367 Test #327: test_ai_fast_gemm ....................   Passed    0.01 sec
+        Start 110: test_radar_fmcw
+322/367 Test #223: test_simd_cdd_codec ..................   Passed    0.01 sec
+        Start  64: test_edge_wasm_imports
+323/367 Test #110: test_radar_fmcw ......................   Passed    0.01 sec
+        Start 217: test_thermal_throttle
+324/367 Test  #64: test_edge_wasm_imports ...............   Passed    0.01 sec
+325/367 Test #217: test_thermal_throttle ................   Passed    0.00 sec
+        Start 293: test_battery_sop_dynamic_bounds
+        Start 228: test_timeseries_compressor
+326/367 Test #293: test_battery_sop_dynamic_bounds ......   Passed    0.01 sec
+327/367 Test #228: test_timeseries_compressor ...........   Passed    0.01 sec
+        Start 316: test_rms_scheduler
+        Start  58: test_app_pressure
+328/367 Test #316: test_rms_scheduler ...................   Passed    0.02 sec
+        Start 326: test_ai_graph_pruner
+329/367 Test  #58: test_app_pressure ....................   Passed    0.01 sec
+        Start 155: test_radar_tracker
+330/367 Test #326: test_ai_graph_pruner .................   Passed    0.01 sec
+        Start   8: test_edge_periodic_clock
+331/367 Test #155: test_radar_tracker ...................   Passed    0.01 sec
+        Start  94: test_dlms_security_validation
+332/367 Test   #8: test_edge_periodic_clock .............   Passed    0.01 sec
+        Start 214: test_dicom_parser
+333/367 Test #214: test_dicom_parser ....................   Passed    0.00 sec
+        Start 229: test_onnx_host_guard
+334/367 Test  #94: test_dlms_security_validation ........   Passed    0.01 sec
+        Start 174: test_proc_filter_pid
+335/367 Test #229: test_onnx_host_guard .................   Passed    0.01 sec
+        Start 215: test_federated_aggregator
+336/367 Test #174: test_proc_filter_pid .................   Passed    0.01 sec
+337/367 Test #215: test_federated_aggregator ............   Passed    0.00 sec
+        Start 181: test_dcu
+        Start 219: test_driver_hotplug
+338/367 Test #181: test_dcu .............................   Passed    0.01 sec
+        Start 201: test_emg_dsp
+339/367 Test #219: test_driver_hotplug ..................   Passed    0.01 sec
+        Start 199: test_sos_dscp
+340/367 Test #201: test_emg_dsp .........................   Passed    0.01 sec
+        Start   3: test_edge_log
+341/367 Test #199: test_sos_dscp ........................   Passed    0.01 sec
+342/367 Test   #3: test_edge_log ........................   Passed    0.00 sec
+        Start   6: test_edge_tlv
+        Start 280: test_mcp_server_protocol
+343/367 Test   #6: test_edge_tlv ........................   Passed    0.01 sec
+        Start  18: test_dcu_north_source
+344/367 Test #280: test_mcp_server_protocol .............   Passed    0.01 sec
+345/367 Test  #18: test_dcu_north_source ................   Passed    0.00 sec
+        Start 105: test_driver_v3
+        Start  21: test_dcu_phase1_delivery
+346/367 Test #105: test_driver_v3 .......................   Passed    0.01 sec
+        Start   1: test_version
+347/367 Test  #21: test_dcu_phase1_delivery .............   Passed    0.00 sec
+        Start 353: test_iems_connectivity
+348/367 Test   #1: test_version .........................   Passed    0.01 sec
+        Start 313: test_edge_sched_deadline
+349/367 Test #353: test_iems_connectivity ...............   Passed    0.01 sec
+350/367 Test #313: test_edge_sched_deadline .............   Passed    0.01 sec
+        Start 100: test_driver_dlt645
+        Start 284: test_battery_fo_ecm_ekf
+351/367 Test #284: test_battery_fo_ecm_ekf ..............   Passed    0.01 sec
+        Start 206: test_motion_wavelet
+352/367 Test #100: test_driver_dlt645 ...................   Passed    0.02 sec
+        Start 238: test_iems_point_model
+353/367 Test #206: test_motion_wavelet ..................   Passed    0.01 sec
+        Start 338: test_wasm_nn_sandbox
+354/367 Test #238: test_iems_point_model ................   Passed    0.01 sec
+355/367 Test #338: test_wasm_nn_sandbox .................   Passed    0.01 sec
+        Start 261: test_dcu_power_quality
+        Start  12: test_dlt645_control
+356/367 Test #261: test_dcu_power_quality ...............   Passed    0.01 sec
+        Start 345: test_bus_resilience_recovery
+357/367 Test  #12: test_dlt645_control ..................   Passed    0.01 sec
+        Start 205: test_rehab_kinematics
+358/367 Test #345: test_bus_resilience_recovery .........   Passed    0.02 sec
+        Start 170: test_pid_antiwindup
+359/367 Test #205: test_rehab_kinematics ................   Passed    0.01 sec
+        Start 204: test_edge_acl
+360/367 Test #170: test_pid_antiwindup ..................   Passed    0.01 sec
+361/367 Test #204: test_edge_acl ........................   Passed    0.01 sec
+        Start 329: test_ebpf_telemetry
+        Start 230: test_idl_generated_serialization
+362/367 Test #329: test_ebpf_telemetry ..................   Passed    0.01 sec
+        Start 328: test_tmr_failover
+363/367 Test #230: test_idl_generated_serialization .....   Passed    0.01 sec
+        Start 202: test_timesync
+364/367 Test #328: test_tmr_failover ....................   Passed    0.01 sec
+        Start  27: test_dcu_698_catalog
+365/367 Test #202: test_timesync ........................   Passed    0.01 sec
+        Start 103: test_dcu_698_appconn
+366/367 Test  #27: test_dcu_698_catalog .................   Passed    0.01 sec
+367/367 Test #103: test_dcu_698_appconn .................   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 367
+
+Total Test time (real) = 145.68 sec

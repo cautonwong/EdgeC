@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mqtt_emms2",
+  "description": "P6-04a round 1. Covers HXD610.json and stactrl_mqtt.json. password/pass accept only $secret:<name> or ${ENV_NAME}; empty means unset. P1-03b injects schema_version.",
+  "x-schema-version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "devID",
+        "clientID",
+        "portnum",
+        "certEnable",
+        "cafilePath",
+        "certfilePath",
+        "keyfilePath"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "devID": {
+          "type": "string"
+        },
+        "clientID": {
+          "type": "string"
+        },
+        "protocol": {
+          "type": "string"
+        },
+        "desc": {
+          "type": "string"
+        },
+        "mainIP": {
+          "type": "string"
+        },
+        "portnum": {
+          "type": "integer"
+        },
+        "username": {
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        },
+        "certEnable": {
+          "type": "integer"
+        },
+        "cafilePath": {
+          "type": "string"
+        },
+        "certfilePath": {
+          "type": "string"
+        },
+        "keyfilePath": {
+          "type": "string"
+        },
+        "httpsCa": {
+          "type": "string"
+        },
+        "keepAlive": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "x-secret": [
+        "password"
+      ]
+    },
+    {
+      "type": "object",
+      "required": [
+        "host",
+        "port"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer"
+        },
+        "user": {
+          "type": "string"
+        },
+        "pass": {
+          "type": "string"
+        },
+        "reportInterval": {
+          "type": "integer"
+        },
+        "changeReportInterval": {
+          "type": "integer"
+        },
+        "saveDisconnectData": {
+          "type": "integer"
+        },
+        "enable_tls": {
+          "type": "integer"
+        },
+        "disable_lz4": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false,
+      "x-secret": [
+        "pass"
+      ]
+    }
+  ]
+}

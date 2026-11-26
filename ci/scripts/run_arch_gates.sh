@@ -13,6 +13,9 @@ if [ ! -f "$BUILD_DIR/CMakeCache.txt" ]; then
     exit 2
 fi
 
+python3 ci/scripts/check_build_freshness.py --root . --build "$BUILD_DIR"
+python3 ci/scripts/check_plaintext_secrets.py --root .
+
 # check_binary_sizes.sh hardcodes <root>/build, so point it at the chosen build.
 CREATED_LINK=0
 if [ ! -e build ]; then
@@ -25,6 +28,9 @@ cleanup() {
 trap cleanup EXIT
 
 python3 ci/scripts/run_guard_selftest.py
+python3 ci/scripts/run_mutation_guards.py --build "$BUILD_DIR"
+python3 ci/scripts/check_architecture_graph.py --root . --compile-commands "$BUILD_DIR/compile_commands.json"
+python3 ci/scripts/check_ci_gate_parity.py --root .
 python3 ci/scripts/check_dcu_698_catalog.py --root .
 python3 ci/scripts/check_sbom.py --out "$BUILD_DIR/sbom"
 python3 ci/scripts/check_component_budgets.py --root . --build "$BUILD_DIR"
@@ -35,3 +41,7 @@ python3 ci/scripts/check_resource_discipline.py --root .
 STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
 STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh "$BASE_REF"
 ./scripts/check_binary_sizes.sh | tee "$BUILD_DIR/size_report.txt"
+./ci/scripts/check_formal.sh ${FORMAL_STRICT:+--strict}
+./ci/scripts/check_formal_negative.sh ${FORMAL_STRICT:+--strict}
+python3 ci/scripts/check_formal_sync.py --root .
+python3 ci/scripts/check_formal_isolation.py --root .

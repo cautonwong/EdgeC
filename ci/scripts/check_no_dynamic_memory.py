@@ -35,6 +35,8 @@ CONSTRUCTOR_NAME = re.compile(r"\b(\w+_(?:create|init|new|alloc|load|open|ctor)\
 ALLOC_CALL = re.compile(r"\b(?:malloc|calloc|realloc|valloc|aligned_alloc|strdup|strndup)\s*\(")
 RT_ALLOC_OK = re.compile(r"^\s*//\s*rt-alloc-ok:\s*\S")
 
+from c_source_scan import SHARED_PRUNE_DIRS, skip_subtree
+
 PRUNE_DIRS = {
     ".git",
     ".local",
@@ -47,7 +49,7 @@ PRUNE_DIRS = {
     "docs",
     "web",
     "docker",
-}
+} | SHARED_PRUNE_DIRS
 
 
 def _iter_function_bodies(text):
@@ -116,13 +118,10 @@ def check_file(file_path, repo_root):
 
 def check_dynamic_memory(target_dir):
     target_dir = os.path.abspath(target_dir)
-    is_fixture = "/fixtures" in target_dir.replace("\\", "/")
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        if "fixtures" in root and not is_fixture:
-            continue
-        if "tests" in root and "guards" not in root:
+        if skip_subtree(root, target_dir):
             continue
         for f in files:
             if f.endswith((".c", ".cpp")):
@@ -140,13 +139,12 @@ def main():
     root_dir = os.path.abspath(args.root)
     violations = check_dynamic_memory(root_dir)
     baseline_path = args.baseline or guard_baseline.baseline_path_for(__file__)
-    is_fixture = "/fixtures" in root_dir.replace("\\", "/")
     return guard_baseline.apply(
         violations,
         baseline_path,
         args.update_baseline,
         "ZERO_DYNAMIC_MEMORY_GUARD",
-        allow_missing_baseline=is_fixture,
+        allow_missing_baseline=guard_baseline.is_selftest_fixture(root_dir),
     )
 
 

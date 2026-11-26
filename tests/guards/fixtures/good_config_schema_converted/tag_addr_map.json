@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0.0",
+  "ver": 2,
+  "server_port": 502,
+  "pts": [
+    {
+      "addr": 1,
+      "start_bits": "1",
+      "nb_bits": 2,
+      "start_input_bits": "10001",
+      "nb_input_bits": 1,
+      "start_registers": "40001",
+      "nb_registers": 2,
+      "start_input_registers": "30001",
+      "nb_input_registers": 2,
+      "pointInfo": [
+        [
+          "METER1.P",
+          3,
+          "40001",
+          "float",
+          "ABCD",
+          10
+        ],
+        [
+          "METER1.STATE",
+          1,
+          "1",
+          "bool",
+          "A",
+          1
+        ],
+        [
+          "METER1.DI",
+          2,
+          "10001",
+          "bool",
+          "A",
+          1
+        ]
+      ]
+    }
+  ]
+}

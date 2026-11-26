@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rate_fig",
+  "description": "P6-04a round 2. Covers rate_fig.json (DLT645 send/receive frame templates). 结构冻结、语义未确认 (structure frozen, semantics unconfirmed): the reader rate_cfg_read is outside this repo (src/mqtt_emms2/mqtt_emms2.c:1238) and mqtt_emms2 is not built. Array lengths are deliberately unchecked because p1-03a records read/write send_N/read_N length inconsistency and the snapshot has one row; the key sets below are the observed row and any other key is rejected.",
+  "x-schema-version": "1.0.0",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "vendor",
+      "mode",
+      "agreement",
+      "adapter",
+      "read_en",
+      "write_en",
+      "delay_time",
+      "protocol",
+      "write",
+      "read"
+    ],
+    "properties": {
+      "vendor": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string"
+      },
+      "agreement": {
+        "type": "string"
+      },
+      "adapter": {
+        "type": "array",
+        "items": {
+          "type": "integer"
+        }
+      },
+      "read_en": {
+        "type": "string",
+        "enum": [
+          "true",
+          "false"
+        ]
+      },
+      "write_en": {
+        "type": "string",
+        "enum": [
+          "true",
+          "false"
+        ]
+      },
+      "delay_time": {
+        "type": "integer"
+      },
+      "protocol": {
+        "type": "string"
+      },
+      "write": {
+        "type": "object",
+        "properties": {
+          "send_0": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_1": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_2": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_3": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_4": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_5": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_6": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_7": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_8": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_0": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_1": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_2": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_3": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_4": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_5": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_6": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_7": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "read": {
+        "type": "object",
+        "properties": {
+          "send_0": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_1": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_2": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_3": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_4": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_5": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_6": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_7": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "send_8": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_0": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_1": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_2": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_3": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_4": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_5": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_6": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_7": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "read_8": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false
+  }
+}

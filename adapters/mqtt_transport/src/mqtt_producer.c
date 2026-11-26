@@ -141,8 +141,10 @@ static void _pub_failed(void* context, MQTTAsync_failureData* response) {
     (void)response;
     mqtt_ctx_t* ctx = (mqtt_ctx_t*)context;
     if (ctx) {
-        __atomic_sub_fetch(&ctx->inflight, 1, __ATOMIC_SEQ_CST);
+        /* SnF 先读 pending 再读 failures；失败计数必须在递减 inflight 之前可见，
+         * 否则 pending 已归零而 failures 仍为 0，这一批会被误判送达。 */
         __atomic_add_fetch(&ctx->failures, 1, __ATOMIC_SEQ_CST);
+        __atomic_sub_fetch(&ctx->inflight, 1, __ATOMIC_SEQ_CST);
     }
 }
 

@@ -1,4 +1,8 @@
 # path	option	message
+# cJSON guarantees valuestring for a string item; -fanalyzer cannot see the
+# library invariant, so _get_string(required=true) success implies non-NULL.
+cmd/iems/iems_alarm_registry.c	-Wanalyzer-null-argument	use of NULL ‘value’ where non-null expected [CWE-476]
+cmd/iems/iems_alarm_registry.c	-Wanalyzer-null-argument	use of NULL ‘lang’ where non-null expected [CWE-476]
 adapters/rest_api/src/rest_server.c	-Wanalyzer-malloc-leak	leak of ‘wasm_buf’ [CWE-401]
 adapters/rest_api/src/rest_uds_server.c	-Wanalyzer-null-argument	use of NULL ‘body’ where non-null expected [CWE-476]
 adapters/rest_api/src/rest_uds_server.c	-Wanalyzer-possible-null-argument	use of possibly-NULL ‘body’ where non-null expected [CWE-690]

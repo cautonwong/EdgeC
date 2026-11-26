@@ -1,0 +1,16 @@
+== test commit e242de07 ==
+e242de07 test(DCU-F5-heartbeat-slot): pin demo freeze trigger to slot identity
+ tests/test_dcu_runtime_health.c | 74 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 74 insertions(+)
+
+== fix commit b23b79c6 ==
+b23b79c6 fix(DCU-F5-heartbeat-slot): carry slot_id in demo freeze and relay triggers
+ ci/mutation_guards.tsv  | 1 +
+ cmd/dcu/dcu_heartbeat.c | 8 +++++---
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+== branch vs base 77dd8e1e ==
+ ci/mutation_guards.tsv          |  1 +
+ cmd/dcu/dcu_heartbeat.c         |  8 +++--
+ tests/test_dcu_runtime_health.c | 74 +++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 80 insertions(+), 3 deletions(-)

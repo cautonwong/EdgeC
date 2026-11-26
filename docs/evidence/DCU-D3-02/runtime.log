@@ -1,0 +1,70 @@
+平台: /home/edge/test-platform
+解释器: /home/edge/EdgeC/.venv/bin/python3
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:58955（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/edgec-land/d3-02-freeze/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+/home/edge/EdgeC/.venv/lib/python3.10/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+...                                                                      [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/edgec-land/d3-02-freeze/reports/acceptance/dcu/dcu_acceptance
+3 passed in 8.83s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/edgec-land/d3-02-freeze/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+/home/edge/EdgeC/.venv/lib/python3.10/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+...............................                                          [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/edgec-land/d3-02-freeze/reports/acceptance/dcu/dcu_northbound
+31 passed in 41.30s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+
+报告: /tmp/edgec-land/d3-02-freeze/reports/acceptance
+归因: /home/edge/EdgeC/.venv/bin/python3 /home/edge/test-platform/tools/attribute_round.py /tmp/edgec-land/d3-02-freeze/reports/acceptance/<产品>
+
+=== D3-02 B2 ACCEPTANCE (2026-11-23T09:37:42Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/tmp/edgec-acc-venv/bin/python ./acceptance/run.sh dcu
+northbound: clean collected 32 product_exit [{'kind': 'product_exit', 'how': 'platform_killed', 'code': None, 'signal': 15, 'at': '2026-11-23T09:33:15.294+00:00'}]
+--- product freeze boundary lines ---
+[2026-11-23 17:33:15][INFO][CORE] DCU freeze boundary=1796054400 align_delta_ms=0
+--- freeze_align.txt ---
+boundary=1796054400 delta_ms=0
+--- 5004/5005 record query proof: D_00_00_02_000032 passed (case in run-scope) ---
+D_00_00_02_000032
+
+=== D3-02 B2 ACCEPTANCE CLEAN RUN (2026-11-23T09:42:11Z) ===
+3 passed, 2 warnings in 7.36s
+32 passed, 2 warnings in 41.58s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- product.out freeze lines ---
+[2026-11-23 17:42:01][INFO][CORE] DCU freeze boundary=1796054400 align_delta_ms=0
+--- freeze_align.txt ---
+boundary=1796054400 delta_ms=0
+northbound verdict: clean | collected: 32
+
+=== D3-02 B2 RE-VERIFY (2026-11-23T09:46:22Z) ===
+ctest -R dcu: 35/35 passed
+32 passed, 2 warnings in 39.01s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- 5008 GetRecord measured (live, OAD 0x50080200, 4 columns) ---
+850301500802000400202102000000100200002000020000200102000003000000
+layout: 85 03 01 | 50080200 | 04 | 4xCSD(20B) | 00(DAR branch) | 03(DENIED) | 00 | 00
+[2026-11-23 17:46:16][INFO][CORE] DCU freeze boundary=1796054400 align_delta_ms=0
+boundary=1796054400 delta_ms=0

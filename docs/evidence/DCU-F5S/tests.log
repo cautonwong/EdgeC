@@ -1,0 +1,33 @@
+== RED on b1907349 (test commit d99574b6 only) ==
+[ RUN      ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[  ERROR   ] --- 1000 != 1500
+[   LINE   ] --- /tmp/edgec-land/f5-snapshot-identity/tests/test_dcu_advanced_modules.c:568: error: Failure!
+[  FAILED  ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 1 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+ 1 FAILED TEST(S)
+
+== GREEN at HEAD 85cb3a04 (clean build) ==
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  98.00 sec
+
+== advanced modules suite ==
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+== shifted case ==
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[  PASSED  ] 1 test(s).
+
+== 返工补记（c8796002）==
+test_dcu_advanced_modules: 2/2
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 140.60 sec

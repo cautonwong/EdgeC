@@ -2,10 +2,12 @@
 """Keep the local architecture-gate runner in sync with the CI step.
 
 The x86_64 CI job runs one ordered list of gate commands. A local runner that
-silently drops one of them verifies less than CI while looking green. Comparing
-only script paths misses a dropped argument (`--build`) or a dropped
-environment assignment (`STRICT_CORE_GATE=1`), so each gate line is compared as
-(environment assignments, argv) after shell quoting is resolved.
+silently drops one of them verifies less than CI while looking green. The same
+comparison covers the `formal` job: dropping it (or its `--strict`) makes local
+and CI formal evidence diverge. Comparing only script paths misses a dropped
+argument (`--build`) or a dropped environment assignment (`STRICT_CORE_GATE=1`),
+so each gate line is compared as (environment assignments, argv) after shell
+quoting is resolved.
 
 Arguments that contain a shell expansion ($...) become wildcards, which is what
 lets `build` match `"$BUILD_DIR/sbom"` and the GitHub base-SHA expression match
@@ -58,6 +60,56 @@ def ci_step_body(text):
     return body
 
 
+FORMAL_JOB = "formal"
+FORMAL_SCRIPTS = (
+    "ci/scripts/check_formal.sh",
+    "ci/scripts/check_formal_negative.sh",
+    "ci/scripts/check_formal_sync.py",
+    "ci/scripts/check_formal_isolation.py",
+)
+
+
+def job_run_lines(text, job):
+    """Command lines of the first `run: |` block inside a top-level job."""
+    lines = text.splitlines()
+    start = None
+    for i, line in enumerate(lines):
+        if re.match(rf"^  {re.escape(job)}:\s*$", line):
+            start = i
+            break
+    if start is None:
+        return None
+    block = []
+    for line in lines[start + 1:]:
+        if line.strip() and len(line) - len(line.lstrip()) <= 2:
+            break
+        block.append(line)
+    body = []
+    i = 0
+    while i < len(block):
+        line = block[i]
+        if re.match(r"\s*run:\s*\|\s*$", line):
+            indent = len(line) - len(line.lstrip())
+            i += 1
+            while i < len(block):
+                entry = block[i]
+                if entry.strip() and len(entry) - len(entry.lstrip()) <= indent:
+                    break
+                if entry.strip():
+                    body.append(entry.strip())
+                i += 1
+        else:
+            i += 1
+    return body if body else None
+
+
+def formal_entries(entries):
+    return [
+        entry for entry in entries
+        if any(token in FORMAL_SCRIPTS for token in entry[1])
+    ]
+
+
 def gate_entries(lines):
     entries = []
     for line in lines:
@@ -101,6 +153,22 @@ def same_gate(ci_entry, local_entry):
     )
 
 
+def compare(ci_entries, local_entries, label, problems):
+    if len(ci_entries) == len(local_entries) and all(
+        same_gate(entry, local) for entry, local in zip(ci_entries, local_entries)
+    ):
+        return True
+    problems.append(f"  {label}:")
+    for index, (entry, local) in enumerate(zip(ci_entries, local_entries)):
+        if not same_gate(entry, local):
+            problems.append(f"    #{index + 1}: CI=[{describe(entry)}] local=[{describe(local)}]")
+    for entry in ci_entries[len(local_entries):]:
+        problems.append(f"    missing locally: [{describe(entry)}]")
+    for entry in local_entries[len(ci_entries):]:
+        problems.append(f"    local-only gate: [{describe(entry)}]")
+    return False
+
+
 def main():
     parser = argparse.ArgumentParser(description="Compare CI gate step with local runner.")
     parser.add_argument("--root", default=".", help="repository root")
@@ -115,7 +183,8 @@ def main():
         return 1
 
     with open(ci_path, encoding="utf-8") as handle:
-        ci_body = ci_step_body(handle.read())
+        ci_text = handle.read()
+    ci_body = ci_step_body(ci_text)
     if ci_body is None:
         print("❌ [CI_GATE_PARITY] cannot find the architecture gate step in ci.yml")
         return 1
@@ -124,21 +193,25 @@ def main():
     with open(local_path, encoding="utf-8") as handle:
         local_entries = gate_entries(handle.read().splitlines())
 
-    if len(ci_entries) == len(local_entries) and all(
-        same_gate(entry, local) for entry, local in zip(ci_entries, local_entries)
-    ):
-        print(f"✅ [CI_GATE_PARITY] local runner matches CI ({len(ci_entries)} gates)")
-        return 0
+    formal_body = job_run_lines(ci_text, FORMAL_JOB)
+    formal_ci = gate_entries(formal_body or [])
+    formal_local = formal_entries(local_entries)
 
     problems = []
-    for index, (entry, local) in enumerate(zip(ci_entries, local_entries)):
-        if not same_gate(entry, local):
-            problems.append(f"  #{index + 1}: CI=[{describe(entry)}] local=[{describe(local)}]")
-    for entry in ci_entries[len(local_entries):]:
-        problems.append(f"  missing locally: [{describe(entry)}]")
-    for entry in local_entries[len(ci_entries):]:
-        problems.append(f"  local-only gate: [{describe(entry)}]")
-    print("❌ [CI_GATE_PARITY] local runner drifted from the CI gate step:")
+    arch_ok = compare(ci_entries, local_entries, "architecture gate step", problems)
+    if formal_body is None:
+        problems.append("  formal job: missing or has no `run: |` step")
+        formal_ok = False
+    else:
+        formal_ok = compare(formal_ci, formal_local, "formal job", problems)
+    if arch_ok and formal_ok:
+        print(
+            f"✅ [CI_GATE_PARITY] local runner matches CI "
+            f"({len(ci_entries)} arch gates, {len(formal_ci)} formal gates)"
+        )
+        return 0
+
+    print("❌ [CI_GATE_PARITY] local runner drifted from CI:")
     print("\n".join(problems))
     return 1
 

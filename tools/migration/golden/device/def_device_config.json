@@ -1,0 +1,33 @@
+{
+  "dev_class": [
+    {
+      "devs": [],
+      "type": "METER"
+    },
+    {
+      "devs": [],
+      "type": "PCS"
+    },
+    {
+      "devs": [],
+      "type": "CELL"
+    },
+    {
+      "devs": [],
+      "type": "BMS"
+    },
+    {
+      "devs": [],
+      "type": "AC"
+    },
+    {
+      "devs": [],
+      "type": "TMS"
+    },
+    {
+      "devs": [],
+      "type": "OTHERS"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,17 @@
+=== D0-14 ACCEPTANCE = 3 consecutive runs ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/home/edge/EdgeC/.venv/bin/python3 ./acceptance/run.sh dcu
+--- r1 ---
+34 passed in 52.75s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+DCU_LEFT=no (pgrep -x dcu empty after run)
+--- r2 ---
+34 passed in 38.82s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+DCU_LEFT=no (pgrep -x dcu empty after run)
+--- r3 ---
+34 passed in 42.74s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+DCU_LEFT=no (pgrep -x dcu empty after run)

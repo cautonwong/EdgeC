@@ -1,6 +1,9 @@
 #include "dcu_bus_source.h"
 
+#include "dcu_698_rules.h"
 #include "dcu_driver_adapter.h"
+#include "dcu_poller.h"
+#include "arbiter.h"
 #include "dcu_node.h"
 
 #include <stdlib.h>
@@ -27,8 +30,12 @@ typedef struct bus_ctx_s {
     uint32_t meter_idx;
     uint32_t tag_id;   /* 消费侧 OAD */
     uint32_t proto_id; /* 线上协议号(DI)：交给驱动 */
+    uint32_t task_mask; /* 本项归属的 6035 任务位 */
+    uint32_t revision; /* 提交时的档案 revision：变了下标可能移位，重试必须放弃 */
+    char protocol[16];
     uint64_t gen;
     uint8_t used;
+    uint8_t retried;
 } bus_ctx_t;
 
 struct dcu_bus_source_s {
@@ -68,6 +75,7 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
         bus_ctx_t *c = &bs->ctxs[(bs->ctx_cursor + n) % DCU_BUS_SLOTS];
         if (!c->used) {
             c->used = 1;
+            c->retried = 0;
             c->bs = bs;
             bs->ctx_cursor = (bs->ctx_cursor + n + 1) % DCU_BUS_SLOTS;
             return c;
@@ -81,47 +89,69 @@ static bus_ctx_t *_ctx_acquire(dcu_bus_source_t *bs) {
 static void _on_done(int status, const pipe_msg_t *result, void *user_data) {
     bus_ctx_t *c = (bus_ctx_t *)user_data;
     if (!c) return;
-
     dcu_bus_source_t *bs = c->bs;
+    if (!bs) return;
     poller_read_done_cb cb = c->cb;
     void *ud = c->cb_ud;
     uint32_t meter_idx = c->meter_idx;
     uint32_t tag_id = c->tag_id;
-    uint32_t proto_id = c->proto_id;
-
     double value = 0.0;
     int ok = (status == 0 && result != NULL);
-    if (ok) {
-        value = result->payload.val.f;
-        if (bs && bs->inv && meter_idx < bs->inv->count) {
-            const production_meter_t *m = &bs->inv->meters[meter_idx];
-            double scale = dcu_driver_adapter_scale(m->protocol, proto_id);
-            if (scale > 0.0) value *= scale;
+    dcu_poller_t *poller = bs->node ? dcu_node_get_poller(bs->node) : NULL;
+    if (poller && (status == 0 || status == CMD_STATUS_PROTO_ERROR)) {
+        dcu_poller_note_rx(poller, c->task_mask);
+    }
+
+    if (!ok && bs->inv && c->revision == bs->inv->revision) {
+        /* 一次读和它的备用 DI 重试属于同一个档案 revision。revision 不变则
+         * 下标不会移位，原下标仍是同一只表；变了就放弃重试。 */
+        const production_meter_t *m = &bs->inv->meters[c->meter_idx];
+        uint32_t spare = 0;
+        if (dcu_698_rules_retry_with_spare(c->protocol, tag_id, c->retried, &spare)) {
+            uv_mutex_lock(&bs->lock);
+            int open = !bs->closing;
+            uv_mutex_unlock(&bs->lock);
+            if (open) {
+                c->proto_id = spare;
+                c->retried = 1;
+                int retry_rc = edge_api_read_tag((int)m->channel_id, c->protocol, meter_idx,
+                                                 spare, ARBITER_PRIO_LOW, _on_done, c);
+                if (retry_rc == 0 && poller) dcu_poller_note_tx(poller, c->task_mask);
+                if (retry_rc == 0) {
+                    _src_err("spare-retry", meter_idx, tag_id, (int)spare);
+                    return;
+                }
+            }
         }
     }
 
-    int free_now = 0;
-    if (bs) {
-        uv_mutex_lock(&bs->lock);
-        c->used = 0;
-        c->bs = NULL;
-        c->cb = NULL;
-        c->cb_ud = NULL;
-        free_now = (--bs->refs == 0);
-        uv_mutex_unlock(&bs->lock);
+    if (ok) {
+        value = result->payload.val.f;
+        /* 量纲按提交时的 protocol：回调时刻的档案下标可能已指向另一只表。 */
+        double scale = dcu_driver_adapter_scale(c->protocol, c->proto_id);
+        if (scale > 0.0) value *= scale;
     }
+
+    int free_now = 0;
+    uv_mutex_lock(&bs->lock);
+    c->used = 0;
+    c->bs = NULL;
+    c->cb = NULL;
+    c->cb_ud = NULL;
+    free_now = (--bs->refs == 0);
+    uv_mutex_unlock(&bs->lock);
 
     /* 先回调再释放：cb 里可能还要用 poller 的状态 */
     if (cb) cb(ud, ok ? 0 : (status ? status : -1), value);
-    if (free_now && bs && bs->closing) _bs_free(bs);
+    if (free_now && bs->closing) _bs_free(bs);
 
     if (!ok) _src_err("read-fail", meter_idx, tag_id, status);
 }
 
 /* 链式提交的唯一入口：受理即返回，结果走 cb。
  * 通道忙不忙由 arbiter 判（is_busy/queue_len），本层不判、也不排队。 */
-static int _submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_done_cb cb,
-                   void *ud) {
+static int _submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, uint32_t task_mask,
+                   poller_read_done_cb cb, void *ud) {
     dcu_bus_source_t *bs = (dcu_bus_source_t *)ctx;
     if (!bs || !cb) return -1;
     if (!bs->inv) {
@@ -156,13 +186,20 @@ static int _submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_d
     c->meter_idx = meter_idx;
     c->tag_id = tag_id;
     c->proto_id = proto_id;
+    c->task_mask = task_mask;
+    c->revision = bs->inv->revision;
+    strncpy(c->protocol, m->protocol, sizeof(c->protocol) - 1);
+    c->protocol[sizeof(c->protocol) - 1] = '\0';
     c->gen = ++bs->gen_seq;
     bs->refs++; /* 在途：由 _on_done 归还 */
     uv_mutex_unlock(&bs->lock);
 
     /* 抄表是后台任务：低优先级，让交互式请求先过总线 */
-    if (edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, proto_id, ARBITER_PRIO_LOW,
-                          _on_done, c) != 0) {
+    dcu_poller_t *poller = bs->node ? dcu_node_get_poller(bs->node) : NULL;
+    int submit_rc = edge_api_read_tag((int)m->channel_id, m->protocol, meter_idx, proto_id,
+                                      ARBITER_PRIO_LOW, _on_done, c);
+    if (submit_rc == 0 && poller) dcu_poller_note_tx(poller, task_mask);
+    if (submit_rc != 0) {
         uv_mutex_lock(&bs->lock);
         c->used = 0;
         c->bs = NULL;

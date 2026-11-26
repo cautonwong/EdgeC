@@ -5,6 +5,7 @@
 !*.so
 # Build and Temp
 build*/
+/build
 .cache/
 .vscode/
 

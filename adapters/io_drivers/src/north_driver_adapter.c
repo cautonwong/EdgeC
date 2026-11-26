@@ -87,7 +87,8 @@ static int _copy_frame(north_driver_adapter_ctx_t *a, net_buf_t *nb,
 }
 
 static int _encode_value(void *ctx, north_driver_t *driver, uint32_t tag_id, double value,
-                         const char *name, const uint8_t **out_data, size_t *out_len) {
+                         uint64_t ts_us, const char *name, const uint8_t **out_data,
+                         size_t *out_len) {
     north_driver_adapter_ctx_t *a = (north_driver_adapter_ctx_t *)ctx;
     edge_driver_ctx_t *d = (edge_driver_ctx_t *)driver;
     if (!a || !d || !d->driver || !d->driver->req_prepare || !d->driver->req_encode) return -1;
@@ -98,6 +99,7 @@ static int _encode_value(void *ctx, north_driver_t *driver, uint32_t tag_id, dou
     memset(scratch, 0, sizeof(scratch));
     size_t name_len = name ? strlen(name) + 1 : 0;
     int rc = d->driver->req_prepare(scratch, 1, tag_id, NULL, 0, name, name_len, true, value);
+    if (rc == 0 && d->driver->req_set_ts_us) d->driver->req_set_ts_us(scratch, ts_us);
     if (rc == 0) rc = d->driver->req_encode(scratch, d->priv, nb);
     if (rc == 0) rc = _copy_frame(a, nb, out_data, out_len);
     net_buf_unref(nb);

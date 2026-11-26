@@ -1,0 +1,38 @@
+平台: /home/edge/test-platform
+解释器: /home/edge/EdgeC/.venv/bin/python3
+平台版本: faad172bdce0 (锁定 faad172bdce0)
+产品: dcu
+
+北向 broker 已就绪：tcp://127.0.0.1:58919（协议 MqttJson）
+[dcu] dcu_acceptance.yaml
+任务 dcu-acceptance(产品 dcu)·设备清单 /tmp/edgec-land/d5-05-stats/acceptance/dcu/configs/devices.yaml · 筛选 tag:验收 · 模拟从站 []
+/home/edge/EdgeC/.venv/lib/python3.10/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+...                                                                      [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/edgec-land/d5-05-stats/reports/acceptance/dcu/dcu_acceptance
+3 passed in 5.83s
+任务 dcu-acceptance 结束,退出码 0
+[dcu] dcu_acceptance 退出码 0
+
+[dcu] dcu_northbound.yaml
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/edgec-land/d5-05-stats/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+/home/edge/EdgeC/.venv/lib/python3.10/site-packages/pytest_asyncio/plugin.py:300: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the "fixture" caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to "function" scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+...................................                                      [100%]
+一轮归因(哪些设备不合格 / 哪些测试无效 / 断在哪一步): python tools/attribute_round.py /tmp/edgec-land/d5-05-stats/reports/acceptance/dcu/dcu_northbound
+35 passed in 27.15s
+任务 dcu-northbound 结束,退出码 0
+[dcu] dcu_northbound 退出码 0
+
+
+门禁:
+全部合格:2 个验收任务
+
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+
+报告: /tmp/edgec-land/d5-05-stats/reports/acceptance
+归因: /home/edge/EdgeC/.venv/bin/python3 /home/edge/test-platform/tools/attribute_round.py /tmp/edgec-land/d5-05-stats/reports/acceptance/<产品>

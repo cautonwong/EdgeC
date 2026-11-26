@@ -1,0 +1,41 @@
+== build (clean, HEAD 05547042) ==
+cmake --build build --clean-first -j4 -> rc=0
+first-party warnings: 0 (only third-party open62541 unused-parameter)
+[1269/1270] Linking C executable tests/test_datahub_subscription_capacity
+[1270/1270] Linking C executable tests/test_iems_cli_write
+
+== object list / ACL budget ==
+rc=0 len=3336 count_byte=92
+ACL objects 92 <= EDGE_SLAVE_ACL_MAX_OBJECTS 224
+dlt698_acl_object_t 16 B * 92 = 1472 B + header <= DRIVER_PRIV_SIZE 4096 (static assert in driver_dlt698.c)
+
+== new cases ==
+== test_dcu_698_object_model
+[ RUN      ] test_class12_pulse_row_is_empty
+[       OK ] test_class12_pulse_row_is_empty
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn
+[ RUN      ] test_class12_pulse_acl_is_read_only
+[       OK ] test_class12_pulse_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr
+[ RUN      ] test_product_class12_pulse_has_no_value_yet
+[       OK ] test_product_class12_pulse_has_no_value_yet
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698
+[ RUN      ] test_slave_class12_pulse_dar
+[       OK ] test_slave_class12_pulse_dar
+[  PASSED  ] 1 test(s).
+
+== guards ==
+catalog: [DCU_698_CATALOG] catalog matches docs/698_parsed.md
+docrefs: exit 0
+build-warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+build-freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/d5-04-class12
+
+== final targeted suite ==
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  38.69 sec

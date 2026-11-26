@@ -1,0 +1,5 @@
+{
+  "family": "device",
+  "mode": "dry-run",
+  "description": "device root with an unknown key"
+}

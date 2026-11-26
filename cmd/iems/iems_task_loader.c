@@ -18,12 +18,15 @@ typedef struct {
 static int _load_tasks_sql_cb(void *user_data, int argc, char **argv, char **cols) {
     loader_ctx_t *ctx = (loader_ctx_t *)user_data;
     (void)cols;
-    if (argc < 4 || !ctx || !ctx->on_task) return 0;
+    if (argc < 5 || !ctx || !ctx->on_task) return 0;
 
     int bus_id = argv[0] ? atoi(argv[0]) : 0;
     uint32_t slave_id = argv[1] ? (uint32_t)atoi(argv[1]) : 1;
     if (slave_id == 0) slave_id = 1;
     uint32_t tag_id = argv[2] ? (uint32_t)atoi(argv[2]) : 0;
+    /* poll_tasks.device_id 就是 inventory 的稠密身份，原样带进任务；
+     * 不从站地址，也不在运行期再猜。 */
+    uint32_t device_id = argv[4] ? (uint32_t)atoi(argv[4]) : 0;
 
     // 封杀北向虚假轮询。Bus 10 仅供镜像，不准自发读写。
     if (bus_id == 10) return 0;
@@ -32,6 +35,7 @@ static int _load_tasks_sql_cb(void *user_data, int argc, char **argv, char **col
     memset(&task, 0, sizeof(task));
     task.bus_id = bus_id;
     task.slave_id = slave_id;
+    task.device_id = device_id;
     task.tag_id = tag_id;
     task.dense_idx = 0;
     task.interval_ms = 1000;
@@ -53,7 +57,7 @@ int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, iems_device_rout
     if (!db) return -1;
 
     const char *sql =
-        "SELECT t.bus_id, i.addr, i.protocol FROM poll_tasks t INNER JOIN inventory i "
+        "SELECT t.bus_id, i.addr, i.protocol, t.device_id FROM poll_tasks t INNER JOIN inventory i "
         "ON t.device_id = i.id WHERE t.tag_id = ? AND t.bus_id <> 10;";
     sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) return -1;
@@ -74,18 +78,22 @@ int iems_poll_task_route(sqlite_svc_t *db_svc, uint32_t tag_id, iems_device_rout
         int bus_id = sqlite3_column_int(stmt, 0);
         uint32_t slave_id = (uint32_t)sqlite3_column_int(stmt, 1);
         if (slave_id == 0) slave_id = 1;
+        uint32_t device_id = (uint32_t)sqlite3_column_int(stmt, 3);
 
         if (!have_route) {
             found.bus_id = bus_id;
             found.slave_id = slave_id;
+            found.device_id = device_id;
             snprintf(found.protocol, sizeof(found.protocol), "%s", canonical);
             have_route = true;
             rc = 0;
         } else if (found.bus_id != bus_id || found.slave_id != slave_id ||
-                   strcmp(found.protocol, canonical) != 0) {
+                   found.device_id != device_id || strcmp(found.protocol, canonical) != 0) {
             LOG_WARN(LOG_CAT_CORE,
-                     "IEMS route: tag %u 映射到多个设备 (bus %d/%d, slave %u/%u)，拒绝控制写",
-                     tag_id, found.bus_id, bus_id, found.slave_id, slave_id);
+                     "IEMS route: tag %u 映射到多个设备 (bus %d/%d, slave %u/%u, device %u/%u)，"
+                     "拒绝控制写",
+                     tag_id, found.bus_id, bus_id, found.slave_id, slave_id, found.device_id,
+                     device_id);
             rc = -2;
             break;
         }
@@ -106,8 +114,8 @@ int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, 
     loader_ctx_t ctx = {.on_task = on_task, .user_data = user_data, .loaded_count = 0};
 
     const char *sql =
-        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol FROM poll_tasks t INNER JOIN inventory "
-        "i ON t.device_id = i.id;";
+        "SELECT t.bus_id, i.addr, t.tag_id, i.protocol, t.device_id FROM poll_tasks t INNER JOIN "
+        "inventory i ON t.device_id = i.id;";
     char *err = NULL;
     if (sqlite3_exec(db, sql, _load_tasks_sql_cb, &ctx, &err) != SQLITE_OK) {
         if (err) sqlite3_free(err);

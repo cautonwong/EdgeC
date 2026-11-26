@@ -20,6 +20,9 @@ DIAG_RE = re.compile(r"^(?P<path>/[^:]+):(?P<line>\d+):(?:\d+:)?\s+"
                      r"(?P<kind>warning|error):\s+(?P<msg>.*?)(?:\s+\[(?P<opt>-W[^\]]+)\])?$")
 DEFAULT_PATHS = ("modules/edge_core/src,modules/edge_io/src,modules/edge_session/src,"
                  "modules/edge_stream/src,modules/edge_north,sdk,adapters,foundation/src,cmd")
+# Vendored and generated trees are not first-party: a diagnostic attributed to
+# them says nothing about our code, and pinning it would encode a build path.
+NON_PRODUCT_PREFIXES = ("third-party/", "build/", ".local/")
 
 
 def repo_root():
@@ -82,6 +85,8 @@ def findings(root, results):
             if not match:
                 continue
             rel = os.path.relpath(match.group("path"), root)
+            if rel.startswith("..") or rel.startswith(NON_PRODUCT_PREFIXES):
+                continue
             key = (rel, match.group("opt") or "", match.group("msg").strip())
             seen.setdefault(key, int(match.group("line")))
     return [(path, line, opt, msg) for (path, opt, msg), line in sorted(seen.items())]

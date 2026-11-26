@@ -1,0 +1,50 @@
+[==========] tests: Running 21 test(s).
+[ RUN      ] test_event_scheme_round_trip_and_persistence
+[       OK ] test_event_scheme_round_trip_and_persistence
+[ RUN      ] test_event_wire_shape_is_exact
+[       OK ] test_event_wire_shape_is_exact
+[ RUN      ] test_event_delete_update_clear_and_dar
+[2026-11-26 06:00:56][WARN][NB] DCU 6016: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-26 06:00:56][WARN][NB] DCU 6016: 方案 8 的电能表集合 choice 3 未实现
+[       OK ] test_event_delete_update_clear_and_dar
+[ RUN      ] test_transparent_scheme_round_trip_and_dar
+[2026-11-26 06:00:56][WARN][NB] DCU 6018: 等待后续报文（多帧累积）未实现
+[2026-11-26 06:00:56][WARN][NB] DCU 6018: 结果比对标识 1 未实现
+[       OK ] test_transparent_scheme_round_trip_and_dar
+[ RUN      ] test_transparent_wire_shape_is_exact
+[       OK ] test_transparent_wire_shape_is_exact
+[ RUN      ] test_transparent_results_round_trip
+[       OK ] test_transparent_results_round_trip
+[ RUN      ] test_report_scheme_round_trip_and_persistence
+[       OK ] test_report_scheme_round_trip_and_persistence
+[ RUN      ] test_report_wire_shape_is_exact
+[       OK ] test_report_wire_shape_is_exact
+[ RUN      ] test_report_dar_and_delete
+[2026-11-26 06:00:57][WARN][NB] DCU 601C: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[       OK ] test_report_dar_and_delete
+[ RUN      ] test_rule_unit_wire_vector_and_projection
+[       OK ] test_rule_unit_wire_vector_and_projection
+[ RUN      ] test_rule_add_spare_refreshes_and_persists
+[       OK ] test_rule_add_spare_refreshes_and_persists
+[ RUN      ] test_rule_dar_cases
+[       OK ] test_rule_dar_cases
+[ RUN      ] test_rule_phase_csd_mapping
+[       OK ] test_rule_phase_csd_mapping
+[ RUN      ] test_acq_timestamps_and_status_dar
+[       OK ] test_acq_timestamps_and_status_dar
+[ RUN      ] test_task_monitor_state_machine
+[       OK ] test_task_monitor_state_machine
+[ RUN      ] test_record_oi_maps_freeze_oad
+[       OK ] test_record_oi_maps_freeze_oad
+[ RUN      ] test_task_completion_waits_for_all_pending
+[       OK ] test_task_completion_waits_for_all_pending
+[ RUN      ] test_submit_failure_counts_no_tx
+[       OK ] test_submit_failure_counts_no_tx
+[ RUN      ] test_archive_change_reopens_execution
+[       OK ] test_archive_change_reopens_execution
+[ RUN      ] test_rule_delete_clear_keep_internal_rows
+[       OK ] test_rule_delete_clear_keep_internal_rows
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 21 test(s).

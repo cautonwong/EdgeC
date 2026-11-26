@@ -13,6 +13,7 @@ extern "C" {
 typedef struct {
     int bus_id;
     uint32_t slave_id;
+    uint32_t device_id;   /* inventory 的稠密身份（1..63）；0 = tag 级视图 */
     uint32_t tag_id;
     uint32_t dense_idx;
     char protocol[16];
@@ -22,10 +23,12 @@ typedef struct {
 typedef void (*iems_task_registered_cb)(const iems_loaded_task_t *task, void *user_data);
 
 /* 一条控制写的目标设备：北向写入必须落实到 (bus, 从站地址, 协议) 三元组，
- * 只带 bus 和协议会把同一条 RS485 总线上的其它表计写错。 */
+ * 只带 bus 和协议会把同一条 RS485 总线上的其它表计写错。device_id 是
+ * inventory 身份，控制写落影子槽用它，从站地址只用于线上寻址。 */
 typedef struct {
     int bus_id;
     uint32_t slave_id;
+    uint32_t device_id;
     char protocol[16];
 } iems_device_route_t;
 
@@ -42,7 +45,8 @@ int iems_poll_tasks_load(sqlite_svc_t *db_svc, iems_task_registered_cb on_task, 
  * @brief 按 tag 反查控制写的目标设备路由（bus + 从站地址 + 规范协议名）。
  *
  * 北向控制写用它决定“这个点在哪台设备上”，取代写死 bus 0 / 从站 1。
- * bus 10 是北向镜像，不参与。同一个 tag 映射到多个不同设备时拒绝写入。
+ * bus 10 是北向镜像，不参与。同一个 tag 映射到多个不同设备时拒绝写入；
+ * device_id（inventory 身份）任一不同也算不同设备。
  *
  * @return 0 找到唯一路由；-2 映射到多个不同设备（拒绝控制写）；
  *         -1 没有路由或参数/查询失败

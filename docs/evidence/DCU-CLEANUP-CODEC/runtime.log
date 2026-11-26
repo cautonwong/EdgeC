@@ -1,0 +1,17 @@
+== build (clean, after change) ==
+cmake --build build --clean-first -j4 -> rc=0 (1267/1267)
+warning lines in log: 1, third-party only
+  third-party/open62541/src_generated/open62541/config.h:505:25: unused parameter 'lock'
+first-party warnings: 0
+check_build_warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_build_freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/codec-tags
+check_doc_references: rc=0
+
+== level-1 equivalence ==
+before object sha256: eaa6b7c4bd1ba9c0f1119b02d0271306d24dfe531ba4938cf9c50dda39894dfc
+after  object sha256: eaa6b7c4bd1ba9c0f1119b02d0271306d24dfe531ba4938cf9c50dda39894dfc
+objdump -d before vs after: only the object file name header line differs
+
+== targeted suite ==
+100% tests passed, 0 tests failed out of 7
+Total Test time (real) =   5.13 sec

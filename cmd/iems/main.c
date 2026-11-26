@@ -69,7 +69,8 @@ int main(int argc, char* argv[]) {
         .rest_bind = rest_bind,
         .rest_legacy_upload = rest_legacy && atoi(rest_legacy) != 0,
         .north_sock = north_sock,
-        .ui_sock = ui_sock
+        .ui_sock = ui_sock,
+        .config_dir = getenv("EDGE_CONFIG_DIR")
     };
 
     g_app = iems_app_assemble(loop, &cfg);

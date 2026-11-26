@@ -1,0 +1,7 @@
+=== D1-21 ACCEPTANCE (merged tree, 2026-11-24T05:29:48Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/home/edge/EdgeC/.venv/bin/python3 ./acceptance/run.sh dcu
+3 passed in 7.22s
+34 passed in 60.42s (0:01:00)
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+DCU_LEFT=no

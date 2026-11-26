@@ -4,16 +4,19 @@
  */
 
 #include "dcu_node.h"
-#include "dcu_scheme_store.h"
-#include "dcu_task_store.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "dcu_698_freeze.h"
+#include "dcu_698_freeze_cfg.h"
 #include "dcu_698_param.h"
+#include "dcu_698_rules.h"
 #include "dcu_698_var.h"
 #include "dcu_driver_adapter.h"
+#include "dcu_scheme_store.h"
 #include "dcu_task_store.h"
 #include "dlt645_codec.h"
 #include "edge_api.h"
@@ -28,16 +31,133 @@ struct dcu_node_s {
     dcu_inventory_t inventory;
     dcu_poller_t poller;
     dcu_storage_t storage;
+    dcu_rule_cache_t rule_cache;
     dcu_event_obj_t evt_3000;
     dcu_event_obj_t evt_3005;
     dcu_discovery_t discovery;
+    dcu_relay_map_t relay_map; /* 产品点位表：继电器 OAD → 表地址 + DO 通道 */
     uv_timer_t poller_timer;
     bool poller_timer_inited;
+    dcu_freeze_scheduler_t freeze_sched;
+    dcu_freeze_cfgs_t freeze_cfgs;
+    uv_timer_t freeze_timer;
+    bool freeze_timer_inited;
+    bool freeze_test_clock;
+    uint64_t freeze_base_ms;
+    uint64_t freeze_t0_ns;
     dcu_event_handler_t event_handler;
     void *event_user_data;
     bool running;
     uint32_t saved_since_take; /* 上一轮以来 record_reading 成功落库的条数 */
 };
+
+static int _node_freeze_read(void *ctx, uint32_t slot_id, uint32_t source_oad, double *out) {
+    dcu_node_t *node = (dcu_node_t *)ctx;
+    if (!node || !node->hub || !out) return -1;
+    pipe_msg_t msg;
+    if (datahub_read_shadow_device(node->hub, source_oad, slot_id, &msg) != 0) return -1;
+    *out = msg.payload.val.f;
+    return 0;
+}
+
+/* 演示/测试时钟 seam：控制文件存在才启用虚拟时钟（基准 epoch_ms + 单调流逝），
+ * 生产未设时走系统时钟。文件删除即退回演示探针，避免台架被 1 秒冻结压垮。 */
+static bool _node_freeze_clock_path(char *out, size_t cap) {
+    const char *dir = getenv("EDGEC_DATA_DIR");
+    if (!dir || !*dir) return false;
+    int n = snprintf(out, cap, "%s/freeze_clock.txt", dir);
+    return n > 0 && (size_t)n < cap;
+}
+
+static bool _node_freeze_read_base(uint64_t *base_ms) {
+    char path[512];
+    if (!_node_freeze_clock_path(path, sizeof(path))) return false;
+    FILE *f = fopen(path, "r");
+    if (!f) return false;
+    unsigned long long v = 0;
+    int ok = fscanf(f, "%llu", &v) == 1;
+    fclose(f);
+    if (!ok || v == 0) return false;
+    *base_ms = (uint64_t)v;
+    return true;
+}
+
+static uint64_t _node_freeze_now_ms(const dcu_node_t *node) {
+    if (node->freeze_test_clock) {
+        return node->freeze_base_ms + (uv_hrtime() - node->freeze_t0_ns) / 1000000u;
+    }
+    struct timespec ts;
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) return 0;
+    return (uint64_t)ts.tv_sec * 1000u + (uint64_t)ts.tv_nsec / 1000000u;
+}
+
+static void _node_freeze_write_align(uint64_t boundary, uint64_t delta_ms) {
+    char path[512];
+    if (!_node_freeze_clock_path(path, sizeof(path))) return;
+    char *slash = strrchr(path, '/');
+    if (slash) snprintf(slash + 1, sizeof(path) - (size_t)(slash - path) - 1, "freeze_align.txt");
+    FILE *f = fopen(path, "w");
+    if (!f) return;
+    fprintf(f, "boundary=%llu delta_ms=%llu\n", (unsigned long long)boundary,
+            (unsigned long long)delta_ms);
+    fclose(f);
+}
+
+static void _dcu_node_freeze_timer_cb(uv_timer_t *handle) {
+    dcu_node_t *node = (dcu_node_t *)handle->data;
+    if (!node || !node->running) return;
+    if (!node->freeze_test_clock && getenv("DCU_DEMO_MODE")) {
+        uint64_t base = 0;
+        if (!_node_freeze_read_base(&base)) {
+            uv_timer_start(handle, _dcu_node_freeze_timer_cb, 500, 0);
+            return;
+        }
+        node->freeze_base_ms = base;
+        node->freeze_t0_ns = uv_hrtime();
+        node->freeze_test_clock = true;
+        LOG_INFO(LOG_CAT_CORE, "DCU freeze test clock engaged at %llu ms",
+                 (unsigned long long)base);
+    } else if (node->freeze_test_clock) {
+        uint64_t base = 0;
+        if (!_node_freeze_read_base(&base)) {
+            node->freeze_test_clock = false;
+            node->freeze_sched.primed = false;
+            uv_timer_start(handle, _dcu_node_freeze_timer_cb, 500, 0);
+            return;
+        }
+        if (base != node->freeze_base_ms) { /* 控制文件换了基准：重新对时，不回补 */
+            node->freeze_base_ms = base;
+            node->freeze_t0_ns = uv_hrtime();
+            node->freeze_sched.primed = false;
+        }
+    }
+    uint64_t now_ms = _node_freeze_now_ms(node);
+    if (now_ms == 0) {
+        uv_timer_start(handle, _dcu_node_freeze_timer_cb, 1000, 0);
+        return;
+    }
+    uint64_t before = node->freeze_sched.last_boundary_epoch;
+    (void)dcu_freeze_tick(&node->freeze_sched, now_ms / 1000u);
+    uint64_t boundary = node->freeze_sched.last_boundary_epoch;
+    if (boundary != 0 && boundary != before && boundary * 1000u <= now_ms) {
+        uint64_t delta_ms = now_ms - boundary * 1000u;
+        node->freeze_sched.last_align_delta_ms = delta_ms;
+        LOG_INFO(LOG_CAT_CORE, "DCU freeze boundary=%llu align_delta_ms=%llu",
+                 (unsigned long long)boundary, (unsigned long long)delta_ms);
+        if (node->freeze_test_clock) _node_freeze_write_align(boundary, delta_ms);
+    }
+    uint64_t next = 0;
+    if (dcu_freeze_next_boundary(&node->freeze_sched, now_ms / 1000u, &next)) {
+        uint64_t target = next * 1000u;
+        uint64_t due = dcu_freeze_pending_next_due_ms(&node->freeze_sched);
+        if (due != 0 && due < target) target = due;
+        uint64_t delay = target > now_ms ? target - now_ms : 1u;
+        if (delay > 3600000u) delay = 3600000u;
+        uv_timer_start(handle, _dcu_node_freeze_timer_cb, delay, 0);
+    } else {
+        uv_timer_start(handle, _dcu_node_freeze_timer_cb, 1000, 0);
+    }
+}
 
 static void _dcu_node_poller_timer_cb(uv_timer_t *handle) {
     dcu_node_t *node = (dcu_node_t *)handle->data;
@@ -46,21 +166,27 @@ static void _dcu_node_poller_timer_cb(uv_timer_t *handle) {
     }
 }
 
+static int _node_publish_device(dcu_node_t *node, uint32_t tag_id, uint32_t device_id, double val,
+                                uint64_t timestamp_ns) {
+    if (!node || !node->hub) return -1;
+    pipe_msg_t bus_msg;
+    pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
+    bus_msg.device_id = device_id;
+    return datahub_publish(node->hub, &bus_msg);
+}
+
 static int _node_publish_realtime(void *ctx, uint32_t tag_id, uint32_t meter_idx, double val,
                                   uint64_t timestamp_ns) {
     dcu_node_t *node = (dcu_node_t *)ctx;
-    if (!node || !node->hub) return -1;
-
-    /* device_id 是影子表的**设备身份**，不是数组下标。
-     * `dcu_inventory_remove` 用末元素覆盖删除位，下标会变；用下标当身份的话，
-     * 删一只表就会把最后一只表的数据挪到别人的槽位上。 */
     dcu_inventory_t *inv = dcu_node_get_inventory(node);
-    if (!inv || meter_idx >= inv->count) return -1;
+    if (!node || !inv || meter_idx >= inv->count) return -1;
+    return _node_publish_device(node, tag_id, inv->meters[meter_idx].slot_id, val, timestamp_ns);
+}
 
-    pipe_msg_t bus_msg;
-    pipe_msg_init_scalar(&bus_msg, tag_id, val, timestamp_ns);
-    bus_msg.device_id = inv->meters[meter_idx].slot_id;
-    return datahub_publish(node->hub, &bus_msg);
+/* Poller 侧入口：device_id 已是提交时的 slot_id，不再反查可变的档案下标。 */
+static int _node_publish_realtime_device(void *ctx, uint32_t tag_id, uint32_t device_id, double val,
+                                         uint64_t timestamp_ns) {
+    return _node_publish_device((dcu_node_t *)ctx, tag_id, device_id, val, timestamp_ns);
 }
 
 static int _node_read_shadow(void *ctx, uint32_t tag_id, uint32_t device_id, void *out_msg) {
@@ -226,6 +352,9 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
             LOG_WARN(LOG_CAT_CORE, "DCU Node: 任务配置装载失败，回退内存默认任务");
             dcu_poller_add_task(&node->poller, 1, 5, 1);
         }
+        if (dcu_698_rules_init(&node->storage, &node->rule_cache) != 0) {
+            LOG_WARN(LOG_CAT_CORE, "DCU Node: 规则表装载失败，沿用内置默认点表");
+        }
     } else {
         dcu_poller_add_scheme(&node->poller, 1, 0, default_tags, tag_count);
         dcu_poller_add_task(&node->poller, 1, 5, 1);
@@ -235,8 +364,18 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
                                      .commit_batch = (void *)dcu_storage_flush};
     poller_bus_ops_t poller_bus = {
-        .ctx = node, .publish_realtime = _node_publish_realtime, .push_event = NULL};
+        .ctx = node, .publish_realtime = _node_publish_realtime_device, .push_event = NULL};
     dcu_poller_start(&node->poller, node->cfg.source_ops, poller_bus, poller_sink);
+    dcu_freeze_scheduler_init(&node->freeze_sched, &node->storage, &node->inventory,
+                              _node_freeze_read, node, dcu_clock_port_system());
+    dcu_freeze_cfgs_init(&node->freeze_cfgs);
+    if (dcu_freeze_cfgs_load(&node->freeze_cfgs, &node->storage) != 0) {
+        LOG_WARN(LOG_CAT_CORE, "DCU freeze attr3 load failed; using defaults");
+    }
+    dcu_freeze_scheduler_set_configs(&node->freeze_sched, &node->freeze_cfgs);
+    dcu_698_freeze_bind(&node->storage, &node->freeze_cfgs, &node->freeze_sched);
+    static const uint32_t k_freeze_sources[] = {OAD_ACTIVE_ENERGY, OAD_VOLTAGE, OAD_CURRENT};
+    dcu_freeze_scheduler_set_sources(&node->freeze_sched, k_freeze_sources, 3);
 
     router_sink_ops_t router_sink = {.ctx = &node->storage,
                                      .record_telemetry = (void *)dcu_storage_write_telemetry,
@@ -258,6 +397,8 @@ dcu_node_t *dcu_node_create_in(void *storage, size_t storage_size, uv_loop_t *lo
     dcu_698_param_init(&param_store);
     /* 遥控动作下沉到聚合根：路由只认识对象，发 645 控制帧是领域动作 */
     dcu_router_set_control_sink(_node_control_sink, node);
+    /* 继电器映射默认空（storage 已清零）；点位表/测试经 dcu_node_set_relay 填充。 */
+    dcu_relay_map_bind(&node->relay_map);
 
     /* 6. Setup Poller Periodic Timer */
     uv_timer_init(loop, &node->poller_timer);
@@ -275,6 +416,16 @@ void dcu_node_set_source_ops(dcu_node_t *node, poller_source_ops_t source_ops) {
     node->poller.source_ops = source_ops;
 }
 
+int dcu_node_set_relay(dcu_node_t *node, uint32_t relay_oad, const char *meter_addr,
+                       uint8_t do_channel) {
+    if (!node) return -1;
+    return dcu_relay_map_set(&node->relay_map, relay_oad, meter_addr, do_channel);
+}
+
+const dcu_relay_entry_t *dcu_node_find_relay(const dcu_node_t *node, uint32_t relay_oad) {
+    return node ? dcu_relay_map_find(&node->relay_map, relay_oad) : NULL;
+}
+
 int dcu_node_start(dcu_node_t *node) {
     if (!node || node->running) return -1;
     node->running = true;
@@ -282,6 +433,14 @@ int dcu_node_start(dcu_node_t *node) {
         uv_timer_start(&node->poller_timer, _dcu_node_poller_timer_cb, 0,
                        node->cfg.poll_interval_ms);
     }
+    /* 生产直接按标准边界排程；演示默认只做 500ms 探针，控制文件出现才启用测试时钟，
+     * 否则真实秒/分/时冻结会把 60 秒台架生命周期压垮。 */
+    if (!node->freeze_timer_inited) {
+        uv_timer_init(node->loop, &node->freeze_timer);
+        node->freeze_timer.data = node;
+        node->freeze_timer_inited = true;
+    }
+    uv_timer_start(&node->freeze_timer, _dcu_node_freeze_timer_cb, 0, 0);
     LOG_INFO(LOG_CAT_CORE, "DCU Node started with polling interval %u ms",
              node->cfg.poll_interval_ms);
     return 0;
@@ -304,12 +463,13 @@ int dcu_node_pump(dcu_node_t *node) {
     return 0;
 }
 
-int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+int dcu_node_record_reading(dcu_node_t *node, uint32_t slot_id, uint32_t proto_id,
                             const uint8_t *raw, size_t raw_len) {
     if (!node || !raw || raw_len < sizeof(double)) return -1;
-    if (device_id >= node->inventory.count) return -1;
 
-    const production_meter_t *m = &node->inventory.meters[device_id];
+    /* slot_id 是稳定设备身份；档案下标会被删除/重排改变，不能作为进件身份。 */
+    const production_meter_t *m = dcu_inventory_by_slot(&node->inventory, slot_id);
+    if (!m) return -1;
 
     /* 协议号(线上 DI/寄存器) → OAD 与量纲：驱动只还原整数，换算全在 cmd 层。
      * 未注册的协议号一律拒收，不静默塞 0。 */
@@ -319,7 +479,7 @@ int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto
 
     double value = (*(const double *)raw) * scale;
 
-    if (dcu_storage_write_telemetry(&node->storage, m->address, device_id, oad, value) != 0)
+    if (dcu_storage_write_telemetry(&node->storage, m->address, slot_id, oad, value) != 0)
         return -1;
     node->saved_since_take++;
     return 0;
@@ -516,6 +676,9 @@ int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t 
 
 void dcu_node_destroy(dcu_node_t *node) {
     if (!node) return;
+    /* 表随节点存储释放，先解绑；只解自己绑的那张，避免误伤另一节点。 */
+    if (dcu_relay_map_active() == &node->relay_map) dcu_relay_map_bind(NULL);
+    dcu_698_rules_detach();
     if (node->running) {
         dcu_node_stop(node);
     }
@@ -523,6 +686,11 @@ void dcu_node_destroy(dcu_node_t *node) {
         uv_timer_stop(&node->poller_timer);
         uv_close((uv_handle_t *)&node->poller_timer, NULL);
         node->poller_timer_inited = false;
+    }
+    if (node->freeze_timer_inited) {
+        uv_timer_stop(&node->freeze_timer);
+        uv_close((uv_handle_t *)&node->freeze_timer, NULL);
+        node->freeze_timer_inited = false;
     }
     dcu_storage_destroy(&node->storage);
     dcu_discovery_destroy(&node->discovery);

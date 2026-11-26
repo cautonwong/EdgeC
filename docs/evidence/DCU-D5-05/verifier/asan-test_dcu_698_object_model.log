@@ -1,0 +1,40 @@
+[==========] tests: Running 17 test(s).
+[ RUN      ] test_all_ois_resolvable_with_class_and_mask
+[       OK ] test_all_ois_resolvable_with_class_and_mask
+[ RUN      ] test_catalog_instance_attr_limits_are_defined
+[       OK ] test_catalog_instance_attr_limits_are_defined
+[ RUN      ] test_mask_bitmap_supports_wide_ids
+[       OK ] test_mask_bitmap_supports_wide_ids
+[ RUN      ] test_mask_rejects_missing_attr_and_method
+[       OK ] test_mask_rejects_missing_attr_and_method
+[ RUN      ] test_discovery_oi_attributes_beyond_class_table
+[       OK ] test_discovery_oi_attributes_beyond_class_table
+[ RUN      ] test_task_scheduler_reset_and_add
+[       OK ] test_task_scheduler_reset_and_add
+[ RUN      ] test_discovery_exposes_results_count_and_status
+[       OK ] test_discovery_exposes_results_count_and_status
+[ RUN      ] test_dar_classification_by_class_definition
+[2026-11-26 10:20:27][WARN][CORE] OI 8000 method 127: 产品没有告警输出，拒绝执行
+[2026-11-26 10:20:27][WARN][CORE] OI 8000 method 128: 产品没有告警输出，拒绝执行
+[       OK ] test_dar_classification_by_class_definition
+[ RUN      ] test_dispatch_read_write_call
+[       OK ] test_dispatch_read_write_call
+[ RUN      ] test_event_class24_attr_reads
+[       OK ] test_event_class24_attr_reads
+[ RUN      ] test_event_class24_attr_writes
+[       OK ] test_event_class24_attr_writes
+[ RUN      ] test_event_class7_attr_numbers_are_not_served
+[       OK ] test_event_class7_attr_numbers_are_not_served
+[ RUN      ] test_event_method1_resets_records
+🧹 [EVENT] ACTION: 成功复位事件 3000 的历史事件记录表。
+[       OK ] test_event_method1_resets_records
+[ RUN      ] test_facade_and_table_api_agree
+[       OK ] test_facade_and_table_api_agree
+[ RUN      ] test_discovery_snapshot_and_clear
+[       OK ] test_discovery_snapshot_and_clear
+[ RUN      ] test_class14_15_16_stats_rows_are_empty
+[       OK ] test_class14_15_16_stats_rows_are_empty
+[ RUN      ] test_reset_returns_to_uninitialized
+[       OK ] test_reset_returns_to_uninitialized
+[==========] tests: 17 test(s) run.
+[  PASSED  ] 17 test(s).

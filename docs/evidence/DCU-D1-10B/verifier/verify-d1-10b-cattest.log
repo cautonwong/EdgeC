@@ -1,0 +1,13 @@
+[==========] tests: Running 5 test(s).
+[ RUN      ] test_every_table_oi_is_in_the_catalog
+[       OK ] test_every_table_oi_is_in_the_catalog
+[ RUN      ] test_masks_stay_within_the_class_definition
+[       OK ] test_masks_stay_within_the_class_definition
+[ RUN      ] test_methods_stay_within_the_oi_definition
+[       OK ] test_methods_stay_within_the_oi_definition
+[ RUN      ] test_class_attr_limit_matches_catalog
+[       OK ] test_class_attr_limit_matches_catalog
+[ RUN      ] test_no_duplicate_ois
+[       OK ] test_no_duplicate_ois
+[==========] tests: 5 test(s) run.
+[  PASSED  ] 5 test(s).

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "dev_cfg": {
+    "uart": {
+      "attr": [
+        {
+          "name": "RS485_1",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        }
+      ]
+    },
+    "lan": {
+      "attr": [
+        {
+          "name": "lan",
+          "ip": "10.0.0.254"
+        }
+      ]
+    }
+  }
+}

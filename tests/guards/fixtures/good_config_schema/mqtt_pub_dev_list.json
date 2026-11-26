@@ -1,0 +1,17 @@
+{
+  "pub_dev_list": [
+    {
+      "type": "METER",
+      "tags": [
+        "METER1.P",
+        "METER1.Q"
+      ]
+    },
+    {
+      "type": "PCS",
+      "tags": [
+        "PCS1.STATE"
+      ]
+    }
+  ]
+}

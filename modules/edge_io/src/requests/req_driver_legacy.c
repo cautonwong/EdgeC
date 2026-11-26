@@ -18,6 +18,8 @@ typedef struct {
     cmd_action_t action;
     uint32_t tag_id;        /* 驱动认的原生点位标识 */
     uint32_t result_tag_id; /* 回调认的标识（产品自己的 tag_id） */
+    /* 回调认的设备身份（inventory 稠密 id），原样使用；0 = tag 级视图。 */
+    uint32_t result_device_id;
     double scale;           /* 解码值量纲，<=0 视为 1.0 */
     double value;
     /* 采样时刻 = 读帧编码发出时（uv_hrtime 纳秒，与 pipe_msg_t.ts 同单位）。
@@ -26,6 +28,9 @@ typedef struct {
     uint64_t sample_ts;
     legacy_on_complete_cb on_complete;
     void *user_data;
+    /* 完成回调必须恰好一次：引擎早退路径与 arbiter 结算都可能在同一次提交里
+     * 尝试收尾，第二次必须是 no-op。 */
+    bool finished;
     pipe_msg_t result_msg;
     const void *meta_list;
     uint32_t meta_list_len;
@@ -128,7 +133,8 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
         /* 驱动只回原始值；标识与量纲由调用方给（ADR-002：驱动不认 tag_id、不管标定） */
         pipe_msg_init_scalar(&ctx->result_msg, (edge_tag_id_t)ctx->result_tag_id,
                              value * ctx->scale, ctx->sample_ts);
-        ctx->result_msg.device_id = ctx->slave_id;
+        /* 调用方给的设备身份原样贴回；0 是合法的 tag 级视图身份，不回退从站地址。 */
+        ctx->result_msg.device_id = ctx->result_device_id;
         return REQ_STATUS_DONE;
     }
 
@@ -146,8 +152,9 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
 
     if (rc == 0 && msg_count > 0) {
         /* shadow 按 (tag, device_id) 索引；驱动 decode 不填 device_id 的话
-         * datahub_read_shadow_device(tag, meter_idx) 只有 index 0 命得中。 */
-        ctx->result_msg.device_id = ctx->slave_id;
+         * datahub_read_shadow_device(tag, meter_idx) 只有 index 0 命得中。
+         * 调用方给的 result_device_id 原样使用；0 = tag 级视图（合法身份）。 */
+        ctx->result_msg.device_id = ctx->result_device_id;
         if (ctx->result_msg.tag_id == ctx->tag_id) {
             return REQ_STATUS_DONE;
         } else {
@@ -164,6 +171,8 @@ static int legacy_decode(edge_req_t *req, net_buf_t *buf, size_t *consumed) {
 
 static void legacy_finish(edge_req_t *req, int status) {
     legacy_req_ctx_t *ctx = (legacy_req_ctx_t *)req->priv_data;
+    if (ctx->finished) return;
+    ctx->finished = true;
     if (ctx->on_complete) {
         ctx->on_complete(status,
                          (status == 0 && ctx->action == CMD_ACTION_READ) ? &ctx->result_msg : NULL,
@@ -190,10 +199,10 @@ static const request_ops_t legacy_ops = {
 
 edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
                                      cmd_action_t action, uint32_t native_id, uint32_t result_tag_id,
-                                     double scale, double value, const void *meta_list,
-                                     uint32_t meta_list_len, const void *point_desc,
-                                     size_t point_desc_len, legacy_on_complete_cb user_cb,
-                                     void *user_data) {
+                                     uint32_t result_device_id, double scale, double value,
+                                     const void *meta_list, uint32_t meta_list_len,
+                                     const void *point_desc, size_t point_desc_len,
+                                     legacy_on_complete_cb user_cb, void *user_data) {
     edge_req_t *req = calloc(1, sizeof(edge_req_t));
     if (!req) return NULL;
     legacy_req_ctx_t *ctx = calloc(1, sizeof(legacy_req_ctx_t));
@@ -210,6 +219,7 @@ edge_req_t *req_legacy_driver_create(const char *protocol, uint32_t slave_id,
     ctx->action = action;
     ctx->tag_id = native_id;
     ctx->result_tag_id = result_tag_id;
+    ctx->result_device_id = result_device_id;
     ctx->scale = (scale > 0.0) ? scale : 1.0;
     ctx->value = value;
     ctx->meta_list = meta_list;

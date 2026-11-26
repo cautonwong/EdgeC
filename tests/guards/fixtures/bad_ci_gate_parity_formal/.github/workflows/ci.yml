@@ -1,0 +1,13 @@
+jobs:
+  build-and-test:
+    steps:
+      - name: Run Architecture & Anti-Entropy Gates (x86_64 only)
+        if: matrix.config.target == 'x86_64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 ci/scripts/run_guard_selftest.py
+          python3 ci/scripts/check_component_budgets.py --root . --build build
+          STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
+          ./scripts/check_binary_sizes.sh | tee build/size_report.txt
+          ./ci/scripts/check_formal.sh ${FORMAL_STRICT:+--strict}

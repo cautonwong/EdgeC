@@ -1,0 +1,15 @@
+ acceptance/dcu/tests/test_dcu_northbound.py        | 26 +++++--
+ adapters/io_drivers/component.meta                 |  2 +-
+ adapters/io_drivers/include/driver_manager.h       |  2 +-
+ adapters/io_drivers/include/north_driver_adapter.h |  2 +-
+ adapters/io_drivers/src/driver_dlt698.c            | 18 +++--
+ adapters/io_drivers/src/driver_manager.c           |  2 +-
+ cmd/dcu/dcu_698_appconn.c                          | 16 +++-
+ contracts/schema/core_readonly_whitelist.txt       |  5 ++
+ foundation/include/edge_slave_plane.h              |  4 +-
+ tests/test_dcu_698_appconn.c                       |  2 +-
+ tests/test_dcu_698_axdr.c                          | 40 +++++++---
+ tests/test_dcu_698_record.c                        |  4 +-
+ tests/test_dlt698_appconn.c                        | 10 +--
+ tests/test_driver_dlt698.c                         | 87 +++++++++++++++++++---
+ 14 files changed, 170 insertions(+), 50 deletions(-)

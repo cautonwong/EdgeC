@@ -1,0 +1,19 @@
+[==========] tests: Running 8 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[       OK ] test_object_list_shape_and_capacity
+[ RUN      ] test_class22_acl_advertises_read_only_attrs
+[       OK ] test_class22_acl_advertises_read_only_attrs
+[ RUN      ] test_class14_15_16_acl_is_read_only
+[       OK ] test_class14_15_16_acl_is_read_only
+[ RUN      ] test_class17_acl_is_read_only
+[       OK ] test_class17_acl_is_read_only
+[ RUN      ] test_class11_acl_is_read_only
+[       OK ] test_class11_acl_is_read_only
+[ RUN      ] test_class22_object_masks_are_covered_by_acl
+[       OK ] test_class22_object_masks_are_covered_by_acl
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 8 test(s) run.
+[  PASSED  ] 8 test(s).

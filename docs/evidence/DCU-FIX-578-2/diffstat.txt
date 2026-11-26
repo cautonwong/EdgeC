@@ -1,0 +1,6 @@
+ cmd/dcu/dcu_698_class_acq.c        | 23 ++++++---
+ cmd/dcu/dcu_inventory.c            |  9 ++++
+ cmd/dcu/dcu_inventory.h            |  6 +++
+ docs/evidence/DCU-D2-02/summary.md |  2 +-
+ tests/test_dcu_698_archive.c       | 99 ++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 132 insertions(+), 7 deletions(-)

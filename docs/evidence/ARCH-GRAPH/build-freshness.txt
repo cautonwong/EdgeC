@@ -1,0 +1,10 @@
+check_build_freshness.py is not present in this repository or in the installed pstack
+skills, so there is no script to run. The freshness proof used instead:
+
+- configure: fresh build/ in the worktree, Release + Ninja, configure rc=0 (configure.txt)
+- build: fresh full build, 1249/1249 targets, rc=0 (build.txt)
+- ctest: 355/355 passed, rc=0 (ctest.txt)
+
+The last product-affecting changes were committed before that build; every later change in
+this branch is CI policy, fixtures, matrix data, evidence, or docs. No compiled source or
+CMake input changed after the successful build.

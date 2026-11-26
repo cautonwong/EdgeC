@@ -1,0 +1,19 @@
+ acceptance/dcu/dcu_product.py               |   9 +-
+ acceptance/dcu/tests/test_dcu_northbound.py | 142 ++++++++++++++++--------
+ cmd/dcu/dcu_poller.c                        |  42 ++++----
+ cmd/dcu/dcu_poller.h                        |  11 +-
+ docs/evidence/DCU-D0-18/comments.md         |  33 ++++++
+ docs/evidence/DCU-D0-18/diffstat.txt        |   5 +
+ docs/evidence/DCU-D0-18/runtime.log         |  19 ++++
+ docs/evidence/DCU-D0-18/summary.md          |  88 +++++++++++++++
+ docs/evidence/DCU-D0-18/tests.log           |  19 ++++
+ docs/evidence/DCU-D0-19/accept-cov-r6.log   |  38 +++++++
+ docs/evidence/DCU-D0-19/accept-cov-r7.log   |  38 +++++++
+ docs/evidence/DCU-D0-19/accept-cov-r8.log   |  38 +++++++
+ docs/evidence/DCU-D0-19/accept-release.log  |  38 +++++++
+ docs/evidence/DCU-D0-19/comments.md         |   1 +
+ docs/evidence/DCU-D0-19/runtime.log         | 161 ++++++++++++++++++++++++++++
+ docs/evidence/DCU-D0-19/summary.md          |  52 +++++++++
+ docs/evidence/DCU-D0-19/tests.log           |   8 ++
+ tests/test_dcu_poller.c                     |  48 +++++++++
+ 18 files changed, 712 insertions(+), 78 deletions(-)

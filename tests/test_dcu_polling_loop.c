@@ -32,8 +32,9 @@ static int _test_poller_publish(void* ctx, uint32_t tag_id, uint32_t meter_idx, 
 /* 链式接口：submit 只负责提交，结果走回调。测试用同步回调，
  * poller 的 pumping 守卫保证不会递归打穿栈。 */
 static int _test_poller_source_submit(void* ctx, uint32_t meter_idx, uint32_t tag_id,
-                                      poller_read_done_cb cb, void* ud) {
+                                      uint32_t task_mask, poller_read_done_cb cb, void* ud) {
     (void)ctx;
+    (void)task_mask;
     (void)meter_idx;
     (void)tag_id;
     g_source_read_calls++;
@@ -42,8 +43,9 @@ static int _test_poller_source_submit(void* ctx, uint32_t meter_idx, uint32_t ta
 }
 
 static int _test_poller_source_fail(void* ctx, uint32_t meter_idx, uint32_t tag_id,
-                                    poller_read_done_cb cb, void* ud) {
+                                    uint32_t task_mask, poller_read_done_cb cb, void* ud) {
     (void)ctx;
+    (void)task_mask;
     (void)meter_idx;
     (void)tag_id;
     (void)cb;

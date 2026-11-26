@@ -14,6 +14,7 @@
 #include "datahub.h"
 #include "datahub_priv.h"
 #include "dcu_698_axdr.h"
+#include "dcu_698_var.h"
 #include "dcu_discovery.h"
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
@@ -217,10 +218,13 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     mac_valid = dcu_security_verify_mac(&esam, test_payload, 4, invalid_mac);
     assert_false(mac_valid);
 
+    /* 698 北向不暴露软件 ESAM 会话：方法 1 按类定义回 DAR 5，不重置、不伪造。 */
     ret = dcu_router_action(((uint32_t)OI_ESAM_SECURITY << 16) | 0x0100, NULL, NULL);
-    assert_int_equal(ret, 0);
-    assert_false(esam.is_authenticated);
-    for (int i = 0; i < 16; i++) assert_int_equal(esam.session_key[i], 0);
+    assert_int_equal(ret, EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_true(esam.is_authenticated);
+    uint8_t mac_still[4] = {0};
+    for (int i = 0; i < 4; i++) mac_still[i % 4] ^= (uint8_t)(test_payload[i] ^ esam.session_key[i % 16]);
+    assert_true(dcu_security_verify_mac(&esam, test_payload, 4, mac_still));
 
     // 3. F200 的 A2/A3/A4 类已定义但未广告（DAR 5）；没有真实串口重配路径，全部不对外
     uint32_t baudrate = 0;
@@ -267,6 +271,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_stage_t* mon_stage = stage_event_monitor_create(&test_inv, &evt_3000, &evt_3005);
     pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state,
                        mon_stage->cleanup_state, NULL, NULL);
+    free(mon_stage);  // 管线复制 stage 字段，工厂对象只是临时描述符。
 
     event_sink_ops_t event_sink = {.ctx = &storage,
                                    .archive_event = _test_archive_event,
@@ -275,6 +280,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
         stage_event_logger_create(&test_inv, &evt_3000, &evt_3005, &hub, event_sink);
     pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state,
                        log_stage->cleanup_state, NULL, NULL);
+    free(log_stage);
 
     uint64_t base_ts = 1716500000ULL * 1000000000ULL;
 
@@ -385,6 +391,7 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     pipeline_stage_t* freeze_stage = stage_periodic_freeze_create_ex(&test_inv, &hub, event_sink);
     pipeline_add_stage(freeze_pipeline, freeze_stage->name, freeze_stage->process,
                        freeze_stage->priv_state, freeze_stage->cleanup_state, NULL, NULL);
+    free(freeze_stage);
 
     // 往 DataHub 总线写入累计电能 OAD_ACTIVE_ENERGY 的最新实时影子数据
     pipe_msg_t energy_msg;
@@ -438,9 +445,214 @@ static void test_dcu_advanced_features_dispatch(void** state) {
     dcu_inventory_destroy(&test_inv);
 }
 
+/* 档案删除用末元素覆盖删除位：删 B 后 D 落到下标 1，再新增的 E 占下标 3（slot 4）。
+ * 此时 slot 3 的 D 在下标 1，而下标 3 是 slot 4 的 E；事件管线的 device_id 是
+ * slot_id，记录与冻结都必须按 slot 归 D，不能按下标挂到 E。 */
+static void on_walk_close_slot_test(uv_handle_t* handle, void* arg) {
+    (void)arg;
+    if (!uv_is_closing(handle)) uv_close(handle, NULL);
+}
+
+static void test_event_and_freeze_keep_slot_identity_after_archive_shift(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+    assert_int_equal(dcu_inventory_add(&inv, "10000001", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000002", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000003", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000004", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_remove(&inv, "10000002"), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000005", "DLT698", 9600, 1), 0);
+    assert_int_equal(inv.count, 4);
+    assert_string_equal(inv.meters[1].address, "10000004");
+    assert_int_equal(inv.meters[1].slot_id, 3);
+    assert_string_equal(inv.meters[3].address, "10000005");
+    assert_int_equal(inv.meters[3].slot_id, 4);
+
+    dcu_storage_t storage;
+    assert_int_equal(dcu_storage_init(&storage, &loop, ":memory:"), 0);
+
+    datahub_t hub;
+    datahub_init(&hub, &loop, "dcu_test_slot_identity", 1024, 1024, NULL, 0, NULL, NULL, NULL);
+    hub.map_fn_v2 = dcu_tag_map_fn;
+
+    dcu_poller_t poller;
+    dcu_poller_init(&poller);
+    dcu_discovery_t discovery;
+    dcu_discovery_init(&discovery);
+
+    dcu_event_obj_t evt_3000;
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.threshold = 176.0f;
+    evt_3000.delay_s = 0;
+    evt_3000.is_enabled = true;
+    /* F5：A6 关联数据快照必须按事件的 slot_id 取表。 */
+    evt_3000.snapshot_count = 1;
+    evt_3000.snapshot_oads[0] = OAD_VOLTAGE;
+    dcu_event_obj_t evt_3005;
+    memset(&evt_3005, 0, sizeof(evt_3005));
+    evt_3005.oi = OI_OVER_CURRENT;
+    evt_3005.threshold = 5.0f;
+    evt_3005.delay_s = 0;
+    evt_3005.is_enabled = true;
+
+    router_sink_ops_t router_sink = {.ctx = &storage,
+                                     .record_telemetry = (void*)dcu_storage_write_telemetry,
+                                     .count_freezes = _mock_count_freezes};
+    router_bus_ops_t router_bus = {.ctx = &hub,
+                                   .msg_size = sizeof(pipe_msg_t),
+                                   .publish_realtime = _mock_publish_realtime,
+                                   .read_shadow = _mock_read_shadow};
+    assert_int_equal(dcu_router_init_ex(&inv, &poller, router_sink, NULL, &discovery, &evt_3000,
+                                        &evt_3005, router_bus),
+                     0);
+
+    event_sink_ops_t event_sink = {.ctx = &storage,
+                                   .archive_event = _test_archive_event,
+                                   .archive_freeze = _test_archive_freeze};
+
+    stream_engine_t* se = stream_engine_create_datahub(&hub, &loop, NULL, NULL);
+    pipeline_t* evt_pipeline = stream_engine_add_pipeline(se, "TEST_SLOT_EVT", 0);
+    pipeline_stage_t* mon_stage = stage_event_monitor_create(&inv, &evt_3000, &evt_3005);
+    pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state,
+                       mon_stage->cleanup_state, NULL, NULL);
+    free(mon_stage);  // 管线复制 stage 字段，工厂对象只是临时描述符。
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&inv, &evt_3000, &evt_3005, &hub, event_sink);
+    pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state,
+                       log_stage->cleanup_state, NULL, NULL);
+    free(log_stage);
+
+    uint64_t t0 = 1750000000000000000ULL;
+    /* 两张表的电压影子：slot 0 是 A，slot 3 是 D。旧码把 OAD 低字节 0 当
+     * device_id，会把 A 的值写进 D 的事件快照。 */
+    static const uint32_t vtags[3] = {OAD_VOLTAGE, TAG_VOLTAGE_B, TAG_VOLTAGE_C};
+    static const float volts_a[3] = {100.0f, 101.0f, 102.0f};
+    static const float volts_d[3] = {150.0f, 151.0f, 152.0f};
+    for (int i = 0; i < 3; i++) {
+        pipe_msg_t v;
+        memset(&v, 0, sizeof(v));
+        v.tag_id = vtags[i];
+        v.type = PIPEMSG_TYPE_SCALAR;
+        v.device_id = 0;
+        v.payload.val.f = volts_a[i];
+        datahub_publish(&hub, &v);
+        v.device_id = 3;
+        v.payload.val.f = volts_d[i];
+        datahub_publish(&hub, &v);
+    }
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.tag_id = OAD_VOLTAGE;
+    msg.type = PIPEMSG_TYPE_SCALAR;
+    msg.device_id = 3; /* D 的 slot；D 在下标 1，下标 3 是 E */
+    msg.ts = t0;
+    msg.payload.val.f = 150.0f;
+    stream_engine_push(se, &msg);
+    msg.ts = t0 + 1;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 200 && evt_3000.record_count == 0; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 1);
+
+    /* D 的 A/B/C 相电压 150.0/151.0/152.0 → raw 1500/1510/1520；旧码从 slot 0
+     * 的 A 表取到 1000/1010/1020。 */
+    assert_int_equal(evt_3000.records[0].snapshot_len[0], 11);
+    const uint8_t *snap = evt_3000.records[0].snapshot[0];
+    assert_int_equal(snap[0], DCU_698_TAG_ARRAY);
+    assert_int_equal(snap[1], 3);
+    assert_int_equal(snap[2], DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal((snap[3] << 8) | snap[4], 1500);
+    assert_int_equal(snap[5], DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal((snap[6] << 8) | snap[7], 1510);
+    assert_int_equal(snap[8], DCU_698_TAG_LONG_UNSIGNED);
+    assert_int_equal((snap[9] << 8) | snap[10], 1520);
+
+    msg.ts = t0 + 2;
+    msg.payload.val.f = 220.0f;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 200 && evt_3000.records[0].is_active; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_false(evt_3000.records[0].is_active);
+
+    uint64_t d_start = 0, d_end = 0, e_start = 0, e_end = 0;
+    _event_row_times_for(&storage, "10000004", OI_VOLTAGE_DROP, &d_start, &d_end);
+    _event_row_times_for(&storage, "10000005", OI_VOLTAGE_DROP, &e_start, &e_end);
+    assert_int_not_equal(d_start, 0);
+    assert_int_not_equal(d_end, 0);
+    assert_int_equal(e_start, 0);
+    assert_int_equal(e_end, 0);
+
+    pipeline_t* frz_pipeline = stream_engine_add_pipeline(se, "TEST_SLOT_FRZ", 0);
+    pipeline_stage_t* f_stage = stage_periodic_freeze_create_ex(&inv, &hub, event_sink);
+    pipeline_add_stage(frz_pipeline, f_stage->name, f_stage->process, f_stage->priv_state,
+                       f_stage->cleanup_state, NULL, NULL);
+    free(f_stage);
+
+    pipe_msg_t energy;
+    memset(&energy, 0, sizeof(energy));
+    energy.tag_id = OAD_ACTIVE_ENERGY;
+    energy.type = PIPEMSG_TYPE_SCALAR;
+    energy.device_id = 3;
+    energy.payload.val.f = 12.5f;
+    datahub_publish(&hub, &energy);
+
+    pipe_msg_t trig;
+    memset(&trig, 0, sizeof(trig));
+    trig.tag_id = OAD_DAILY_FREEZE;
+    trig.type = PIPEMSG_TYPE_SCALAR;
+    trig.device_id = 3;
+    trig.ts = t0 + 3;
+    stream_engine_push(se, &trig);
+
+    dcu_freeze_record_t rows[5];
+    uint16_t row_count = 0;
+    for (int i = 0; i < 200; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        row_count = 0;
+        dcu_storage_query_freeze(&storage, "10000004", OAD_DAILY_FREEZE, 0, 0x7FFFFFFFFFFFFFFFULL,
+                                 rows, 5, &row_count);
+        if (row_count > 0) break;
+        usleep(1000);
+    }
+    assert_int_equal(row_count, 3);
+    bool found_energy = false;
+    for (uint16_t i = 0; i < row_count; i++) {
+        if (rows[i].source_oad == OAD_ACTIVE_ENERGY) {
+            assert_float_equal(rows[i].frozen_value, 12.5f, 0.01f);
+            found_energy = true;
+        }
+    }
+    assert_true(found_energy);
+
+    /* 下标 3 是 E：D 的冻结断面不得挂到 E 名下。 */
+    row_count = 0;
+    dcu_storage_query_freeze(&storage, "10000005", OAD_DAILY_FREEZE, 0, 0x7FFFFFFFFFFFFFFFULL, rows,
+                             5, &row_count);
+    assert_int_equal(row_count, 0);
+
+    stream_engine_destroy(se);
+    datahub_destroy(&hub);
+    dcu_discovery_destroy(&discovery);
+    dcu_router_destroy();
+    dcu_storage_destroy(&storage);
+    dcu_inventory_destroy(&inv);
+    uv_walk(&loop, on_walk_close_slot_test, NULL);
+    while (uv_loop_close(&loop) == UV_EBUSY) uv_run(&loop, UV_RUN_ONCE);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_advanced_features_dispatch),
+        cmocka_unit_test(test_event_and_freeze_keep_slot_identity_after_archive_shift),
     };
     return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

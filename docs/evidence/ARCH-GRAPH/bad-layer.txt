@@ -1,0 +1,5 @@
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_layer
+❌ [ARCHITECTURE_GRAPH] 2 violation(s):
+  - [UNDECLARED_EDGE] foundation/CMakeLists.txt:2: link foundation_base (foundation/FOUNDATION) -> alpha (modules/alpha); forbidden: foundation is the lowest layer; sites: foundation/CMakeLists.txt:2
+  - [UNDECLARED_EDGE] foundation/src/base.c:2: include FOUNDATION (foundation) -> alpha (modules) via alpha.h; forbidden: foundation is the lowest layer; sites: foundation/src/base.c:2
+exit: 1

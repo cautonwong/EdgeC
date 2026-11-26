@@ -1,0 +1,10 @@
+{
+  "id": "CAB1",
+  "cnt_id": "CTRL1",
+  "name": "Cabinet1",
+  "capacity": 100,
+  "power": 50,
+  "en_lc": 1,
+  "en_swb": 1,
+  "total_capacity": 100
+}

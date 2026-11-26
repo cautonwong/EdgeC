@@ -76,6 +76,23 @@ int app_settings_schema_save(sqlite_svc_t *db, const char *app_id, const char *s
     return rc == SQLITE_DONE ? 0 : -1;
 }
 
+int app_settings_upgrade_check(sqlite_svc_t *db, const char *app_id, const char *new_schema_json,
+                               char *reason, size_t reason_size) {
+    sqlite3 *handle = handle_of(db);
+    if (!handle || !app_id || !app_id[0]) return fail(reason, reason_size, "invalid");
+
+    sqlite3_stmt *schema_stmt = NULL;
+    const char *schema = NULL;
+    int found = select_schema(handle, app_id, &schema_stmt, &schema);
+    if (found < 0) return fail(reason, reason_size, "store_error");
+    if (found == 0) return 0;
+    static const char k_empty_schema[] = "{\"schemaVersion\":1,\"fields\":{}}";
+    int rc = edge_app_settings_check_upgrade(
+        schema, new_schema_json ? new_schema_json : k_empty_schema, reason, reason_size);
+    sqlite3_finalize(schema_stmt);
+    return rc;
+}
+
 int app_settings_value_set(sqlite_svc_t *db, const char *app_id, const char *key,
                            const char *value_json, char *reason, size_t reason_size) {
     sqlite3 *handle = handle_of(db);

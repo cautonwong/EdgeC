@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "description": "missing known_skips",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": []
+}

@@ -1,0 +1,26 @@
+=== D4-02a TESTS (2026-11-24T04:00:32Z) ===
+--- unit: test_dcu_698_axdr ---
+[NETBUF][INFO] NetBufPool 0x61dbb5b422e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x61dbb5b422e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x61dbb5b422e0: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[==========] tests: 38 test(s) run.
+[  PASSED  ] 38 test(s).
+--- unit: test_dcu_698_object_model ---
+[ RUN      ] test_reset_returns_to_uninitialized
+[       OK ] test_reset_returns_to_uninitialized
+[==========] tests: 15 test(s) run.
+[  PASSED  ] 15 test(s).
+--- ctest -R dcu ---
+100% tests passed, 0 tests failed out of 37
+
+Total Test time (real) =  72.47 sec
+--- ASAN detect_leaks=1 ---
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   1.74 sec
+--- gates ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [FANALYZER] 3 known finding(s), no new reports
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 110/110 passed (100% sensitivity)

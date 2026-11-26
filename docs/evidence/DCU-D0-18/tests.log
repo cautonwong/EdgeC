@@ -1,0 +1,19 @@
+=== D0-18 TESTS (2026-11-25T03:28:22Z) ===
+tip: commit 前工作树，基 a19f3edb
+
+--- clean build warning ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+--- ctest -R 'poller|dcu|698|dlt698' (45) ---
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  52.67 sec
+
+--- ASAN detect_leaks=1 同集 ---
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  48.06 sec
+
+--- guard selftest ---
+📊 Refutation Test Results: 118/118 passed (100% sensitivity)
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!

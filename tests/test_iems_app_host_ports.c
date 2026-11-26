@@ -291,14 +291,188 @@ static void child_settings_watch(int fd, int sync_fd, int watch, int expect_even
     _exit(0);
 }
 
-static void grant(sqlite_svc_t *db, const char *capability, const char *scope_json) {
+static void grant_app(sqlite_svc_t *db, const char *app_id, const char *capability,
+                      const char *scope_json) {
     edge_authz_store_t store = edge_authz_sqlite_store(db);
     edge_app_grant_t grant = {0};
-    snprintf(grant.app_id, sizeof(grant.app_id), "demo");
+    snprintf(grant.app_id, sizeof(grant.app_id), "%s", app_id);
     snprintf(grant.capability, sizeof(grant.capability), "%s", capability);
     snprintf(grant.scope_json, sizeof(grant.scope_json), "%s", scope_json);
     snprintf(grant.purpose, sizeof(grant.purpose), "test");
     assert_int_equal(edge_authz_approve_grant(&store, &grant, 1000), EDGE_AUTHZ_OK);
+}
+
+static void grant(sqlite_svc_t *db, const char *capability, const char *scope_json) {
+    grant_app(db, "demo", capability, scope_json);
+}
+
+static void port_event(void *event_ctx, uint32_t handle, const app_host_sample_t *sample) {
+    (void)event_ctx;
+    (void)handle;
+    (void)sample;
+}
+
+static void hub_event(datahub_t *hub, const pipe_msg_t *msg, void *user_ctx) {
+    (void)hub;
+    (void)msg;
+    (void)user_ctx;
+}
+
+static void test_host_quota_denies_the_33rd(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    const char *db_path = "test_iems_app_host_ports_quota.db";
+    unlink(db_path);
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &cfg);
+    assert_non_null(db);
+    sqlite3 *raw = (sqlite3 *)sqlite_svc_get_db_handle(db);
+    sqlite3_stmt *stmt;
+    assert_int_equal(sqlite3_prepare_v2(
+                         raw,
+                         "INSERT INTO app_registry(id, version, state) VALUES('demo','1.0.0',1);",
+                         -1, &stmt, NULL),
+                     SQLITE_OK);
+    assert_int_equal(sqlite3_step(stmt), SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    grant(db, "tags.read", "[\"U_A\"]");
+
+    datahub_t hub;
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "test_host_quota_%d", (int)getpid());
+    assert_int_equal(datahub_init(&hub, NULL, shm_name, 64, APP_BASE + 4096, NULL, 0, NULL, NULL,
+                                  NULL),
+                     0);
+
+    iems_app_host_ctx_t ctx = {
+        .app_id = "demo",
+        .hub = &hub,
+        .db = db,
+        .product_tags = kProductTags,
+        .product_tag_count = 1,
+        .app_base = APP_BASE,
+    };
+    app_host_ports_t ports;
+    iems_app_host_ports_init(&ports, &ctx);
+
+    int32_t ids[32];
+    char reason[160];
+    for (int i = 0; i < 32; i++) {
+        assert_int_equal(ports.subscribe(&ctx, 1001, port_event, &ctx, &ids[i], reason,
+                                         sizeof(reason)),
+                         0);
+        assert_true(ids[i] > 0);
+    }
+    int32_t denied = 0;
+    assert_int_equal(
+        ports.subscribe(&ctx, 1001, port_event, &ctx, &denied, reason, sizeof(reason)), -1);
+    assert_string_equal(reason, "denied_quota");
+    assert_int_equal(denied, 0);
+
+    int extra = datahub_subscribe_tag(&hub, 1001, hub_event, &ctx);
+    assert_true(extra > 0);
+    assert_int_equal(datahub_unsubscribe(&hub, extra), 0);
+
+    for (int i = 0; i < 32; i++) assert_int_equal(ports.unsubscribe(&ctx, ids[i]), 0);
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) assert_false(hub.subscribers[i].active);
+
+    datahub_destroy(&hub);
+    sqlite_svc_destroy(db);
+    unlink(db_path);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+/* P1-06b A1-A3：两个应用各 32 个订阅正好填满 DataHub 的 64 槽；第三个应用
+ * 第一次订阅就被拒，原因必须是 hub 满（denied_quota），且它自己的记录槽仍空；
+ * 前两个应用全部退订后槽可回收，第三个应用能再订阅成功。 */
+static void test_two_apps_fill_hub_then_third_denied(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    const char *db_path = "test_iems_app_host_ports_two_apps.db";
+    unlink(db_path);
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &cfg);
+    assert_non_null(db);
+    grant_app(db, "app_a", "tags.read", "[\"U_A\"]");
+    grant_app(db, "app_b", "tags.read", "[\"U_A\"]");
+    grant_app(db, "app_c", "tags.read", "[\"U_A\"]");
+
+    datahub_t hub;
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "test_host_two_apps_%d", (int)getpid());
+    assert_int_equal(datahub_init(&hub, NULL, shm_name, 64, APP_BASE + 4096, NULL, 0, NULL, NULL,
+                                  NULL),
+                     0);
+
+    iems_app_host_ctx_t ctx_a = {
+        .app_id = "app_a",
+        .hub = &hub,
+        .db = db,
+        .product_tags = kProductTags,
+        .product_tag_count = 1,
+        .app_base = APP_BASE,
+    };
+    iems_app_host_ctx_t ctx_b = ctx_a;
+    ctx_b.app_id = "app_b";
+    iems_app_host_ctx_t ctx_c = ctx_a;
+    ctx_c.app_id = "app_c";
+
+    app_host_ports_t ports_a, ports_b, ports_c;
+    iems_app_host_ports_init(&ports_a, &ctx_a);
+    iems_app_host_ports_init(&ports_b, &ctx_b);
+    iems_app_host_ports_init(&ports_c, &ctx_c);
+
+    char reason[160];
+    int32_t ids_a[IEMS_MAX_POINT_SUBSCRIPTIONS];
+    int32_t ids_b[IEMS_MAX_POINT_SUBSCRIPTIONS];
+    for (int i = 0; i < IEMS_MAX_POINT_SUBSCRIPTIONS; i++) {
+        assert_int_equal(ports_a.subscribe(&ctx_a, 1001, port_event, &ctx_a, &ids_a[i], reason,
+                                           sizeof(reason)),
+                         0);
+        assert_true(ids_a[i] > 0);
+    }
+    for (int i = 0; i < IEMS_MAX_POINT_SUBSCRIPTIONS; i++) {
+        assert_int_equal(ports_b.subscribe(&ctx_b, 1001, port_event, &ctx_b, &ids_b[i], reason,
+                                           sizeof(reason)),
+                         0);
+        assert_true(ids_b[i] > 0);
+    }
+    int active = 0;
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) {
+        if (hub.subscribers[i].active) active++;
+    }
+    assert_int_equal(active, DATAHUB_MAX_SUBSCRIBERS);
+
+    /* 第三个应用：第一次订阅即被拒，原因是 hub 满而不是它自己的 32 槽满。 */
+    int32_t denied = 0;
+    assert_int_equal(
+        ports_c.subscribe(&ctx_c, 1001, port_event, &ctx_c, &denied, reason, sizeof(reason)), -1);
+    assert_string_equal(reason, "denied_quota");
+    assert_int_equal(denied, 0);
+    for (uint32_t i = 0; i < IEMS_MAX_POINT_SUBSCRIPTIONS; i++) {
+        assert_int_equal(ctx_c.subscriptions[i].sub_id, 0);
+    }
+
+    for (int i = 0; i < IEMS_MAX_POINT_SUBSCRIPTIONS; i++) {
+        assert_int_equal(ports_a.unsubscribe(&ctx_a, ids_a[i]), 0);
+        assert_int_equal(ports_b.unsubscribe(&ctx_b, ids_b[i]), 0);
+    }
+    for (int i = 0; i < DATAHUB_MAX_SUBSCRIBERS; i++) assert_false(hub.subscribers[i].active);
+
+    int32_t sub_c = 0;
+    assert_int_equal(
+        ports_c.subscribe(&ctx_c, 1001, port_event, &ctx_c, &sub_c, reason, sizeof(reason)), 0);
+    assert_true(sub_c > 0);
+    assert_int_equal(ports_c.unsubscribe(&ctx_c, sub_c), 0);
+
+    datahub_destroy(&hub);
+    sqlite_svc_destroy(db);
+    unlink(db_path);
+    assert_int_equal(uv_loop_close(&loop), 0);
 }
 
 static void test_host_ports_end_to_end(void **state) {
@@ -518,6 +692,8 @@ static void test_host_ports_end_to_end(void **state) {
 
 int main(void) {
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_host_quota_denies_the_33rd),
+        cmocka_unit_test(test_two_apps_fill_hub_then_third_denied),
         cmocka_unit_test(test_host_ports_end_to_end),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "description": "Refutation: composition_roots is a required matrix section.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "known_skips": []
+}

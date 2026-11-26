@@ -1,0 +1,34 @@
+== test commit 6ae69e78 ==
+6ae69e78 test(DCU-D5-04): pin Class 12 pulse honest DAR and ACL counts
+ tests/test_dcu_698_appconn.c      | 20 ++++++++++-
+ tests/test_dcu_698_axdr.c         | 32 +++++++++++++++++
+ tests/test_dcu_698_object_model.c | 24 ++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c  |  2 +-
+ tests/test_driver_dlt698.c        | 72 ++++++++++++++++++++++++++++++++++++++-
+ 5 files changed, 146 insertions(+), 4 deletions(-)
+
+== fix commit a105a4cb ==
+a105a4cb feat(DCU-D5-04): register Class 12 pulse metering with honest DAR
+ cmd/dcu/dcu_698_appconn.c           |  6 ++++++
+ cmd/dcu/dcu_698_object_model.c      |  4 ++++
+ cmd/dcu/dcu_router.h                |  2 ++
+ docs/design/DCU_698_OBJECT_MODEL.md | 10 +++++-----
+ 4 files changed, 17 insertions(+), 5 deletions(-)
+
+== comment audit commit 05547042 ==
+05547042 docs(DCU-D5-04): apply comment audit rewrite and missing why
+ cmd/dcu/dcu_698_appconn.c    | 3 ++-
+ tests/test_dcu_698_appconn.c | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+== branch vs base 197d98b9 ==
+ cmd/dcu/dcu_698_appconn.c           |  7 ++++
+ cmd/dcu/dcu_698_object_model.c      |  4 +++
+ cmd/dcu/dcu_router.h                |  2 ++
+ docs/design/DCU_698_OBJECT_MODEL.md | 10 +++---
+ tests/test_dcu_698_appconn.c        | 20 ++++++++++-
+ tests/test_dcu_698_axdr.c           | 32 +++++++++++++++++
+ tests/test_dcu_698_object_model.c   | 24 ++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c    |  2 +-
+ tests/test_driver_dlt698.c          | 72 ++++++++++++++++++++++++++++++++++++-
+ 9 files changed, 164 insertions(+), 9 deletions(-)

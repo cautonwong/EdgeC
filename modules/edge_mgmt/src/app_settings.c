@@ -364,6 +364,54 @@ char *edge_app_settings_normalize_json(const char *settings_json, char *reason,
     return printed;
 }
 
+int edge_app_settings_check_upgrade(const char *old_json, const char *new_json, char *reason,
+                                    size_t reason_size) {
+    if (!new_json) return fail(reason, reason_size, "settings is empty");
+    cJSON *new_settings = cJSON_Parse(new_json);
+    if (!new_settings) return fail(reason, reason_size, "settings is not valid JSON");
+    if (!cJSON_IsObject(new_settings)) {
+        cJSON_Delete(new_settings);
+        return fail(reason, reason_size, "settings must be an object");
+    }
+    if (!old_json) {
+        cJSON_Delete(new_settings);
+        return 0;
+    }
+
+    cJSON *old_settings = cJSON_Parse(old_json);
+    if (!old_settings) {
+        cJSON_Delete(new_settings);
+        return fail(reason, reason_size, "stored settings is not valid JSON");
+    }
+    if (!cJSON_IsObject(old_settings)) {
+        cJSON_Delete(old_settings);
+        cJSON_Delete(new_settings);
+        return fail(reason, reason_size, "stored settings must be an object");
+    }
+
+    const cJSON *old_fields = settings_fields(old_settings);
+    const cJSON *new_fields = settings_fields(new_settings);
+    int rc = 0;
+    for (const cJSON *field = old_fields->child; field && rc == 0; field = field->next) {
+        const cJSON *replacement =
+            cJSON_GetObjectItemCaseSensitive((cJSON *)new_fields, field->string);
+        if (!cJSON_IsObject(replacement)) {
+            rc = fail_key(reason, reason_size, field->string, "removed from schema");
+        } else if (field_type(field) != field_type(replacement)) {
+            rc = fail_key(reason, reason_size, field->string, "type changed");
+        }
+    }
+    for (const cJSON *field = new_fields->child; field && rc == 0; field = field->next) {
+        if (cJSON_GetObjectItemCaseSensitive((cJSON *)old_fields, field->string)) continue;
+        if (!cJSON_GetObjectItemCaseSensitive((cJSON *)field, "default")) {
+            rc = fail_key(reason, reason_size, field->string, "new field has no default");
+        }
+    }
+    cJSON_Delete(old_settings);
+    cJSON_Delete(new_settings);
+    return rc;
+}
+
 int edge_app_setting_validate_value(const char *settings_json, const char *key,
                                     const char *value_json, char *reason, size_t reason_size) {
     if (!settings_json || !key || !value_json) {

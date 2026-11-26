@@ -1,0 +1,273 @@
+[==========] tests: Running 28 test(s).
+[ RUN      ] test_get_request_layout
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_get_request_layout
+[ RUN      ] test_set_long_unsigned
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_set_long_unsigned
+[ RUN      ] test_set_double_long
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_set_double_long
+[ RUN      ] test_set_rejects_bad_input
+[2026-11-26 15:31:15][WARN][IO] DLT698: 写请求缺少 A-XDR 类型描述
+[2026-11-26 15:31:15][WARN][IO] DLT698: 不支持的 A-XDR 类型 0x11
+[2026-11-26 15:31:15][WARN][IO] DLT698: long-unsigned 越界 70000
+[2026-11-26 15:31:15][WARN][IO] DLT698: long-unsigned 越界 -1
+[NETBUF][INFO] NetBufPool 0x7ffe1a79daa0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79daa0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79daa0: Unref (1 -> 0)
+[       OK ] test_set_rejects_bad_input
+[ RUN      ] test_slave_get_record_page
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_page
+[ RUN      ] test_slave_get_record_unsupported_selector
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_unsupported_selector
+[ RUN      ] test_slave_get_record_begin_failure
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_begin_failure
+[ RUN      ] test_slave_get_record_row_failure_aborts_page
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_row_failure_aborts_page
+[ RUN      ] test_slave_get_record_port_absent
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_port_absent
+[ RUN      ] test_slave_get_record_malformed_is_dropped
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb10: Unref (1 -> 0)
+[       OK ] test_slave_get_record_malformed_is_dropped
+[ RUN      ] test_report_frame_layout
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c820: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c820: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c820: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Unref (1 -> 0)
+[       OK ] test_report_frame_layout
+[ RUN      ] test_report_no_session_no_send
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db40: Unref (1 -> 0)
+[       OK ] test_report_no_session_no_send
+[ RUN      ] test_report_confirm_clears_pending
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c6d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c9b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca40: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca40: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca40: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c9b0: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c9b0: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c9b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c9b0: Unref (1 -> 0)
+[       OK ] test_report_confirm_clears_pending
+[ RUN      ] test_report_timeout_unblocks
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c830: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c830: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c830: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79caf0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79caf0: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79caf0: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79caf0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79caf0: Unref (1 -> 0)
+[       OK ] test_report_timeout_unblocks
+[ RUN      ] test_slave_parses_long_form_acl_224
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (1 -> 0)
+[       OK ] test_slave_parses_long_form_acl_224
+[ RUN      ] test_get_maps_source_rc_to_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79ca20: Unref (1 -> 0)
+[       OK ] test_get_maps_source_rc_to_dar
+[ RUN      ] test_slave_accepts_product_object_list_42
+[NETBUF][INFO] NetBufPool 0x7ffe1a79b330: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79b330: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79b330: Unref (1 -> 0)
+[       OK ] test_slave_accepts_product_object_list_42
+[ RUN      ] test_slave_class17_display_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d930: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_slave_class17_display_dar
+[ RUN      ] test_slave_class11_collection_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8f0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (1 -> 0)
+[       OK ] test_slave_class11_collection_dar
+[ RUN      ] test_slave_class12_pulse_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (1 -> 0)
+[       OK ] test_slave_class12_pulse_dar
+[ RUN      ] test_slave_class25_26_comm_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db20: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[       OK ] test_slave_class25_26_comm_dar
+[ RUN      ] test_slave_class19_devmgr_dar
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79d8d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db10: Unref (1 -> 0)
+[       OK ] test_slave_class19_devmgr_dar
+[ RUN      ] test_slave_object_list_does_not_overflow_pool_buffer
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_slave_object_list_does_not_overflow_pool_buffer
+[ RUN      ] test_slave_object_list_fits_production_slave_pool
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79db30: Unref (1 -> 0)
+[       OK ] test_slave_object_list_fits_production_slave_pool
+[ RUN      ] test_slave_list_item_reserves_frame_trailer
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c830: Ref (1 -> 2)
+[  ERROR   ] --- -1 != 0
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:1396: error: Failure!
+[  FAILED  ] test_slave_list_item_reserves_frame_trailer
+[ RUN      ] test_slave_encode_failure_clears_half_frame
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c830: Ref (1 -> 2)
+[  ERROR   ] --- 10427 != 0
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:1426: error: Failure!
+[  FAILED  ] test_slave_encode_failure_clears_half_frame
+[ RUN      ] test_slave_set_read_only_is_denied
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79cb00: Unref (1 -> 0)
+[       OK ] test_slave_set_read_only_is_denied
+[ RUN      ] test_slave_rejects_over_cap_object_list
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c930: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c930: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe1a79c930: Unref (1 -> 0)
+[       OK ] test_slave_rejects_over_cap_object_list
+[==========] tests: 28 test(s) run.
+[  PASSED  ] 26 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_slave_list_item_reserves_frame_trailer
+[  FAILED  ] test_slave_encode_failure_clears_half_frame
+
+ 2 FAILED TEST(S)

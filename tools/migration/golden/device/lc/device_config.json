@@ -1,0 +1,43 @@
+{
+  "dev_class": [
+    {
+      "devs": [],
+      "type": "METER"
+    },
+    {
+      "devs": [],
+      "type": "PCS"
+    },
+    {
+      "devs": [],
+      "type": "CELL"
+    },
+    {
+      "devs": [],
+      "type": "BMS"
+    },
+    {
+      "devs": [],
+      "type": "AC"
+    },
+    {
+      "devs": [],
+      "type": "TMS"
+    },
+    {
+      "devs": [
+        {
+          "addr": "1",
+          "channel": "10.0.0.1:1502",
+          "name": "dry_contact",
+          "no": "DIDO",
+          "protocol": "modbus_tcp",
+          "template": "DI_CFG_MODBUS.json",
+          "user_def": ""
+        }
+      ],
+      "type": "OTHERS"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

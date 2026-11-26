@@ -1,0 +1,21 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  29 ++++-
+ cmd/dcu/dcu_698_appconn.c                   |  10 ++
+ cmd/dcu/dcu_698_axdr.c                      |   8 ++
+ cmd/dcu/dcu_698_object_model.c              |  73 ++++++++++++-
+ cmd/dcu/dcu_698_var.c                       |  11 +-
+ cmd/dcu/dcu_router.h                        |  14 ++-
+ docs/design/DCU_698_OBJECT_MODEL.md         |  37 ++++---
+ docs/evidence/DCU-D4-08a/comments.md        |  45 ++++++++
+ docs/evidence/DCU-D4-08a/diffstat.txt       |  20 ++++
+ docs/evidence/DCU-D4-08a/runtime.log        |  21 ++++
+ docs/evidence/DCU-D4-08a/summary.md         | 105 ++++++++++++++++++
+ docs/evidence/DCU-D4-08a/tests.log          |  38 +++++++
+ tests/CMakeLists.txt                        |   4 +
+ tests/test_dcu_698_appconn.c                |  31 +++++-
+ tests/test_dcu_698_axdr.c                   |   4 +-
+ tests/test_dcu_698_class22.c                | 161 ++++++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c           |   5 +-
+ tests/test_dcu_698_scheme_mgmt.c            |   4 +-
+ tests/test_dcu_698_value_table.c            |   3 +-
+ tests/test_driver_dlt698.c                  |   4 +-
+ 20 files changed, 591 insertions(+), 36 deletions(-)

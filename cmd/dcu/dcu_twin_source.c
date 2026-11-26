@@ -31,9 +31,11 @@ int dcu_twin_source_read(void *ctx, uint32_t meter_idx, uint32_t tag_id, double 
     }
 }
 
-/* 合成源本来就是同步的：算完立刻回调。poller 的 pumping 守卫保证不会递归打穿栈。 */
+/* 合成源本来就是同步的：算完立刻回调。poller 的 pumping 守卫保证不会递归打穿栈。
+ * demo 合成源没有总线收发，不维护 6035 的 sent/received 计数（验收不用它）。 */
 static int dcu_twin_source_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id,
-                                  poller_read_done_cb cb, void *ud) {
+                                  uint32_t task_mask, poller_read_done_cb cb, void *ud) {
+    (void)task_mask;
     double v = 0.0;
     if (dcu_twin_source_read(ctx, meter_idx, tag_id, &v) != 0) return -1;
     if (cb) cb(ud, 0, v);
