@@ -21,7 +21,30 @@ formal_resolve_cbmc() {
 }
 
 formal_resolve_java() {
-    printf '%s' "${JAVA:-$(command -v java 2>/dev/null || true)}"
+    if [ -n "${JAVA:-}" ]; then
+        printf '%s' "$JAVA"
+        return
+    fi
+    local candidate
+    for candidate in \
+        "/usr/lib/jvm/java-${FORMAL_JAVA_MAJOR}-openjdk-amd64/bin/java" \
+        "/usr/lib/jvm/java-${FORMAL_JAVA_MAJOR}-openjdk-arm64/bin/java" \
+        "${JAVA_HOME_17_X64:-}/bin/java" \
+        "/usr/lib/jvm/temurin-${FORMAL_JAVA_MAJOR}-jdk-amd64/bin/java"; do
+        if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+            printf '%s' "$candidate"
+            return
+        fi
+    done
+    if [ -f /opt/formal/env.sh ]; then
+        # shellcheck disable=SC1091
+        . /opt/formal/env.sh
+        if [ -n "${JAVA:-}" ]; then
+            printf '%s' "$JAVA"
+            return
+        fi
+    fi
+    printf '%s' "$(command -v java 2>/dev/null || true)"
 }
 
 formal_resolve_tla_jar() {
