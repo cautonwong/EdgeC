@@ -261,7 +261,10 @@ jobs:
           # different JRE or jar on the runner cannot pass for the pin.
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre-headless
-          java -version 2>&1 | tee "$RUNNER_TEMP/java-version.txt"
+          JAVA17=/usr/lib/jvm/java-17-openjdk-amd64/bin/java
+          echo "JAVA=$JAVA17" >> "$GITHUB_ENV"
+          echo "/usr/lib/jvm/java-17-openjdk-amd64/bin" >> "$GITHUB_PATH"
+          "$JAVA17" -version 2>&1 | tee "$RUNNER_TEMP/java-version.txt"
           grep -Eq 'version "17\.' "$RUNNER_TEMP/java-version.txt"
 
       - name: Run formal gates

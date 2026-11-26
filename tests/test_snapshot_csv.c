@@ -42,14 +42,15 @@ static void reset_seams(void) {
 }
 
 static void rm_rf(const char *path) {
-    struct stat st;
-    if (lstat(path, &st) != 0) return;
-    if (!S_ISDIR(st.st_mode)) {
-        (void)unlink(path);
+    if (unlink(path) == 0 || errno == ENOENT) return;
+    if (errno != EISDIR && errno != EPERM) return;
+    int dirfd = open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (dirfd < 0) return;
+    DIR *dir = fdopendir(dirfd);
+    if (!dir) {
+        (void)close(dirfd);
         return;
     }
-    DIR *dir = opendir(path);
-    if (!dir) return;
     struct dirent *entry = NULL;
     char child[TEST_PATH_MAX];
     while ((entry = readdir(dir)) != NULL) {

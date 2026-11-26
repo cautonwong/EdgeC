@@ -92,14 +92,17 @@ static int fsync_dir(const char *path) {
 }
 
 static int remove_tree(const char *path) {
-    struct stat st;
-    if (lstat(path, &st) != 0) return errno == ENOENT ? 0 : -1;
-    if (!S_ISDIR(st.st_mode)) {
-        if (unlink(path) != 0 && errno != ENOENT) return -1;
-        return 0;
+    if (unlink(path) == 0 || errno == ENOENT) return 0;
+    if (errno != EISDIR && errno != EPERM) return -1;
+    int dirfd = open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (dirfd < 0) return errno == ENOENT ? 0 : -1;
+    DIR *dir = fdopendir(dirfd);
+    if (!dir) {
+        int saved = errno;
+        (void)close(dirfd);
+        errno = saved;
+        return -1;
     }
-    DIR *dir = opendir(path);
-    if (!dir) return -1;
     int rc = 0;
     struct dirent *entry = NULL;
     char child[SNAP_PATH_MAX];
@@ -795,20 +798,10 @@ static int marker_line_parse(char *line, char sha[65], unsigned long long *size,
 static int verify_marker(const char *dir, char *reason, size_t reason_size) {
     char path[SNAP_PATH_MAX];
     if (join_path2(path, sizeof(path), dir, SNAP_MARKER_NAME) != 0) return SNAP_MARKER_INVALID;
-    /* lstat first: opening a FIFO marker with no writer would block forever. */
-    struct stat marker_st;
-    if (lstat(path, &marker_st) != 0) {
-        if (errno == ENOENT) return SNAP_MARKER_MISSING;
-        if (reason && reason_size) {
-            snprintf(reason, reason_size, "cannot inspect snapshot marker: %s", strerror(errno));
-        }
-        return SNAP_MARKER_IO;
-    }
-    if (!S_ISREG(marker_st.st_mode)) return SNAP_MARKER_NOT_REGULAR;
     int fd = open(path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
     if (fd < 0) {
         if (errno == ENOENT) return SNAP_MARKER_MISSING;
-        if (errno == ELOOP) return SNAP_MARKER_NOT_REGULAR;
+        if (errno == ELOOP || errno == ENXIO) return SNAP_MARKER_NOT_REGULAR;
         if (reason && reason_size) {
             snprintf(reason, reason_size, "cannot open snapshot marker: %s", strerror(errno));
         }
@@ -958,21 +951,33 @@ static edge_history_result_t copy_files(const char *src_dir, const char *dst_dir
         if (marker_name(name)) continue;
         char src_path[SNAP_PATH_MAX];
         char dst_path[SNAP_PATH_MAX];
-        struct stat st;
         if (join_path2(src_path, sizeof(src_path), src_dir, name) != 0 ||
-            join_path2(dst_path, sizeof(dst_path), dst_dir, name) != 0 ||
-            lstat(src_path, &st) != 0) {
+            join_path2(dst_path, sizeof(dst_path), dst_dir, name) != 0) {
+            rc = fs_fail(reason, reason_size, "cannot build snapshot copy path");
+            break;
+        }
+        int in = open(src_path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC);
+        if (in < 0) {
+            if (errno == ELOOP || errno == ENXIO) {
+                rc = fail(EDGE_HISTORY_INVALID, reason, reason_size,
+                          "snapshot copy source is not a regular file");
+                break;
+            }
+            rc = fs_fail(reason, reason_size, "cannot open snapshot copy source");
+            break;
+        }
+        struct stat st;
+        if (fstat(in, &st) != 0) {
+            int saved = errno;
+            (void)close(in);
+            errno = saved;
             rc = fs_fail(reason, reason_size, "cannot stat snapshot copy source");
             break;
         }
         if (!S_ISREG(st.st_mode)) {
+            (void)close(in);
             rc = fail(EDGE_HISTORY_INVALID, reason, reason_size,
                       "snapshot copy source is not a regular file");
-            break;
-        }
-        int in = open(src_path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-        if (in < 0) {
-            rc = fs_fail(reason, reason_size, "cannot open snapshot copy source");
             break;
         }
         int out = open(dst_path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, (mode_t)0644);
@@ -1086,12 +1091,9 @@ static edge_history_result_t move_one(const char *local_root, const char *backup
         result->failed_dirs++;
         return fail(EDGE_HISTORY_INVALID, reason, reason_size, "snapshot path is too long");
     }
-    struct stat st;
-    if (lstat(backup_dir, &st) == 0) {
-        if (!S_ISDIR(st.st_mode)) {
-            result->conflicts++;
-            return EDGE_HISTORY_OK;
-        }
+    int backup_fd = open(backup_dir, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (backup_fd >= 0) {
+        (void)close(backup_fd);
         int covered = backup_covers(local_dir, backup_dir, reason, reason_size);
         if (covered < 0) {
             result->failed_dirs++;
@@ -1106,6 +1108,10 @@ static edge_history_result_t move_one(const char *local_root, const char *backup
             return fs_fail(reason, reason_size, "cannot remove duplicated snapshot directory");
         }
         result->deduped_local_dirs++;
+        return EDGE_HISTORY_OK;
+    }
+    if (errno == ENOTDIR || errno == ELOOP) {
+        result->conflicts++;
         return EDGE_HISTORY_OK;
     }
     if (errno != ENOENT) {

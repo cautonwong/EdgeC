@@ -100,7 +100,7 @@ TLA+（同一台机器，Java 17，`-workers auto`）：
 - `assertions` 是分号分隔的 Python 正则；`cover` / `function` 行运行时逐条要求命中日志。其他 mode 必须写 `n/a`。
 - `negative` 是 `n/a` 或分号分隔条目，只有两种合法形态：`<cfg 路径>#<Invariant 名>`（cfg 在 `formal/` 下、存在，且文件里有一行 `INVARIANT <名>`；只允许出现在 TLA 行）或 `<脚本路径>`（`.sh`/`.py`，位于 `ci/scripts/` 或 `formal/` 下、存在）。其他形态直接失败。
 - 路径一律拒绝绝对路径、`..`、反斜杠和非正规写法；artifact/cfg 必须在 `formal/` 下，negative 脚本允许 `ci/scripts/` 或 `formal/`。
-- `covers` 写 `文件:符号`，多个用 `;` 分隔。`sync` 是最后一次确认工件与代码一致的 commit；CBMC 行为 `2bbf729e`（生产解码器在该 commit 上未变），TLA+ 行为 `1f7f2133`（模型写于该基线，arbiter / master_engine 在该 commit 上的符号已核对）。
+- `covers` 写 `文件:符号`，多个用 `;` 分隔。`sync` 是最后一次确认工件与代码一致的 commit；CBMC 与 TLA+ 行均对齐到 `a253c4db`。
 - `check_formal_sync.py` 用同一模块校验所有 manifest，并额外校验：`covers` 文件/符号存在、`sync` 是 HEAD 祖先、`covers` 文件在 sync 之后有改动则告警（第一阶段告警，两个迭代周期后转硬失败）；扫描 `git ls-files formal`，除行引用 + `formal/manifest/*.tsv` + `formal/README.md` + `formal/tools/**` 之外的跟踪文件一律失败。
 - `check_formal.sh` 按行执行：CBMC `proof` 解析 `** 0 of N failed` 并与 `property_count` 比对；`cover` 跑 `--cover cover --unwind <unwind>` 并校验 `assertions`；`function` 跑 `--function <function>` 并校验 `assertions`；TLA 行复制 `.tla`+`cfg` 后校验 jar 哈希、TLC 版本横幅、`No error has been found`、`states generated == state_count`。每片写 `build/formal/<owner>/run-manifest.tsv`（`artifact mode status count seconds`）。
 - `check_formal_negative.sh` 按行执行 `negative` 条目：`cfg#Inv` 用 TLC 跑该行 `.tla` + cfg，要求非零、`Invariant <Inv> is violated`、有反例 trace；脚本条目用对应解释器执行并检查退出码与非空日志。
