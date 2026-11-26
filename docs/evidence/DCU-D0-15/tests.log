@@ -1,0 +1,17 @@
+=== D0-15 TESTS (2026-11-24T06:42:10Z) ===
+--- ctest -R 'dcu|poller|dlt698' ---
+100% tests passed, 0 tests failed out of 44
+
+Total Test time (real) =  98.59 sec
+--- acceptance r1 ---
+34 passed in 71.28s (0:01:11)
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- acceptance r2 ---
+34 passed in 43.95s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- acceptance r3 ---
+34 passed in 48.89s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.

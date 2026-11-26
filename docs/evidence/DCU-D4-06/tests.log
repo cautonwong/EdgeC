@@ -1,0 +1,54 @@
+== RED on 814f1de9 (test commit only) ==
+[==========] tests: Running 24 test(s).
+[  ERROR   ] --- 128 != 131
+[   LINE   ] --- /tmp/edgec-land/d4-06-file/tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/d4-06-file/tests/test_dcu_698_object_model.c:729: error: Failure!
+[  FAILED  ] test_class18_file_rows_are_empty
+[==========] tests: 24 test(s) run.
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class18_file_rows_are_empty
+ 2 FAILED TEST(S)
+[==========] tests: Running 60 test(s).
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-06-file/tests/test_dcu_698_axdr.c:763: error: Failure!
+[  FAILED  ] test_product_class18_file_dar
+[==========] tests: 60 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class18_file_dar
+ 1 FAILED TEST(S)
+[==========] tests: Running 21 test(s).
+[  ERROR   ] --- 115 != 118
+[   LINE   ] --- /tmp/edgec-land/d4-06-file/tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+ 1 FAILED TEST(S)
+[==========] tests: Running 31 test(s).
+[  ERROR   ] --- 115 != 118
+
+== GREEN at HEAD 5eef4736 (clean build) ==
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  25.65 sec
+
+== new cases ==
+== test_dcu_698_object_model::test_class18_file_rows_are_empty
+[ RUN      ] test_class18_file_rows_are_empty
+[       OK ] test_class18_file_rows_are_empty
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn::test_class18_file_acl_is_read_only
+[ RUN      ] test_class18_file_acl_is_read_only
+[       OK ] test_class18_file_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr::test_product_class18_file_dar
+[ RUN      ] test_product_class18_file_dar
+[       OK ] test_product_class18_file_dar
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698::test_slave_class18_file_dar
+[ RUN      ] test_slave_class18_file_dar
+[       OK ] test_slave_class18_file_dar
+[  PASSED  ] 1 test(s).

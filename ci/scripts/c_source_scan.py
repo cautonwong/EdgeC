@@ -6,6 +6,35 @@ violation. Comments become spaces, newlines stay, and string/char literals are
 kept so `"http://..."` does not open a comment.
 """
 
+import os
+
+
+# Harnesses under formal/ use CBMC-only intrinsics and are not product source.
+SHARED_PRUNE_DIRS = {"formal"}
+
+
+def rel_scan_parts(path, target_dir):
+    """Path segments of `path` below the scan target; empty for the target itself.
+
+    Guard exemptions key off the tree being scanned, never the checkout path:
+    a worktree at /tmp/guards/edgec must scan the same files as one at /tmp/x.
+    """
+    rel = os.path.relpath(path, target_dir).replace("\\", "/")
+    return [] if rel == "." else rel.split("/")
+
+
+def skip_subtree(root, target_dir):
+    """True for the fixture and test subtrees guards must not scan.
+
+    Fixtures are validated by the refutation suite, not as repo code; a target
+    that is itself a fixture has no `fixtures` segment below it and is scanned.
+    Tests are out of scope except under `guards` (the guard fixtures).
+    """
+    parts = rel_scan_parts(root, target_dir)
+    if "fixtures" in parts:
+        return True
+    return "tests" in parts and "guards" not in parts
+
 
 def strip_comments(text):
     out = []

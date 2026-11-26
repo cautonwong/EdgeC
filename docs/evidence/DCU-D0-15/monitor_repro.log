@@ -1,0 +1,30 @@
+wait completed baseline (status=2, success=40) up to 40s
+baseline_after_wait {'task': 1, 'status': 2, 'start': b'\x07\xea\x0b\x18\r5\x15', 'end': b'\x07\xea\x0b\x18\r5\x1d', 'total': 40, 'success': 40, 'sent': 560, 'recv': 560}
+fail   2.0s status=1 success=0 total=40 sent=82 recv=72 start_changed=True
+fail   4.0s status=1 success=0 total=40 sent=185 recv=175 start_changed=True
+fail   6.0s status=1 success=0 total=40 sent=277 recv=267 start_changed=True
+fail   8.0s status=1 success=0 total=40 sent=384 recv=374 start_changed=True
+fail  10.0s status=1 success=0 total=40 sent=482 recv=469 start_changed=True
+fail  12.0s status=1 success=0 total=40 sent=579 recv=572 start_changed=True
+fail  14.0s status=1 success=0 total=40 sent=659 recv=652 start_changed=True
+fail  16.0s status=1 success=0 total=40 sent=37 recv=27 start_changed=True
+fail  18.0s status=1 success=0 total=40 sent=132 recv=122 start_changed=True
+fail  20.1s status=1 success=0 total=40 sent=246 recv=236 start_changed=True
+fail  22.1s status=1 success=0 total=40 sent=360 recv=350 start_changed=True
+fail  24.1s status=1 success=0 total=40 sent=490 recv=480 start_changed=True
+fail  26.1s status=2 success=0 total=40 sent=600 recv=600 start_changed=True
+fail  28.1s status=2 success=0 total=40 sent=600 recv=600 start_changed=True
+recov   2.0s status=2 success=0 total=40 sent=600 recv=600
+recov   4.0s status=1 success=0 total=40 sent=99 recv=89
+recov   6.0s status=1 success=10 total=40 sent=216 recv=206
+recov   8.0s status=1 success=20 total=40 sent=323 recv=313
+recov  10.0s status=1 success=20 total=40 sent=419 recv=409
+recov  12.0s status=1 success=30 total=40 sent=514 recv=504
+recov  14.0s status=2 success=40 total=40 sent=560 recv=560
+recov  16.0s status=2 success=40 total=40 sent=560 recv=560
+recov  18.0s status=1 success=0 total=40 sent=33 recv=23
+recov  20.0s status=1 success=0 total=40 sent=105 recv=95
+recov  22.0s status=1 success=0 total=40 sent=120 recv=108
+recov  24.0s status=1 success=6 total=40 sent=142 recv=130
+recov  26.0s status=1 success=8 total=40 sent=161 recv=149
+recov  28.0s status=1 success=8 total=40 sent=181 recv=169

@@ -1,0 +1,17 @@
+== refactor commit 69dc71bb ==
+ foundation/src/protocol/dlt698_codec.c | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+== docs commit (evidence + §12.5) ==
+ docs/evidence/DCU-CLEANUP-CODEC/comments.md      | 20 +++++++++
+ docs/evidence/DCU-CLEANUP-CODEC/diffstat.txt     | (this file)
+ docs/evidence/DCU-CLEANUP-CODEC/runtime.log      | 17 ++++++++
+ docs/evidence/DCU-CLEANUP-CODEC/summary.md       | 45 ++++++++++++++++++++
+ docs/evidence/DCU-CLEANUP-CODEC/tests.log        | 52 ++++++++++++++++++++++++
+ docs/plans/2026-11-21-dcu-698-production-plan.md |  2 +-
+ 5 files changed, 135 insertions(+), 1 deletion(-) (diffstat.txt excluded)
+
+== code diff purity ==
+10 changed lines: 9 literal->constant edits plus one comment on the one tag
+literal (0x19) that has no DLT698_TAG_* constant. No length, CHOICE, control
+byte, DAR, or encoding change.

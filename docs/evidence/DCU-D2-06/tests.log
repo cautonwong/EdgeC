@@ -1,0 +1,68 @@
+=== SRP GUARD ===
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+
+=== RUN_GUARD_SELFTEST (tail + count) ===
+passing checks: 148
+📊 Refutation Test Results: 105/105 passed (100% sensitivity)
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+=== AFFECTED CTEST (15) ===
+Test project /tmp/edgec-land/d2-06-report-schemes/build
+      Start 13: test_dcu_inventory
+ 1/15 Test #13: test_dcu_inventory ...............   Passed    0.22 sec
+      Start 22: test_dcu_node
+ 2/15 Test #22: test_dcu_node ....................   Passed    0.30 sec
+      Start 25: test_dcu_698_object_model
+ 3/15 Test #25: test_dcu_698_object_model ........   Passed    0.01 sec
+      Start 27: test_dcu_698_catalog
+ 4/15 Test #27: test_dcu_698_catalog .............   Passed    0.00 sec
+      Start 28: test_dcu_698_var
+ 5/15 Test #28: test_dcu_698_var .................   Passed    0.00 sec
+      Start 29: test_dcu_698_report
+ 6/15 Test #29: test_dcu_698_report ..............   Passed    0.00 sec
+      Start 30: test_dcu_698_axdr
+ 7/15 Test #30: test_dcu_698_axdr ................   Passed    0.01 sec
+      Start 31: test_dcu_698_param
+ 8/15 Test #31: test_dcu_698_param ...............   Passed    0.06 sec
+      Start 33: test_dcu_698_value_table
+ 9/15 Test #33: test_dcu_698_value_table .........   Passed    0.01 sec
+      Start 34: test_dcu_698_tasks
+10/15 Test #34: test_dcu_698_tasks ...............   Passed    1.79 sec
+      Start 35: test_dcu_698_schemes
+11/15 Test #35: test_dcu_698_schemes .............   Passed    0.90 sec
+      Start 36: test_dcu_698_scheme_mgmt
+12/15 Test #36: test_dcu_698_scheme_mgmt .........   Passed    0.72 sec
+      Start 92: test_driver_dlt698
+13/15 Test #92: test_driver_dlt698 ...............   Passed    5.11 sec
+      Start 93: test_dlt698_appconn
+14/15 Test #93: test_dlt698_appconn ..............   Passed    0.00 sec
+      Start 94: test_dcu_698_appconn
+15/15 Test #94: test_dcu_698_appconn .............   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 15
+
+Total Test time (real) =   9.16 sec
+
+=== ASAN + detect_leaks=1 ===
+--- test_dcu_698_scheme_mgmt
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+--- test_dcu_698_schemes
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+--- test_dcu_698_axdr
+[       OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[==========] tests: 37 test(s) run.
+[  PASSED  ] 37 test(s).
+
+=== BUILD WARNING GATE (clean Ninja build) ===
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+[1130/1131] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1131/1131] Linking C executable tests/test_idl_generated_serialization
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+=== FANALYZER ===
+✅ [FANALYZER] 3 known finding(s), no new reports

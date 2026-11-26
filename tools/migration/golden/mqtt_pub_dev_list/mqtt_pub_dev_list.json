@@ -1,0 +1,18 @@
+{
+  "pub_dev_list": [
+    {
+      "tags": [
+        "METER1.P",
+        "METER1.Q"
+      ],
+      "type": "METER"
+    },
+    {
+      "tags": [
+        "PCSA.STATE"
+      ],
+      "type": "PCS"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

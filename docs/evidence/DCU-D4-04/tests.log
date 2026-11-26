@@ -1,0 +1,90 @@
+== RED on a926964b (test commit only) ==
+[==========] tests: Running 22 test(s).
+[  ERROR   ] --- 116 != 120
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_dcu_698_object_model.c:667: error: Failure!
+[  FAILED  ] test_class19_devmgr_rows_are_empty
+[==========] tests: 22 test(s) run.
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class19_devmgr_rows_are_empty
+[==========] tests: Running 57 test(s).
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_dcu_698_axdr.c:632: error: Failure!
+[  FAILED  ] test_product_class19_devmgr_dar
+[==========] tests: 57 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class19_devmgr_dar
+[==========] tests: Running 21 test(s).
+[  ERROR   ] --- 102 != 106
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: Running 24 test(s).
+[  ERROR   ] --- 102 != 106
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:875: error: Failure!
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[  ERROR   ] --- 3 != 5
+
+== GREEN at HEAD 3788a76d (clean build) ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 112.65 sec
+
+== object model suite ==
+[ RUN      ] test_class19_devmgr_rows_are_empty
+[       OK ] test_class19_devmgr_rows_are_empty
+[  PASSED  ] 1 test(s).
+== axdr ==
+[ RUN      ] test_product_class19_devmgr_dar
+[       OK ] test_product_class19_devmgr_dar
+[  PASSED  ] 1 test(s).
+== driver ==
+[ RUN      ] test_slave_class19_devmgr_dar
+[       OK ] test_slave_class19_devmgr_dar
+[  PASSED  ] 1 test(s).
+== appconn ==
+[ RUN      ] test_class19_devmgr_acl_is_read_only
+[       OK ] test_class19_devmgr_acl_is_read_only
+[  PASSED  ] 1 test(s).
+
+== 返工红（24b49fd5，旧码）==
+[==========] tests: Running 26 test(s).
+[  ERROR   ] --- out->b.len <= out->b.size is not true
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:1289: error: Failure!
+[  FAILED  ] test_slave_object_list_does_not_overflow_pool_buffer
+[==========] tests: 26 test(s) run.
+[  PASSED  ] 25 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_slave_object_list_does_not_overflow_pool_buffer
+
+== 返工绿（73e729fc，clean build）==
+[==========] tests: 26 test(s) run.
+[  PASSED  ] 26 test(s).
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  89.02 sec
+
+== 第二轮红（f1b05ff7，旧码）==
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:1396: error: Failure!
+[  FAILED  ] test_slave_list_item_reserves_frame_trailer
+[  ERROR   ] --- 10427 != 0
+[   LINE   ] --- /tmp/edgec-land/d4-04-class19/tests/test_driver_dlt698.c:1426: error: Failure!
+[  FAILED  ] test_slave_encode_failure_clears_half_frame
+[==========] tests: 28 test(s) run.
+[  PASSED  ] 26 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_slave_list_item_reserves_frame_trailer
+[  FAILED  ] test_slave_encode_failure_clears_half_frame
+
+== 第二轮绿（de424dad，clean build）==
+[==========] tests: 28 test(s) run.
+[  PASSED  ] 28 test(s).
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  23.86 sec

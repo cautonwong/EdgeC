@@ -1,0 +1,7 @@
+[
+  {
+    "directory": ".",
+    "file": "foundation/src/base.c",
+    "command": "cc -I modules/alpha/include -c foundation/src/base.c"
+  }
+]

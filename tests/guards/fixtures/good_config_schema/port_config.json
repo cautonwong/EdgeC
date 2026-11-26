@@ -1,0 +1,69 @@
+{
+  "dev_cfg": {
+    "uart": {
+      "attr": [
+        {
+          "name": "RS485_1",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        }
+      ]
+    },
+    "lan": {
+      "attr": [
+        {
+          "name": "lan",
+          "type": "static",
+          "ip": "10.0.0.254",
+          "mask": "255.255.255.0"
+        }
+      ]
+    },
+    "wan": {
+      "attr": [
+        {
+          "name": "wan1",
+          "type": "static",
+          "ip": "10.0.0.37",
+          "gateway": "10.0.0.2",
+          "mask": "255.255.255.0",
+          "metric": "100"
+        }
+      ]
+    },
+    "can": {
+      "attr": [
+        {
+          "name": "CAN0",
+          "baud": 500000,
+          "filter": [
+            {
+              "id": "0x019901",
+              "mask": "0x00000000"
+            }
+          ]
+        }
+      ]
+    },
+    "di": {
+      "attr": [
+        {
+          "name": "DI1",
+          "disp_name": "DI1",
+          "ncno": 0
+        }
+      ]
+    },
+    "do": {
+      "attr": [
+        {
+          "name": "DO1",
+          "disp_name": "DO1"
+        }
+      ]
+    }
+  },
+  "ver": "0.1"
+}

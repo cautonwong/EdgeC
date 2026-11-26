@@ -1,0 +1,21 @@
+=== D0-13 ACCEPTANCE (2026-11-24T03:23:28Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/tmp/edgec-acc-venv/bin/python ./acceptance/run.sh dcu
+3 passed, 2 warnings in 16.63s
+33 passed, 2 warnings in 64.92s (0:01:04)
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- self-exit timer absent during run (expect 0) ---
+0
+--- product shutdown lines ---
+[2026-11-24 11:21:31][INFO][CORE] DCU Node stopped successfully
+--- wrapper SIGTERM forwarding (after fix) ---
+wrapper=54714 child=54832 (dcu); kill -TERM wrapper -> DCU_ORPHANED=no WRAPPER_GONE=yes exit=143
+idempotent: child killed first, then SIGTERM wrapper -> WRAPPER_GONE=yes exit=143
+--- F4 direct TERM runs ---
+TERM_15s rc=124 fatal=0 stopped=1
+TERM_20s rc=124 fatal=0 stopped=1
+TERM_25s rc=124 fatal=0 stopped=1
+SELF_EXIT_15s rc=1 fatal=0 stopped=1
+--- product exit status ---
+[2026-11-24 11:16:49][INFO][SCHED] 🏁 [SELF_EXIT] DCU_SELF_EXIT_SECONDS reached, initiating clean shutdown...
+[2026-11-24 11:16:49][INFO][CORE] DCU Node stopped successfully

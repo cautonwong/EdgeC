@@ -1,0 +1,11 @@
+{
+  "host": "10.0.0.11",
+  "port": 1883,
+  "user": "siteuser",
+  "pass": "placeholder-not-a-secret",
+  "reportInterval": 600,
+  "changeReportInterval": 0,
+  "saveDisconnectData": 1,
+  "enable_tls": 0,
+  "disable_lz4": 1
+}

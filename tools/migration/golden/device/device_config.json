@@ -1,0 +1,116 @@
+{
+  "dev_class": [
+    {
+      "devs": [
+        {
+          "addr": "1",
+          "channel": "RS485_1",
+          "name": "siteA",
+          "no": "METER_A",
+          "protocol": "modbus_rtu",
+          "template": "METER_96j_MODBUS.json",
+          "type": "GRID",
+          "user_def": "frame_wgap=100;"
+        },
+        {
+          "addr": "1",
+          "channel": "RS485_5",
+          "name": "siteB",
+          "no": "METER_B",
+          "protocol": "modbus_rtu",
+          "template": "METER_96j_MODBUS.json",
+          "type": "PV",
+          "user_def": "frame_wgap=100;"
+        },
+        {
+          "addr": "1",
+          "channel": "RS485_2",
+          "name": "siteC",
+          "no": "METER_C",
+          "protocol": "modbus_rtu",
+          "template": "METER_96j_MODBUS.json",
+          "type": "DG",
+          "user_def": "frame_wgap=100;"
+        },
+        {
+          "addr": "1",
+          "channel": "RS485_4",
+          "name": "siteD",
+          "no": "METER_D",
+          "protocol": "modbus_rtu",
+          "template": "METER_96j_MODBUS.json",
+          "type": "PCS",
+          "user_def": "frame_wgap=100;"
+        }
+      ],
+      "type": "METER"
+    },
+    {
+      "devs": [],
+      "type": "PCS"
+    },
+    {
+      "devs": [],
+      "type": "HYBRID"
+    },
+    {
+      "devs": [],
+      "type": "BMS"
+    },
+    {
+      "devs": [
+        {
+          "addr": "1",
+          "channel": "CAN0",
+          "name": "siteE",
+          "no": "SWB",
+          "protocol": "can_raw",
+          "template": "SWB_LIVOLTEK_CAN.json",
+          "user_def": ""
+        }
+      ],
+      "type": "SWB"
+    },
+    {
+      "devs": [
+        {
+          "addr": "1",
+          "channel": "RS485_6",
+          "name": "siteF",
+          "no": "PV",
+          "protocol": "modbus_rtu",
+          "template": "PV_1.0_MODBUS.json",
+          "user_def": ""
+        }
+      ],
+      "type": "PV"
+    },
+    {
+      "devs": [],
+      "type": "PCU"
+    },
+    {
+      "devs": [],
+      "type": "TMS"
+    },
+    {
+      "devs": [],
+      "type": "WeatherStation"
+    },
+    {
+      "devs": [
+        {
+          "addr": "1",
+          "channel": "10.0.0.1:503",
+          "name": "DIDO",
+          "no": "DIDO",
+          "protocol": "modbus_tcp",
+          "template": "DIO_EMS100_MODBUS.json",
+          "user_def": ""
+        }
+      ],
+      "type": "OTHERS"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

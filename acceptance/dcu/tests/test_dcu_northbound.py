@@ -27,9 +27,11 @@
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
 它不走设备模型，因为"操作"不是"读一个点"，这里直接用协议层发一帧。
 """
+import json
 import os
 import socket
 import time
+from pathlib import Path
 
 import pytest
 
@@ -58,7 +60,15 @@ def _exchange(apdu: bytes) -> dlt698.Frame:
     try:
         sock.connect(_north_sock())
         sock.sendall(dlt698.build_frame(apdu, sa=b"\x01"))
-        data = sock.recv(1024)
+        data = b""
+        while True:
+            need = dlt698.response_length(data)
+            if need is not None and len(data) >= need:
+                break
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
     finally:
         sock.close()
     assert data, "主站发了请求，从站一个字节都没回"
@@ -168,6 +178,28 @@ def _read_variable(oad: int) -> tuple[list[int], list[int]]:
     return tags, values
 
 
+def _wait_gauge(oad: int, expected: float, tol: float, scale: float = 10.0,
+                deadline_s: float = 15.0) -> tuple[list[int], list[int]]:
+    """重发 GET 直到第一元素落在 expected±tol；超时用最后值失败。
+
+    产品刚拉起时南向首轮抄表未完成，DataHub 影子初值 0.0 是“尚未采到”而不是数据。
+    """
+    deadline = time.time() + deadline_s
+    last = None
+    last_values: list[int] = []
+    while time.time() < deadline:
+        tags, values = _read_variable(oad)
+        last_values = values
+        if values:
+            last = values[0] / scale
+            if abs(last - expected) <= tol:
+                return tags, values
+        time.sleep(0.1)
+    raise AssertionError(
+        f"{oad:#x} 在 {deadline_s}s 内未达到 {expected}±{tol}，最后值 {last}（{last_values}）"
+    )
+
+
 def _read_scaler_unit(oad: int) -> tuple[int, int]:
     apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
     assert apdu[7] == 0x01 and apdu[8] == 0x02, f"不是 structure：{apdu.hex()}"
@@ -244,7 +276,7 @@ def test_master_reads_voltage_over_698():
     台架给 A 相 231.7 V，所以第一个元素应是 2317；数组长度与类型标签同时验证
     "分相在数组里，不在属性字节里"（ADR-0016）。
     """
-    tags, values = _read_variable(0x20000200)
+    tags, values = _wait_gauge(0x20000200, BENCH_VOLTAGE, TOLERANCE_V)
     assert len(values) == 3, f"电压数组应有 3 项，收到 {values}"
     assert all(tag == 0x12 for tag in tags), f"电压元素类型应为 long-unsigned：{tags}"
     got = values[0] / 10.0
@@ -256,21 +288,25 @@ def test_master_reads_voltage_over_698():
     assert scaler == -1 and unit == 38, f"电压 Scaler_Unit 错：{scaler}, {unit}"
 
 
-@case(id="D_00_00_02_000002", clause="free: 配置数组放不进缓冲时回 DAR=2，不许用计数冒充", tags=["北向"])
+@case(id="D_00_00_02_000002",
+      clause="free: 6000 A2 在扩容后的 AXDR 缓冲内返回 40 只表完整配置数组",
+      tags=["北向"])
 @pytest.mark.contract
 def test_master_gets_honest_dar_for_oversized_archive_array():
     """6000 A2 是采集档案配置数组，不是计数。
 
-    台架有 40 只表；每只表的 6001 结构编码后约 80 字节，整组超过 A-XDR 的 2048
-    字节缓冲。此时从站必须回 DAR=2（暂时失效），不能回一个 long-unsigned 计数让
-    主站把表数当成配置表的第一项。
+    台架有 40 只表；D1-21 把 A-XDR 缓冲从 2048 扩到 10240 后，整组配置能完整编码，
+    从站必须回 array<40> 的真实配置（旧行为是缓冲不足回 DAR=2）；若再超缓冲仍应回
+    DAR=2，不能回一个计数让主站把表数当成配置表第一项。
     """
     oad = 0x60000200
     apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
     assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
     assert apdu[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
-    assert apdu[7] == 0x00, "Get-Result 应为 DAR"
-    assert apdu[8] == 2, f"超缓冲的 6000 A2 应回 DAR=2，收到 {apdu[8]}（{apdu.hex()}）"
+    assert apdu[7] == 0x01, f"配置应完整返回 Data，不是 DAR/计数：{apdu.hex()}"
+    assert apdu[8] == 0x01, f"6000 A2 应为 array：{apdu.hex()}"
+    assert apdu[9] == 40, f"应有 40 只表的配置，收到 {apdu[9]}"
+    assert apdu[10] == 0x02, f"每项应是 6001 structure：{apdu.hex()[:64]}"
 
 
 @case(id="D_00_00_02_000003", clause="free: 未实现的 ACTION 必须回失败 DAR，不许假成功", tags=["北向"])
@@ -345,11 +381,11 @@ def test_master_reads_current_and_active_power():
     台架对这两个 DI 回 0，所以值是 0；这条验的是"轮询采到了数组需要的每个通道"
     与标准类型，而不是假 0。
     """
-    tags, current = _read_variable(0x20010200)
+    tags, current = _wait_gauge(0x20010200, 0.0, 0.0, scale=1.0)
     assert len(current) == 3 and all(tag == 0x05 for tag in tags), f"电流数组：{tags},{current}"
     assert current == [0, 0, 0], f"台架回 0，电流数组应为 0：{current}"
 
-    tags, power = _read_variable(0x20040200)
+    tags, power = _wait_gauge(0x20040200, 0.0, 0.0, scale=1.0)
     assert len(power) == 4 and all(tag == 0x05 for tag in tags), f"功率数组：{tags},{power}"
     assert power == [0, 0, 0, 0], f"台架回 0，功率数组应为 0：{power}"
 
@@ -397,6 +433,7 @@ def test_unimplemented_oad_gets_per_item_dar():
     """
     valid = 0x20000200
     missing = 0x99990000
+    _wait_gauge(valid, BENCH_VOLTAGE, TOLERANCE_V)
     frame = _exchange(dlt698.get_request_list(0x01, [valid, missing]))
     apdu = frame.apdu
 
@@ -627,6 +664,197 @@ def test_master_configures_normal_scheme():
     assert 9 not in {s["id"] for s in _read_schemes()}, "Delete 后 6014 A2 不应再有方案 9"
 
 
+def _event_scheme_param(scheme_id: int, capture_type: int, roads: list[int], report: bool,
+                        depth: int) -> bytes:
+    """6016 方法 127 的参数：array<6017 事件采集方案>（单方案）。"""
+    body = bytes([0x01, 0x01, 0x02, 0x05, 0x11, scheme_id, 0x02, 0x02, 0x11, capture_type])
+    if capture_type == 1:
+        body += bytes([0x00])
+    else:
+        body += bytes([0x01, len(roads)])
+        for oad in roads:
+            body += bytes([0x52]) + oad.to_bytes(4, "big") + bytes([0x11, 0x00])
+    body += bytes([0x5C, 0x01])  # 电能表集合：全部用户地址
+    body += bytes([0x03, 1 if report else 0])
+    body += bytes([0x12, depth >> 8, depth & 0xFF])
+    return body
+
+
+def _read_event_scheme(scheme_id: int) -> bytes:
+    apdu = _exchange(dlt698.get_request(0x01, 0x60170200 | scheme_id)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"不是 [1] 响应：{apdu.hex()}"
+    assert apdu[7] == 0x01, f"6017 A2 应是 Data，不是 DAR：{apdu.hex()}"
+    return apdu[8:-2]  # 末尾两字节是 FollowReport 与时间标签
+
+
+@case(id="D_00_00_02_000021", clause="free: 6016 ACTION 127 添加、6017 A2 读回、130 改上报标识、128 删除",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_event_scheme():
+    roads = [0x50040200]
+    param = _event_scheme_param(21, 0, roads, True, 32)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x6016, 127,
+                                                                      param=param)).apdu)
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+    assert _read_event_scheme(21) == param[2:], (
+        f"6017 A2 应原样读回事件采集方案：got={_read_event_scheme(21).hex()} want={param[2:].hex()}")
+    update = bytes([0x02, 0x02, 0x11, 21, 0x03, 0x00])
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x6016, 130,
+                                                                      param=update)).apdu)
+    assert res.ok, f"UpdateReportFlag 应成功，回 DAR {res.dar}（{res.error}）"
+    updated = _read_event_scheme(21)
+    assert updated[-5] == 0x03 and updated[-4] == 0x00
+    delete = dlt698.action_request(0x07, 0x6016, 128, param=bytes([0x01, 0x01, 0x11, 21]))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    gone = _exchange(dlt698.get_request(0x01, 0x60170200 | 21)).apdu
+    assert gone[7] == 0x00 and gone[8] == 0x06, f"删除后 6017 A2 应回 DAR 6：{gone.hex()}"
+
+
+def _transparent_scheme_param(scheme_id: int, addr: bytes, frames: list[tuple[int, bytes]]) -> bytes:
+    """6018 方法 127 的参数：单个 6019 透明方案（一条方案内容）。"""
+    body = bytes([0x02, 0x03, 0x11, scheme_id, 0x01, 0x01, 0x02, 0x06])
+    body += bytes([0x12, 0x00, 0x01])           # 方案内容序号
+    body += bytes([len(addr)]) + addr
+    body += bytes([0x12, 0x00, 0x00, 0x12, 0x00, 0x00])  # 前/后脚本 id
+    body += bytes([0x02, 0x04, 0x03, 0x00, 0x12, 0x00, 0x00, 0x16, 0x00,
+                   0x02, 0x03, 0x11, 0x00, 0x12, 0x00, 0x00, 0x12, 0x00, 0x00])
+    body += bytes([0x01, len(frames)])
+    for seq, data in frames:
+        body += bytes([0x02, 0x02, 0x11, seq, 0x09, len(data)]) + data
+    body += bytes([0x12, 0x00, 0x00])           # 存储深度
+    return body
+
+
+@case(id="D_00_00_02_000025", clause="free: 6018 ACTION 127 添加、6019 A2 读回、131 清空透明方案",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_transparent_scheme():
+    addr = bytes([0x12, 0x34, 0x56, 0x78])
+    param = _transparent_scheme_param(31, addr, [(1, b"AB")])
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x6018, 127,
+                                                                      param=param)).apdu)
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+    apdu = _exchange(dlt698.get_request(0x01, 0x60190200 | 31)).apdu
+    assert apdu[7] == 0x01, f"6019 A2 应是 Data：{apdu.hex()}"
+    assert apdu[8:-2] == param, (
+        f"6019 A2 应原样读回透明方案：got={apdu[8:-2].hex()} want={param.hex()}")
+    clear = dlt698.action_request(0x07, 0x6018, 131, param=bytes([0x00]))
+    res = dlt698.parse_action_response(_exchange(clear).apdu)
+    assert res.ok, f"Clear 应成功，回 DAR {res.dar}（{res.error}）"
+    gone = _exchange(dlt698.get_request(0x01, 0x60190200 | 31)).apdu
+    assert gone[7] == 0x00 and gone[8] == 0x06, f"清空后 6019 A2 应回 DAR 6：{gone.hex()}"
+
+
+def _report_scheme_param(scheme_id: int, channels: list[int], timeout_unit: int,
+                         timeout_value: int, max_times: int, content_oad: int) -> bytes:
+    """601C 方法 127 的参数：array<601D 上报方案>（单方案，上报内容类型 0 = OAD）。"""
+    body = bytes([0x01, 0x01, 0x02, 0x05, 0x11, scheme_id, 0x01, len(channels)])
+    for ch in channels:
+        body += bytes([0x51]) + ch.to_bytes(4, "big")
+    body += bytes([0x54, timeout_unit, timeout_value >> 8, timeout_value & 0xFF])
+    body += bytes([0x11, max_times])
+    body += bytes([0x02, 0x02, 0x11, 0x00, 0x51]) + content_oad.to_bytes(4, "big")
+    return body
+
+
+@case(id="D_00_00_02_000026", clause="free: 601C ACTION 127 添加、601D A2 读回、128 删除上报方案",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_report_scheme():
+    param = _report_scheme_param(41, [0x40010200], 0, 60, 3, 0x20000200)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x601C, 127,
+                                                                      param=param)).apdu)
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+    apdu = _exchange(dlt698.get_request(0x01, 0x601D0200 | 41)).apdu
+    assert apdu[7] == 0x01, f"601D A2 应是 Data：{apdu.hex()}"
+    assert apdu[8:-2] == param[2:], (
+        f"601D A2 应原样读回上报方案：got={apdu[8:-2].hex()} want={param[2:].hex()}")
+    delete = dlt698.action_request(0x07, 0x601C, 128, param=bytes([0x01, 0x01, 0x11, 41]))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    gone = _exchange(dlt698.get_request(0x01, 0x601D0200 | 41)).apdu
+    assert gone[7] == 0x00 and gone[8] == 0x06, f"删除后 601D A2 应回 DAR 6：{gone.hex()}"
+
+
+def _rule_unit_param(oad: int, main_di: int, spare_di: int | None) -> bytes:
+    body = bytes([0x01, 0x01, 0x02, 0x02, 0x5B, 0x00]) + oad.to_bytes(4, "big")
+    body += bytes([0x02, 0x03, 0x02, 0x02, 0x01, 0x01, 0x09, 0x04])
+    body += main_di.to_bytes(4, "little")
+    if spare_di is None:
+        body += bytes([0x01, 0x00])
+    else:
+        body += bytes([0x01, 0x01, 0x09, 0x04]) + spare_di.to_bytes(4, "little")
+    body += bytes([0x02, 0x02, 0x01, 0x00, 0x01, 0x00])
+    body += bytes([0x02, 0x01, 0x09, 0x00])
+    return body
+
+
+@case(id="D_00_00_02_000028",
+      clause="free: 相别 CSD 用主站可见 OAD（0x20000201），不接受内部影子 tag",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_phase_rule_by_external_csd():
+    param = _rule_unit_param(0x20000201, 0x02010200, 0x0201020A)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x601E, 127,
+                                                                      param=param)).apdu)
+    assert res.ok, f"B 相 CSD 的 Add 应成功，回 DAR {res.dar}（{res.error}）"
+    lib = _exchange(dlt698.get_request(0x01, 0x601E0200)).apdu
+    assert lib[8] == 0x01 and lib[9] == 15, f"601E A2 应是 15 项规则：{lib.hex()}"
+    assert b"\x5b\x00\x20\x00\x02\x01" in lib, f"601E 应含外部 CSD 0x20000201：{lib.hex()}"
+    assert b"\x5b\x00\x20\x00\x03\x00" not in lib, f"601E 不得暴露影子 tag：{lib.hex()}"
+    assert param[2:] in lib, f"601E A2 应含刚写入的 B 相规则：{lib.hex()}"
+
+    apdu = _exchange(dlt698.get_request(0x01, 0x601F0200 | 3)).apdu
+    assert apdu[8:-2] == param[2:], (
+        f"601F A2 应原样读回 B 相规则：got={apdu[8:-2].hex()} want={param[2:].hex()}")
+
+    shadow = _rule_unit_param(0x20000300, 0x02010200, None)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x601E, 127,
+                                                                      param=shadow)).apdu)
+    assert not res.ok and res.dar == 2, f"影子 tag 作 CSD 应回 DAR 2，实际 {res.dar}"
+
+    delete = dlt698.action_request(0x07, 0x601E, 128,
+                                   param=bytes([0x01, 0x01, 0x5B, 0x00])
+                                   + (0x20000201).to_bytes(4, "big"))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    lib = _exchange(dlt698.get_request(0x01, 0x601E0200)).apdu
+    assert lib[9] == 14, f"删除后 601E A2 应是 14 项：{lib.hex()}"
+
+    restore = _rule_unit_param(0x20000201, 0x02010200, None)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x601E, 127,
+                                                                      param=restore)).apdu)
+    assert res.ok, f"恢复 B 相规则应成功，回 DAR {res.dar}（{res.error}）"
+
+
+@case(id="D_00_00_02_000027", clause="free: 601E ACTION 127 添加、601F A2 读回、128 删除采集规则",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_collection_rule():
+    param = _rule_unit_param(0x20000200, 0x02010100, 0x02010105)
+    res = dlt698.parse_action_response(_exchange(dlt698.action_request(0x07, 0x601E, 127,
+                                                                      param=param)).apdu)
+    assert res.ok, f"Add 应成功，回 DAR {res.dar}（{res.error}）"
+    lib = _exchange(dlt698.get_request(0x01, 0x601E0200)).apdu
+    assert lib[7] == 0x01, f"601E A2 应是 Data：{lib.hex()}"
+    assert lib[8] == 0x01 and lib[9] == 15, f"601E A2 应是 15 项规则：{lib.hex()}"
+    assert param[2:] in lib, f"601E A2 应含刚写入的规则：{lib.hex()}"
+
+    apdu = _exchange(dlt698.get_request(0x01, 0x601F0200 | 2)).apdu
+    assert apdu[7] == 0x01, f"601F A2 应是 Data：{apdu.hex()}"
+    assert apdu[8:-2] == param[2:], (
+        f"601F A2 应原样读回采集规则：got={apdu[8:-2].hex()} want={param[2:].hex()}")
+
+    delete = dlt698.action_request(0x07, 0x601E, 128,
+                                   param=bytes([0x01, 0x01, 0x5B, 0x00])
+                                   + (0x20000200).to_bytes(4, "big"))
+    res = dlt698.parse_action_response(_exchange(delete).apdu)
+    assert res.ok, f"Delete 应成功，回 DAR {res.dar}（{res.error}）"
+    lib = _exchange(dlt698.get_request(0x01, 0x601E0200)).apdu
+    assert lib[8] == 0x01 and lib[9] == 14, f"删除后 601E A2 应是 14 项：{lib.hex()}"
+
+
 @case(id="D_00_00_02_000010", clause="free: 5004 GetRecord 按时间范围返回冻结行", tags=["北向"])
 @pytest.mark.contract
 def test_master_reads_freeze_records():
@@ -752,6 +980,33 @@ def test_set_masked_f200_attr_returns_class_mismatch():
     assert res[7] == 5, f"未声明属性应回 DAR 5，收到 {res[7]}（{res.hex()}）"
 
 
+@case(
+    id="D_00_00_02_000035",
+    clause="free: 类 22 已广告只读属性回 DAR 2；未广告/类外属性主站先被 ACL 拒（DAR 3）",
+    tags=["北向"],
+)
+@pytest.mark.contract
+def test_class22_peripheral_read_returns_temporary_failure():
+    oads = [(oi << 16) | 0x0200 for oi in range(0xF200, 0xF20D)]
+    oads += [0xF2030400, 0xF2090500, 0xF2090600, 0xF20C0400, 0xF20C0500]
+    for oad in oads:
+        apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+        assert apdu[0] == 0x85 and apdu[1] == 0x01, f"{oad:#x} 不是 GET 响应：{apdu.hex()}"
+        assert apdu[3:7] == oad.to_bytes(4, "big"), f"{oad:#x} 响应 OAD 不一致"
+        assert apdu[7] == 0x00, f"{oad:#x} 应回 DAR 而不是 Data：{apdu.hex()}"
+        assert apdu[8] == 2, f"{oad:#x} 应回 DAR 2，收到 {apdu[8]}（{apdu.hex()}）"
+
+    # F203 A3（类定义未广告）与 F203 A9（类外）不进 ACL：主站先回 DAR 3。
+    for oad in (0xF2030300, 0xF2030900):
+        apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+        assert apdu[7] == 0x00 and apdu[8] == 3, f"{oad:#x} 应回 DAR 3：{apdu.hex()}"
+
+    res = _exchange(_set_request(0x01, 0xF2030400, bytes([0x12, 0x25, 0x80]))).apdu
+    assert res[0] == 0x86 and res[1] == 0x01, f"不是 SET 响应：{res.hex()}"
+    assert res[3:7] == (0xF2030400).to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert res[7] == 3, f"只读属性 SET 应回 DAR 3，收到 {res[7]}（{res.hex()}）"
+
+
 @case(id="D_00_00_02_000015", clause="free: 5004 GetRecord 空范围回空记录表", tags=["北向"])
 @pytest.mark.contract
 def test_empty_record_range_returns_no_rows():
@@ -827,3 +1082,413 @@ def test_master_starts_search_and_reads_standard_result_shapes():
     apdu = _exchange(dlt698.get_request(0x01, 0x60020A00)).apdu
     assert apdu[7] == 0x01 and apdu[8] == 0x16, f"6002 A10 应是 enum：{apdu.hex()}"
     assert apdu[9] == 0, f"启动被拒后 A10 应保持空闲（0）：{apdu.hex()}"
+
+
+_SIM_RUN_DIR = Path(os.environ.get("DCU_RUN_DIR", "/tmp/edgec-acceptance-run"))
+_SIM_CONTROL = _SIM_RUN_DIR / "sim645_control.json"
+_BUS_LOG = _SIM_RUN_DIR / "bus.json"
+_DI_MAIN = "02010100"
+_DI_SPARE = "02010105"
+
+
+def _write_sim_control(fail: list[str], payloads: dict[str, str]) -> None:
+    tmp = _SIM_CONTROL.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"fail": fail, "payloads": payloads}), encoding="utf-8")
+    os.replace(tmp, _SIM_CONTROL)
+
+
+def _bus_seen() -> dict:
+    try:
+        return json.loads(_BUS_LOG.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+@case(id="D_00_00_02_000029", clause="free: 645 主用 DI 失败后按备用 DI 重试一次",
+      tags=["北向"])
+@pytest.mark.contract
+# 窗口按 bus.json 时间聚簇还原单次执行（间隔 >1s 即新执行）；慢趟/相邻执行不再混窗。
+# 断言未变：每次执行恰好一次 主用→备用，窗口内无第三次请求。
+@pytest.mark.timeout(120)
+def test_master_uses_spare_di_after_primary_failure():
+    """主用 DI 回异常帧、备用 DI 回 220.0：DCU 必须恰好重试一次并让北向读到备用值。"""
+    param = _rule_unit_param(0x20000200, 0x02010100, 0x02010105)
+    res = dlt698.parse_action_response(
+        _exchange(dlt698.action_request(0x07, 0x601E, 127, param=param)).apdu)
+    assert res.ok, f"配置主用/备用 DI 应成功，回 DAR {res.dar}（{res.error}）"
+
+    def _executions(records: list) -> dict[str, list[list[str]]]:
+        per_meter: dict[str, list[dict]] = {}
+        for rec in records:
+            if rec.get("di") in (_DI_MAIN, _DI_SPARE):
+                per_meter.setdefault(rec.get("meter", ""), []).append(rec)
+        out = {}
+        for meter, recs in per_meter.items():
+            runs: list[list[str]] = []
+            last = None
+            for rec in recs:
+                if last is not None and rec.get("at", 0) - last.get("at", 0) < 1.0:
+                    runs[-1].append(rec["di"])
+                else:
+                    runs.append([rec["di"]])
+                last = rec
+            out[meter] = runs
+        return out
+
+    _write_sim_control([_DI_MAIN], {_DI_SPARE: "0022"})
+    try:
+        before = _read_monitor(1)["start"]
+        _wait_monitor(1, lambda m: m["start"] != before, 40, "控制生效后的新执行出现")
+        base = _bus_seen()
+        reads_before = len(base.get("reads", []))
+
+        # 等每块表至少出现一次完整的 主用→备用 执行；聚簇按时间，不按窗口边界猜。
+        deadline = time.time() + 40
+        reads = []
+        while True:
+            reads = _bus_seen().get("reads", [])[reads_before:]
+            found = _executions(reads)
+            if found and all(any(x == [_DI_MAIN, _DI_SPARE] for x in v) for v in found.values()):
+                break
+            assert time.time() < deadline, (
+                f"40s 内没等到每块表一次完整的 主用→备用 执行：{found}")
+            time.sleep(0.5)
+
+        values = None
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            _, values = _read_variable(0x20000200)
+            if values[0] == 2200:
+                break
+            time.sleep(1.0)
+        assert values is not None and values[0] == 2200, (
+            f"备用 DI 的 220.0 V 没出现在北向读回里：{values}")
+
+        by_meter = _executions(reads)
+        assert by_meter, "台架没看到主用/备用 DI 请求"
+        # 控制生效前可能已开跑一次成功执行（执行 = [main]）：从每表首个失败对开始判。
+        paired = 0
+        checked: dict[str, list[list[str]]] = {}
+        for meter, execs in by_meter.items():
+            started = False
+            for seq in execs:
+                if not started:
+                    # 窗口首执行可能是快照前的半截（只剩 main 或只剩 spare），跳过；
+                    # 之后每次执行必须恰好一对。
+                    if len(seq) == 1:
+                        continue
+                    assert seq == [_DI_MAIN, _DI_SPARE], (
+                        f"{meter}: 控制生效后的执行不是恰好一次备用重试：{seq}")
+                    started = True
+                else:
+                    assert seq == [_DI_MAIN, _DI_SPARE], (
+                        f"{meter}: 一次执行不是恰好一次备用重试：{seq}")
+                paired += 1
+            assert started, f"{meter}: 窗口里没有失败后的 主用→备用 执行：{execs}"
+            checked[meter] = execs
+        assert paired >= len(by_meter), f"窗口里缺少完整的 主用→备用 执行：{by_meter}"
+
+        seen = _bus_seen()
+        per = seen.get("per_di", {})
+        main_delta = per.get(_DI_MAIN, 0) - base.get("per_di", {}).get(_DI_MAIN, 0)
+        spare_delta = per.get(_DI_SPARE, 0) - base.get("per_di", {}).get(_DI_SPARE, 0)
+        assert main_delta >= 1 and spare_delta >= 1, (
+            f"台架没看到主用/备用 DI 请求：main={main_delta} spare={spare_delta}")
+        (_SIM_RUN_DIR / "spare_window.json").write_text(
+            json.dumps({"checked": checked, "main_delta": main_delta,
+                        "spare_delta": spare_delta}, ensure_ascii=False),
+            encoding="utf-8")
+    finally:
+        _write_sim_control([], {})
+        restore = _rule_unit_param(0x20000200, 0x02010100, None)
+        dlt698.parse_action_response(
+            _exchange(dlt698.action_request(0x07, 0x601E, 127, param=restore)).apdu)
+
+
+@case(id="D_00_00_02_000030", clause="free: 6040–6042 读真实采集时标；6032–6035 缺诚实来源回 DAR 2",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_reads_acquisition_timestamps_and_status_dar():
+    for oi in (0x6040, 0x6041, 0x6042):
+        apdu = _exchange(dlt698.get_request(0x01, oi << 16 | 0x0200)).apdu
+        assert apdu[7] == 0x01, f"{oi:04X} 应是 Data：{apdu.hex()}"
+        stamp = apdu[8:-2]
+        assert len(stamp) == 8 and stamp[0] == 0x1C, f"{oi:04X} 应是 date_time_s：{apdu.hex()}"
+        year = int.from_bytes(stamp[1:3], "big")
+        assert 2020 <= year <= 2100, f"{oi:04X} 年份不合理：{year}"
+
+    for oi in (0x6032, 0x6033):
+        apdu = _exchange(dlt698.get_request(0x01, oi << 16 | 0x0200)).apdu
+        assert apdu[7] == 0x00 and apdu[8] == 0x02, (
+            f"{oi:04X} 缺诚实来源应回 DAR 2：{apdu.hex()}")
+    unknown = _exchange(dlt698.get_request(0x01, 0x60350200)).apdu
+    assert unknown[7] == 0x00 and unknown[8] == 0x06, f"未知 task_id 应回 DAR 6：{unknown.hex()}"
+
+
+def _monitor_unit(apdu: bytes) -> dict:
+    i = 8
+    assert apdu[7] == 0x01 and apdu[i] == 0x02 and apdu[i + 1] == 0x08, apdu.hex()
+    i += 2
+    assert apdu[i] == 0x11
+    task_id = apdu[i + 1]
+    i += 2
+    assert apdu[i] == 0x16
+    status = apdu[i + 1]
+    i += 2
+
+    def stamp():
+        nonlocal i
+        assert apdu[i] == 0x1C
+        value = None if apdu[i + 1] == 0xFF else apdu[i + 1 : i + 8]
+        i += 8
+        return value
+
+    start, end = stamp(), stamp()
+
+    def lu():
+        nonlocal i
+        assert apdu[i] == 0x12
+        v = int.from_bytes(apdu[i + 1 : i + 3], "big")
+        i += 3
+        return v
+
+    out = {"task": task_id, "status": status, "start": start, "end": end,
+           "total": lu(), "success": lu(), "sent": lu(), "recv": lu()}
+    assert i <= len(apdu) - 2
+    return out
+
+
+def _wait_monitor(task_id: int, predicate, deadline_s: float, what: str,
+                  interval: float = 0.5) -> dict:
+    """有界等待 monitor 满足 predicate；超时带最后一次读数失败。"""
+    deadline = time.time() + deadline_s
+    last = None
+    while time.time() < deadline:
+        last = _read_monitor(task_id)
+        if predicate(last):
+            return last
+        time.sleep(interval)
+    raise AssertionError(f"{deadline_s}s 内未等到{what}：{last}")
+
+
+def _read_monitor(task_id: int) -> dict:
+    apdu = _exchange(dlt698.get_request(0x01, 0x60350200 | task_id)).apdu
+    return _monitor_unit(apdu)
+
+
+@case(id="D_00_00_02_000032",
+      clause="free: 测试时钟跨零点，5004/5005 按标准边界写默认源记录，对齐差 <50ms",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_reads_midnight_freeze_with_test_clock():
+    """控制文件注入虚拟时钟：11-30 23:59:59.8 起动（首 tick 不回补），跨到 12-01 00:00:00。
+
+    5004 日冻结与 5005 结算日（每月 1 日 00:00 结算上月）都在零点写记录，freeze_time 必须是
+    边界而不是回调时刻；列集 = 冻结时间 + 默认源 {有功电能, 电压, 电流}。切换类 5008 未进 ACL，
+    GetRecord 必须回 DAR 分支（无行数据），而不是成功行。
+    """
+    clock = _SIM_RUN_DIR / "freeze_clock.txt"
+    align = _SIM_RUN_DIR / "freeze_align.txt"
+    midnight = int(time.mktime((2026, 12, 1, 0, 0, 0, 0, 0, -1)))
+    cols = [0x20210200, 0x00100200, 0x20000200, 0x20010200]
+    tags = [0x06, 0x12, 0x05]
+    tmp = clock.with_suffix(".tmp")
+    tmp.write_text(str(midnight * 1000 - 200), encoding="utf-8")
+    os.replace(tmp, clock)
+    try:
+        want_dts = bytes([0x1C]) + (2026).to_bytes(2, "big") + bytes([12, 1, 0, 0, 0])
+        for oad in (0x50040200, 0x50050200):
+            deadline = time.time() + 10
+            last = ""
+            while time.time() < deadline:
+                apdu = _exchange(_record_req(oad, midnight, midnight + 1, cols)).apdu
+                if (apdu[0] == 0x85 and apdu[1] == 0x03 and apdu[7] == 4
+                        and apdu[28] == 0x01 and apdu[29] >= 1):
+                    break
+                last = apdu.hex()
+                time.sleep(0.1)
+            assert apdu[28] == 0x01, f"{oad:#x} 零点没有记录（{last}）"
+            assert apdu[29] == 1, f"{oad:#x} 应正好 1 行，回了 {apdu[29]}"
+            i = 30
+            assert apdu[i:i + 8] == want_dts, (
+                f"{oad:#x} freeze_time 不是零点：{apdu[i:i + 8].hex()} vs {want_dts.hex()}")
+            i += 8
+            for tag in tags:
+                assert apdu[i] == tag, f"{oad:#x} 源列标签 0x{apdu[i]:02X}，期望 0x{tag:02X}"
+                i += {0x06: 5, 0x12: 3, 0x05: 5}[tag]
+
+        delta_txt = align.read_text(encoding="utf-8")
+        delta = int(delta_txt.split("delta_ms=")[1].split()[0])
+        assert delta < 50, f"零点对齐差 {delta}ms，要求 <50ms（{delta_txt.strip()}）"
+
+        apdu = _exchange(_record_req(0x50080200, midnight, midnight + 1, cols)).apdu
+        assert apdu[0] == 0x85 and apdu[1] == 0x03, f"5008 不是记录响应：{apdu.hex()}"
+        assert apdu[7] == 4, f"5008 记录响应应回显 4 列 CSD：{apdu.hex()}"
+        # 实测布局：... | 4×CSD | 00(DAR 分支) | DAR | 00 | 00；5008 未进 ACL → DAR 3（拒绝）。
+        assert apdu[28] == 0x00, f"5008 应是记录 DAR 分支，不是行数据：{apdu.hex()}"
+        assert apdu[29] == 3, f"5008 未进 ACL 应回 DAR 3（拒绝），收到 {apdu[29]}：{apdu.hex()}"
+    finally:
+        clock.unlink(missing_ok=True)
+
+
+@case(id="D_00_00_02_000031",
+      clause="free: 6035 任务状态/成功数/收发计数与台架一致（含备用重试）", tags=["北向"])
+@pytest.mark.contract
+# 完成锚定：先等一次新执行出现（start 变化），再等该 start 的 end 非空（执行完成）
+# 且计数到位；恢复同理。coverage 构建单趟实测 median 13.2s / p90 16.8s / max 19.4s，
+# 慢趟在并行构建干扰下可超过 60s，恢复完成阶段给 90s；整案阶段耗时见
+# docs/evidence/DCU-D0-19。断言未变，只扩时间。
+@pytest.mark.timeout(240)
+def test_task_monitor_matches_bench_failures():
+    param = _rule_unit_param(0x20000200, 0x02010100, 0x02010105)
+    res = dlt698.parse_action_response(
+        _exchange(dlt698.action_request(0x07, 0x601E, 127, param=param)).apdu)
+    assert res.ok, f"配置主用/备用 DI 应成功，回 DAR {res.dar}（{res.error}）"
+    baseline = _wait_monitor(1, lambda m: m["total"] == 40 and m["start"] is not None, 10,
+                             "采集基线")
+    t0 = time.time()
+    _write_sim_control([_DI_MAIN, _DI_SPARE], {})
+    failed = None
+    try:
+        # 第一段：控制写入后出现的第一个新执行（start 变化）。
+        exec_start = _wait_monitor(1, lambda m: m["start"] != baseline["start"], 40,
+                                   "失败执行出现（start 变化）")["start"]
+        t1 = time.time()
+        # 第二段：同一 start 的 end 非空（完成）且计数到位。601E 开头的重配已清掉
+        # 遗留熔断，失败段内不会因熔断跳过表。
+        failed = _wait_monitor(
+            1,
+            lambda m: m["start"] == exec_start and m["end"] is not None
+            and m["total"] == 40 and m["success"] == 0 and m["sent"] >= 80 and m["recv"] >= 80,
+            35, "失败执行完成（end 非空、total=40/success=0/sent≥80/recv≥80）", 0.1)
+        t2 = time.time()
+        assert failed["total"] == 40, f"采集总数量应为 40：{failed}"
+        assert failed["success"] == 0, f"主用与备用都失败时成功数量应为 0：{failed}"
+        assert failed["sent"] >= 80, f"发送计数应含备用重试（≥2×40）：{failed}"
+        assert failed["recv"] >= 80, f"接收计数应含两次错误响应（≥2×40）：{failed}"
+        assert failed["start"] is not None, f"启动时间应有值：{failed}"
+
+        lib = _exchange(dlt698.get_request(0x01, 0x60340200)).apdu
+        assert lib[7] == 0x01 and lib[8] == 0x01 and lib[9] >= 1, f"6034 应含任务：{lib.hex()}"
+    finally:
+        _write_sim_control([], {})
+        restore = _rule_unit_param(0x20000200, 0x02010100, None)
+        dlt698.parse_action_response(
+            _exchange(dlt698.action_request(0x07, 0x601E, 127, param=restore)).apdu)
+    t3 = time.time()
+
+    # 恢复后同样两段：恢复时可能已有执行在跑，先等它之后的下一个 start，再等其完成。
+    start_before = _read_monitor(1)["start"]
+    recovered_start = _wait_monitor(1, lambda m: m["start"] != start_before, 40,
+                                    "恢复后的执行出现（start 变化）")["start"]
+    t4 = time.time()
+    recovered = _wait_monitor(
+        1,
+        lambda m: m["start"] == recovered_start and m["end"] is not None
+        and m["total"] == 40 and m["success"] == 40,
+        90, "恢复后的成功执行完成（end 非空、total=40/success=40）")
+    t5 = time.time()
+    assert recovered is not None and recovered["success"] == 40, f"恢复后成功数量应回到 40：{recovered}"
+    (_SIM_RUN_DIR / "task_monitor_windows.json").write_text(
+        json.dumps({"fail_start_s": round(t1 - t0, 2), "fail_done_s": round(t2 - t1, 2),
+                    "recover_start_s": round(t4 - t3, 2), "recover_done_s": round(t5 - t4, 2),
+                    "total_s": round(t5 - t0, 2)}),
+        encoding="utf-8")
+
+
+def _record_req(oad: int, start: int, end: int, cols: list[int]) -> bytes:
+    def dts(epoch: int) -> bytes:
+        t = time.localtime(epoch)
+        return bytes([0x1C]) + (t.tm_year).to_bytes(2, "big") + bytes(
+            [t.tm_mon, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec])
+    rsd = b"\x02" + (0x20210200).to_bytes(4, "big") + dts(start) + dts(end) + b"\x00"
+    rcsd = bytes([len(cols)]) + b"".join(b"\x00" + c.to_bytes(4, "big") for c in cols)
+    return bytes([0x05, 0x03, 0x01]) + oad.to_bytes(4, "big") + rsd + rcsd + b"\x00"
+
+
+def _freeze_item(period: int, oad: int, depth: int) -> bytes:
+    return (bytes([0x02, 0x03, 0x12]) + period.to_bytes(2, "big") + b"\x51"
+            + oad.to_bytes(4, "big") + bytes([0x12]) + depth.to_bytes(2, "big"))
+
+
+@case(id="D_00_00_02_000033",
+      clause="free: 方法 5 删除冻结对象后，5004 GetRecord 列集随之变化", tags=["北向"])
+@pytest.mark.contract
+def test_master_configures_freeze_attr3():
+    """属性 3 是记录列的唯一来源：删掉有功电能后，新冻结记录不再含该列。
+
+    控制时钟让 5001 每秒冻结；方法 5 删除 OAD 0x00100200，随后 1 秒窗口内
+    记录应能按 [时间, 电压, 电流] 读回，而按 [时间, 电能] 读会因缺列回 DAR。
+    """
+    clock = _SIM_RUN_DIR / "freeze_clock.txt"
+    base = int(time.mktime((2026, 12, 2, 12, 0, 0, 0, 0, -1))) * 1000 - 200
+    align = _SIM_RUN_DIR / "freeze_align.txt"
+    align.unlink(missing_ok=True)
+    tmp = clock.with_suffix(".tmp")
+    tmp.write_text(str(base), encoding="utf-8")
+    os.replace(tmp, clock)
+    try:
+        time.sleep(0.8)  # 跨过首个冻结边界，5001 进入每秒节奏
+        param = b"\x51" + (0x00100200).to_bytes(4, "big")
+        res = dlt698.parse_action_response(
+            _exchange(dlt698.action_request(0x07, 0x5001, 5, param=param)).apdu)
+        assert res.ok, f"删除冻结对象应成功，回 DAR {res.dar}（{res.error}）"
+        deadline = time.time() + 5
+        while time.time() < deadline and not (_SIM_RUN_DIR / "freeze_align.txt").is_file():
+            time.sleep(0.1)
+        first = int(align.read_text(encoding="utf-8").split("boundary=")[1].split()[0])
+        cols3 = [0x20210200, 0x20000200, 0x20010200]
+        start = first + 2  # 首次边界后 2 秒：配置已生效，且该秒的记录已落库
+        end = start + 1
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            try:
+                apdu = _exchange(_record_req(0x50010200, start, end, cols3)).apdu
+            except (OSError, dlt698.FrameError):
+                time.sleep(0.2)
+                continue
+            i = 8 + 5 * len(cols3)
+            if apdu[i] == 0x01 and apdu[i + 1] >= 1:
+                break
+            time.sleep(0.2)
+
+        assert apdu[i] == 0x01 and apdu[i + 1] >= 1, (
+            f"配置后的窗口应回 [时间,电压,电流]：{apdu.hex()}")
+        row = i + 2
+        assert apdu[row] == 0x1C and apdu[row + 8] == 0x12 and apdu[row + 11] == 0x05, (
+            f"记录列应只剩电压/电流：{apdu.hex()}")
+
+        apdu = _exchange(_record_req(0x50010200, start, end,
+                                     [0x20210200, 0x00100200])).apdu
+        i = 8 + 5 * 2
+        assert apdu[i] == 0x00 and apdu[i + 1] != 0, (
+            f"电能列已被删除，GetRecord 不应回行数据：{apdu.hex()}")
+    finally:
+        restore = bytes([0x01, 3]) + _freeze_item(1, 0x00100200, 1) + \
+            _freeze_item(1, 0x20000200, 1) + _freeze_item(1, 0x20010200, 1)
+        try:
+            dlt698.parse_action_response(
+                _exchange(dlt698.action_request(0x07, 0x5001, 7,
+                                                param=restore)).apdu)
+        except Exception:
+            pass
+        clock.unlink(missing_ok=True)
+
+
+@case(id="D_00_00_02_000034",
+      clause="free: 8000 只读属性无可信继电器来源回 DAR 2；未进 ACL 的 Class 13 对象回 DAR 3",
+      tags=["北向"])
+@pytest.mark.contract
+def test_master_gets_honest_dar_for_control_status():
+    """A.9 的 8000 A2/A4/A5 需要继电器输出/状态来源，产品没有：必须回 DAR 2，不能造状态位。"""
+    for oad in (0x80000200, 0x80000400, 0x80000500):
+        apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
+        assert apdu[0] == 0x85 and apdu[1] == 0x01, f"{oad:#x} 不是 GET 响应：{apdu.hex()}"
+        assert apdu[3:7] == oad.to_bytes(4, "big"), f"{oad:#x} 响应 OAD 不一致"
+        assert apdu[7] == 0, f"{oad:#x} 应回 DAR，不是数据：{apdu.hex()}"
+        assert apdu[8] == 2, f"{oad:#x} 没有可信来源应回 DAR 2，收到 {apdu[8]}"
+
+    # 8001 在对象模型里，但不在 ACL（92/224）：主站访问被拒绝。
+    apdu = _exchange(dlt698.get_request(0x01, 0x80010200)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"8001 不是 GET 响应：{apdu.hex()}"
+    assert apdu[7] == 0 and apdu[8] == 3, f"未进 ACL 的 8001 应回 DAR 3：{apdu.hex()}"

@@ -1,0 +1,17 @@
+[
+  {
+    "type": 1,
+    "name": "PowerLimit",
+    "double_value": 80
+  },
+  {
+    "type": 0,
+    "name": "EnProtectDOD",
+    "int_value": 1
+  },
+  {
+    "type": 1,
+    "name": "Installedcab_coeff",
+    "double_value": 80
+  }
+]

@@ -1,0 +1,105 @@
+{
+  "config": [
+    {
+      "devices": [
+        {
+          "mp": "LC1",
+          "mpd": "cabinetA",
+          "name": "pcsA",
+          "no": "PCS",
+          "type": "PCS"
+        },
+        {
+          "mp": "LC1",
+          "mpd": "cabinetA",
+          "name": "bmsA",
+          "no": "BMS",
+          "subtype": "BCU",
+          "type": "BMS"
+        }
+      ],
+      "group": "groupA"
+    },
+    {
+      "devices": [
+        {
+          "mp": "LC2",
+          "mpd": "cabinetB",
+          "name": "pcsB",
+          "no": "PCS",
+          "type": "PCS"
+        },
+        {
+          "mp": "LC2",
+          "mpd": "cabinetB",
+          "name": "bmsB",
+          "no": "BMS",
+          "subtype": "BCU",
+          "type": "BMS"
+        }
+      ],
+      "group": "groupB"
+    },
+    {
+      "devices": [
+        {
+          "mp": "LC3",
+          "mpd": "cabinetC",
+          "name": "pcsC",
+          "no": "PCS",
+          "type": "PCS"
+        },
+        {
+          "mp": "LC3",
+          "mpd": "cabinetC",
+          "name": "bmsC",
+          "no": "BMS",
+          "subtype": "BCU",
+          "type": "BMS"
+        }
+      ],
+      "group": "groupC"
+    },
+    {
+      "devices": [
+        {
+          "mp": "LC4",
+          "mpd": "cabinetD",
+          "name": "pcsD",
+          "no": "PCS",
+          "type": "PCS"
+        },
+        {
+          "mp": "LC4",
+          "mpd": "cabinetD",
+          "name": "bmsD",
+          "no": "BMS",
+          "subtype": "BCU",
+          "type": "BMS"
+        }
+      ],
+      "group": "groupD"
+    },
+    {
+      "devices": [
+        {
+          "mp": "LC5",
+          "mpd": "cabinetE",
+          "name": "pcsE",
+          "no": "PCS",
+          "type": "PCS"
+        },
+        {
+          "mp": "LC5",
+          "mpd": "cabinetE",
+          "name": "bmsE",
+          "no": "BMS",
+          "subtype": "BCU",
+          "type": "BMS"
+        }
+      ],
+      "group": "groupE"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

@@ -4,6 +4,7 @@
  */
 
 #include "iems_microgrid_coordinator.h"
+#include "iems_tou_demand.h"
 
 #include <math.h>
 #include <string.h>
@@ -78,14 +79,11 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord, double 
     double total_consumption = p_load + p_ev;
     double net_load = total_consumption - p_pv;
 
-    // 滑动窗口需量更新
-    coord->demand_window_sum += (net_load > 0.0) ? net_load : 0.0;
-    coord->demand_window_samples++;
-    if (coord->demand_window_samples > 9000) {  // 超过 15 分钟 (9000 * 100ms) 时重置窗口保持平滑
-        coord->demand_window_sum = coord->demand_window_sum / 2.0;
-        coord->demand_window_samples = coord->demand_window_samples / 2;
-    }
-    coord->demand_15min_avg_kw = coord->demand_window_sum / (double)coord->demand_window_samples;
+    // 滑动窗口需量更新 (与 iems_tou_demand 共用同一份纯算法)
+    iems_td_window_add(&coord->demand_window_sum, &coord->demand_window_samples, net_load,
+                       9000u);
+    coord->demand_15min_avg_kw =
+        iems_td_window_average(coord->demand_window_sum, coord->demand_window_samples);
 
     // 1. 基础 TOU 计划功率决策
     double scheduled_power_kw = 0.0;
@@ -112,11 +110,15 @@ int iems_coordinator_evaluate_cycle(iems_microgrid_coordinator_t* coord, double 
     coord->is_demand_shaving_active = false;
 
     // 2. 需量控制闭环 (Demand Peak Shaving):
-    // 若瞬时或滚动需量超过需量红线 (demand_limit_kw), 储能强制加大放电进行削峰
-    double peak_load =
-        (net_load > coord->demand_15min_avg_kw) ? net_load : coord->demand_15min_avg_kw;
-    if (peak_load > coord->demand_limit_kw && battery_soc > 10.0) {
-        double required_discharge_kw = peak_load - coord->demand_limit_kw;
+    // 若瞬时或滚动需量超过需量红线 (demand_limit_kw), 储能强制加大放电进行削峰。
+    // 窗口与削峰目标共用纯算法，避免第二份实现。
+    const iems_td_demand_config_t demand_cfg = {.mode = IEMS_TD_DEMAND_LIMIT,
+                                                 .limit_kw = coord->demand_limit_kw};
+    const iems_td_demand_input_t demand_in = {.grid_kw = net_load,
+                                              .demand_kw = coord->demand_15min_avg_kw};
+    double required_discharge_kw =
+        iems_td_demand_raw(&demand_cfg, (int8_t)IEMS_TD_ACTION_STANDBY, &demand_in, NULL);
+    if (required_discharge_kw > 0.0 && battery_soc > 10.0) {
         coord->is_demand_shaving_active = true;
         if (required_discharge_kw > coord->target_pcs_power_kw) {
             coord->target_pcs_power_kw = required_discharge_kw;

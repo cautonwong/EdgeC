@@ -3,11 +3,11 @@
   "components": [
     {
       "name": "open62541",
-      "version": "vendored-stub",
+      "version": "v1.5.10",
       "path": "third-party/open62541",
       "license": "MPL-2.0",
       "repository": "https://github.com/open62541/open62541",
-      "note": "local API-compatible stub, not upstream source"
+      "note": "upstream commit 93c3bdfc9ea4718b503c6cbf57876237addd0f2c; tarball SHA256 b05e47734e2e39c0b00511ed6dc22e71f1b5bf7864b86280653a5128d171c0ed; licenses: third-party/open62541/LICENSE (MPL-2.0), third-party/open62541/LICENSE-CC0 (CC0-1.0)"
     },
     {
       "name": "zephyr",

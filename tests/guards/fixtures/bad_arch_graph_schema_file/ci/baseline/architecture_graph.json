@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "description": "Refutation: forbidden_headers file is dead.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [
+    {
+      "files": [
+        "modules/gone/missing.h"
+      ],
+      "header": "datahub.h",
+      "reason": "fixture"
+    }
+  ],
+  "composition_roots": [],
+  "known_skips": []
+}

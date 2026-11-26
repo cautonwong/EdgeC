@@ -1,0 +1,43 @@
+===== RED: source ac322a1b (unfixed), tests ca3b5582 =====
+$ ctest --test-dir build -R dcu_poller --output-on-failure
+[ RUN      ] test_scheme_change_mid_batch_reopens_execution
+[  ERROR   ] --- 3 != 1
+[   LINE   ] --- /tmp/edgec-land/f4-pending-capacity/tests/test_dcu_poller.c:1467: error: Failure!
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+[ RUN      ] test_new_exec_mid_batch_failure_not_tainted
+[       OK ] test_new_exec_mid_batch_failure_not_tainted
+[ RUN      ] test_batched_visit_breaker_settles_once_per_round
+[  ERROR   ] --- _run_batched_visit_rounds(true, 5) is not true
+[   LINE   ] --- /tmp/edgec-land/f4-pending-capacity/tests/test_dcu_poller.c:1654: error: Failure!
+[  FAILED  ] test_batched_visit_breaker_settles_once_per_round
+[==========] tests: 34 test(s) run.
+[  PASSED  ] 32 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_scheme_change_mid_batch_reopens_execution
+[  FAILED  ] test_batched_visit_breaker_settles_once_per_round
+
+ 2 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.06 sec
+
+The following tests FAILED:
+	141 - test_dcu_poller (Failed)
+Errors while running CTest
+
+===== GREEN: source (fix commit), tests ca3b5582 =====
+$ ctest --test-dir build -R dcu_poller --output-on-failure
+    Start 141: test_dcu_poller
+1/1 Test #141: test_dcu_poller ..................   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.06 sec
+
+$ ctest --test-dir build -R "dcu|dlt698" --output-on-failure
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  88.05 sec

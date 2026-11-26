@@ -1,0 +1,20 @@
+{
+  "config": [
+    {
+      "double_value": 80,
+      "name": "PowerLimit",
+      "type": 1
+    },
+    {
+      "int_value": 1,
+      "name": "EnProtectDOD",
+      "type": 0
+    },
+    {
+      "double_value": 80,
+      "name": "Installedcab_coeff",
+      "type": 1
+    }
+  ],
+  "schema_version": "1.0.0"
+}

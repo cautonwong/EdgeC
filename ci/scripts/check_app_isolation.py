@@ -7,6 +7,8 @@ are completely decoupled from RTOS internals and raw platform hardware handles.
 """
 
 import sys
+
+from c_source_scan import SHARED_PRUNE_DIRS
 import os
 import re
 import argparse
@@ -26,7 +28,8 @@ def check_app_isolation(target_dir):
         algo_dirs = [target_dir]
 
     for algo_dir in algo_dirs:
-        for root, _, files in os.walk(algo_dir):
+        for root, dirs, files in os.walk(algo_dir):
+            dirs[:] = [d for d in dirs if d not in SHARED_PRUNE_DIRS]
             for f in files:
                 if f.endswith(('.c', '.h')):
                     full_path = os.path.join(root, f)

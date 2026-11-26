@@ -1,6 +1,7 @@
 #include "iems_execution_adapter.h"
 
 #include <math.h>
+#include <stdatomic.h>
 #include <strings.h>
 
 #include "dlt645_codec.h"
@@ -13,6 +14,49 @@
  * 因此按宽度用两份静态只读描述，避免栈上指针悬空。 */
 static const dlt645_write_desc_t k_dlt645_desc_len2 = {.data_len = 2};
 static const dlt645_write_desc_t k_dlt645_desc_len4 = {.data_len = 4};
+
+/* 完成回调上下文池：总线结算时回调只带一个 user_data，这里把领域回调与其用户指针
+ * 寄存在定长槽里，legacy trampoline 用槽指针找回。16 路在途控制写远大于实际并发；
+ * 槽满时不提交（返回 -2），不阻塞、不丢失已完成请求的回调。 */
+#define IEMS_EXEC_DONE_SLOTS 16
+
+typedef struct {
+    atomic_bool in_use;
+    iems_write_done_fn fn;
+    void *user;
+} iems_exec_done_slot_t;
+
+static iems_exec_done_slot_t g_exec_done_slots[IEMS_EXEC_DONE_SLOTS];
+
+static iems_exec_done_slot_t *_claim_done_slot(void) {
+    for (size_t i = 0; i < IEMS_EXEC_DONE_SLOTS; i++) {
+        bool expected = false;
+        if (atomic_compare_exchange_strong(&g_exec_done_slots[i].in_use, &expected, true)) {
+            return &g_exec_done_slots[i];
+        }
+    }
+    return NULL;
+}
+
+static void _release_done_slot(iems_exec_done_slot_t *slot) {
+    if (slot) atomic_store(&slot->in_use, false);
+}
+
+iems_write_done_status_t iems_exec_map_write_status(int cmd_status) {
+    if (cmd_status == CMD_STATUS_SUCCESS) return IEMS_WRITE_DONE_OK;
+    if (cmd_status == CMD_STATUS_TIMEOUT) return IEMS_WRITE_DONE_TIMEOUT;
+    return IEMS_WRITE_DONE_FAILED;
+}
+
+/* 请求层回调（总线线程）：映射状态、先释放槽再交给领域回调，避免回调里再提交时占槽。 */
+static void _iems_exec_on_complete(int status, const pipe_msg_t *result, void *user_data) {
+    (void)result;
+    iems_exec_done_slot_t *slot = user_data;
+    iems_write_done_fn fn = slot->fn;
+    void *user = slot->user;
+    _release_done_slot(slot);
+    if (fn) fn(user, iems_exec_map_write_status(status));
+}
 
 int iems_exec_translate_write(const char *proto, uint32_t tag_id, double value,
                               uint32_t *native_id, double *raw, const void **point_desc,
@@ -61,7 +105,7 @@ int iems_exec_translate_write(const char *proto, uint32_t tag_id, double value,
 }
 
 static int iems_exec_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
-                           const char *proto) {
+                           const char *proto, iems_write_done_fn on_done, void *on_done_user) {
     (void)ctx;
     uint32_t native_id = tag_id;
     double raw = value;
@@ -71,8 +115,25 @@ static int iems_exec_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t ta
                                   &point_desc_len) != 0) {
         return -1;
     }
-    return edge_api_write_tag_ex(bus_id, proto, slave_id, native_id, raw, point_desc,
-                                 point_desc_len, NULL, NULL);
+
+    iems_exec_done_slot_t *slot = NULL;
+    if (on_done) {
+        slot = _claim_done_slot();
+        if (!slot) {
+            /* 槽满不提交：调用方看到的失败与总线拒绝一致，不会静默丢结果。 */
+            LOG_ERROR(LOG_CAT_CORE, "IEMS control: 完成回调槽位已满(%d)，拒绝提交 tag %u",
+                      IEMS_EXEC_DONE_SLOTS, tag_id);
+            return -2;
+        }
+        slot->fn = on_done;
+        slot->user = on_done_user;
+    }
+
+    int rc = edge_api_write_tag_ex(bus_id, proto, slave_id, native_id, raw, point_desc,
+                                   point_desc_len, slot ? _iems_exec_on_complete : NULL, slot);
+    /* 非零 = 未入队：请求层不会再回调，槽必须在这里还回去。 */
+    if (rc != 0) _release_done_slot(slot);
+    return rc;
 }
 
 iems_execution_port_t iems_execution_port_create(void *ctx) {

@@ -1,0 +1,21 @@
+openjdk version "17.0.21.0.3" 2026-10-24
+OpenJDK Runtime Environment (build 17.0.21.0.3+1-1-22.04.1-Ubuntu)
+OpenJDK 64-Bit Server VM (build 17.0.21.0.3+1-1-22.04.1-Ubuntu, mixed mode, sharing)
+
+7e53aa636dac8a3cb0533f343115c0548e03fc0ce5edc7739becf58d3d0fb84f  formal/tools/tla2tools.jar
+7e53aa636dac8a3cb0533f343115c0548e03fc0ce5edc7739becf58d3d0fb84f  /opt/formal/tla2tools.jar
+
+5.12 (cbmc-5.12)
+ef72f83869f9cc1af6e3e1721fff9ab0cb3cbc40a98105b793648605c111ee0d  /usr/bin/cbmc
+
+
+[1mNAME[0m
+
+	TLC - provides model checking and simulation of TLA+ specifications - Version 2026.11.15.002146
+
+
+
+Build-Tag: ${env.BUILD_TAG}
+Build-Rev: ${Build-Rev}
+Build-TimeStamp: 2026-11-15T00:21:46.50Z
+Implementation-Version: 2.0 2026-11-15

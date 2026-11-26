@@ -32,6 +32,9 @@ typedef struct {
     uint32_t demo_relays;      /* 已触发的 OI 8000 跳合闸数（测试可观测） */
     uint32_t control_triggers; /* 已触发的演示遥控数（测试可观测） */
     uint32_t stop_requested;   /* 进入自退路径的次数（测试可观测） */
+    bool timers_inited;
+    bool freeze_closed;
+    bool control_closed;
 } dcu_heartbeat_t;
 
 /**
@@ -44,6 +47,11 @@ typedef struct {
  */
 void dcu_heartbeat_start(dcu_heartbeat_t *hb, uv_loop_t *loop, dcu_node_t *node,
                          stream_engine_t *se, service_t *svc);
+
+/**
+ * @brief 停止并关闭两个心跳定时器；幂等，拆除阶段必须在销毁 storage 前调用
+ */
+void dcu_heartbeat_stop(dcu_heartbeat_t *hb);
 
 /** @brief 跑一次心跳周期；定时器回调与测试共用。 */
 void dcu_heartbeat_tick(dcu_heartbeat_t *hb);

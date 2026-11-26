@@ -1,0 +1,44 @@
+{
+  "devices": [
+    {
+      "sn": "SN0001",
+      "name": "cabinetA",
+      "no": "LC1",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    },
+    {
+      "sn": "SN0002",
+      "name": "cabinetB",
+      "no": "LC2",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    },
+    {
+      "sn": "SN0003",
+      "name": "cabinetC",
+      "no": "LC3",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    },
+    {
+      "sn": "SN0004",
+      "name": "cabinetD",
+      "no": "LC4",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    },
+    {
+      "sn": "SN0005",
+      "name": "cabinetE",
+      "no": "LC5",
+      "type": "vlc",
+      "disabled": 0,
+      "ipaddr": ""
+    }
+  ]
+}

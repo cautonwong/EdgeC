@@ -1,0 +1,4 @@
+$ python3 ci/scripts/check_architecture_graph.py --root tests/guards/fixtures/bad_arch_graph_skip
+❌ [ARCHITECTURE_GRAPH] 1 violation(s):
+  - [UNREGISTERED_PARSE_GAP] cmd/app/CMakeLists.txt:2: cmake-genex $<TARGET_NAME_IF_EXISTS:helper> at 1 site(s); register it in known_skips with a reason
+exit: 1

@@ -1,0 +1,17 @@
+{
+  "dev_class": [
+    {
+      "type": "METER",
+      "devs": [
+        {
+          "no": "M1",
+          "name": "meter1",
+          "channel": "RS485_1",
+          "template": "MISSING_TEMPLATE.json",
+          "protocol": "modbus_rtu",
+          "addr": "1"
+        }
+      ]
+    }
+  ]
+}

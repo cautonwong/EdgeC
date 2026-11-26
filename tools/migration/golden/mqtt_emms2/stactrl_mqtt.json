@@ -1,0 +1,12 @@
+{
+  "changeReportInterval": 0,
+  "disable_lz4": 1,
+  "enable_tls": 0,
+  "host": "10.0.0.11",
+  "pass": "$secret:mqtt_emms2.stactrl_mqtt.pass",
+  "port": 1883,
+  "reportInterval": 600,
+  "saveDisconnectData": 1,
+  "schema_version": "1.0.0",
+  "user": "siteuser"
+}

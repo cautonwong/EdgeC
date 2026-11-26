@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "device_config",
+  "description": "P6-04a round 1. Covers root device_config.json, def_device_config.json, lc/device_config.json and lc_devs/LCx/device_config.json. P1-03b injects schema_version into converted output.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "dev_class"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "dev_class": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^.+$"
+          },
+          "devs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "no",
+                "name",
+                "channel",
+                "template",
+                "protocol"
+              ],
+              "properties": {
+                "no": {
+                  "type": "string",
+                  "pattern": "^.+$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "channel": {
+                  "type": "string",
+                  "pattern": "^.+$"
+                },
+                "template": {
+                  "type": "string",
+                  "pattern": "^.+$"
+                },
+                "protocol": {
+                  "type": "string",
+                  "enum": [
+                    "none",
+                    "script",
+                    "modbus_tcp",
+                    "modbus_rtu",
+                    "dlt645_2007",
+                    "dlt645_1997",
+                    "ems",
+                    "ups",
+                    "bmser_bin",
+                    "can_raw",
+                    "opcua",
+                    "lc",
+                    "modbus_rtu_rcrc",
+                    "iec104",
+                    "custom",
+                    "ydt1363_2014"
+                  ]
+                },
+                "user_def": {
+                  "type": "string"
+                },
+                "addr": {
+                  "type": "string"
+                },
+                "period": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

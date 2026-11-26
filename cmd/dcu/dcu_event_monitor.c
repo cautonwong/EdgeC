@@ -31,7 +31,8 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
     if (!ctx || ev->device_id >= MAX_METERS) return STAGE_DROP;
 
     uint64_t now_ns = ev->ts;  // 核心：这是纳秒 (uv_hrtime)
-    uint32_t dev = ev->device_id;
+    /* pipe 消息的 device_id 是 slot_id（稳定设备身份）；档案下标删除即变，不能混用。 */
+    uint32_t slot = ev->device_id;
 
     // 💡 1. 拦截电压实时刷新事件 (OAD_VOLTAGE) -> 失压判定
     if (ev->type == PIPEMSG_TYPE_SCALAR &&
@@ -40,50 +41,49 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
         if (evt && evt->is_enabled) {
             float voltage = (float)ev->payload.val.f;
             if (voltage < evt->threshold) {
-                if (ctx->v_overlimit_start_ts[dev] == 0) {
-                    ctx->v_overlimit_start_ts[dev] = now_ns;
-                    if (dev % 100 == 0)
+                if (ctx->v_overlimit_start_ts[slot] == 0) {
+                    ctx->v_overlimit_start_ts[slot] = now_ns;
+                    if (slot % 100 == 0)
                         printf(
                             "⚠️ [MONITOR] Dev %u: Voltage %.1fV < %.1fV. Starting %us "
                             "countdown...\n",
-                            dev, voltage, evt->threshold, evt->delay_s);
-                } else if (!ctx->v_event_triggered[dev] &&
-                           (now_ns - ctx->v_overlimit_start_ts[dev] >=
+                            slot, voltage, evt->threshold, evt->delay_s);
+                } else if (!ctx->v_event_triggered[slot] &&
+                           (now_ns - ctx->v_overlimit_start_ts[slot] >=
                             (uint64_t)evt->delay_s * 1000000000ULL)) {
-                    ctx->v_event_triggered[dev] = true;
+                    ctx->v_event_triggered[slot] = true;
 
-                    const char* addr = (ctx->inv && dev < ctx->inv->count)
-                                           ? ctx->inv->meters[dev].address
-                                           : "Unknown";
+                    const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, slot);
+                    const char* addr = meter ? meter->address : "Unknown";
 
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_VOLTAGE_DROP;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
                     event_msg.ts = now_ns;
-                    event_msg.device_id = dev;
+                    event_msg.device_id = slot;
                     event_msg.payload.val.f = voltage;
 
                     printf(
                         "🚨🚨🚨 [ALARM TRIGGER] Dev %u (TSA: %s) Voltage %.1fV below threshold! "
                         "Writing to DB...\n",
-                        dev, addr, voltage);
+                        slot, addr, voltage);
                     stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
             } else {
-                if (ctx->v_event_triggered[dev]) {
-                    ctx->v_event_triggered[dev] = false;
+                if (ctx->v_event_triggered[slot]) {
+                    ctx->v_event_triggered[slot] = false;
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_VOLTAGE_DROP;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
                     event_msg.ts = now_ns;
-                    event_msg.device_id = dev;
+                    event_msg.device_id = slot;
                     event_msg.payload.val.f = -voltage;
-                    printf("💚 [RECOVER] Dev %u: Voltage Restored to %.1fV.\n", dev, voltage);
+                    printf("💚 [RECOVER] Dev %u: Voltage Restored to %.1fV.\n", slot, voltage);
                     stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
-                ctx->v_overlimit_start_ts[dev] = 0;
+                ctx->v_overlimit_start_ts[slot] = 0;
             }
         }
         return STAGE_OK;
@@ -97,36 +97,36 @@ static stage_ret_t _monitor_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             float current = (float)ev->payload.val.f;
 
             if (current > evt->threshold) {
-                if (ctx->c_overlimit_start_ts[dev] == 0) {
-                    ctx->c_overlimit_start_ts[dev] = now_ns;
-                } else if (!ctx->c_event_triggered[dev] &&
-                           (now_ns - ctx->c_overlimit_start_ts[dev] >=
+                if (ctx->c_overlimit_start_ts[slot] == 0) {
+                    ctx->c_overlimit_start_ts[slot] = now_ns;
+                } else if (!ctx->c_event_triggered[slot] &&
+                           (now_ns - ctx->c_overlimit_start_ts[slot] >=
                             (uint64_t)evt->delay_s * 1000000000ULL)) {
-                    ctx->c_event_triggered[dev] = true;
+                    ctx->c_event_triggered[slot] = true;
 
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_OVER_CURRENT;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
                     event_msg.ts = now_ns;
-                    event_msg.device_id = dev;
+                    event_msg.device_id = slot;
                     event_msg.payload.val.f = current;
 
                     stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
             } else {
-                if (ctx->c_event_triggered[dev]) {
-                    ctx->c_event_triggered[dev] = false;
+                if (ctx->c_event_triggered[slot]) {
+                    ctx->c_event_triggered[slot] = false;
                     pipe_msg_t event_msg;
                     memset(&event_msg, 0, sizeof(pipe_msg_t));
                     event_msg.tag_id = OI_OVER_CURRENT;
                     event_msg.type = PIPEMSG_TYPE_EVENT;
                     event_msg.ts = now_ns;
-                    event_msg.device_id = dev;
+                    event_msg.device_id = slot;
                     event_msg.payload.val.f = -current;
                     stream_engine_push(pipeline_stage_get_engine(stage), &event_msg);
                 }
-                ctx->c_overlimit_start_ts[dev] = 0;
+                ctx->c_overlimit_start_ts[slot] = 0;
             }
         }
         return STAGE_OK;
@@ -178,11 +178,12 @@ static uint64_t _wall_epoch_s(void) {
     return (uint64_t)ts.tv_sec;
 }
 
-static void _capture_record_snapshots(const dcu_event_obj_t* evt, dcu_event_record_t* rec) {
+static void _capture_record_snapshots(const dcu_event_obj_t* evt, uint32_t device_id,
+                                      dcu_event_record_t* rec) {
     for (uint8_t i = 0; i < evt->snapshot_count && i < MAX_EVENT_SNAPSHOTS; i++) {
         size_t len = 0;
-        if (dcu_698_var_encode_axdr(evt->snapshot_oads[i], rec->snapshot[i],
-                                    sizeof(rec->snapshot[i]), &len) == 0 &&
+        if (dcu_698_var_encode_axdr_device(evt->snapshot_oads[i], device_id, rec->snapshot[i],
+                                           sizeof(rec->snapshot[i]), &len) == 0 &&
             len <= sizeof(rec->snapshot[i])) {
             rec->snapshot_len[i] = (uint8_t)len;
         }
@@ -220,6 +221,10 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             new_rec->snapshot_value = actual_val;
             new_rec->is_active = !is_recover;
 
+            /* 发生与恢复都按 slot_id 取地址：档案删除重排后下标 N 可能已是另一只表。 */
+            const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, ev->device_id);
+            const char* addr = meter ? meter->address : "Unknown";
+
             if (!is_recover) {
                 new_rec->start_time.mono_ns = ev->ts;
                 new_rec->start_time.epoch_s = wall_s;
@@ -228,13 +233,9 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 // 【Generic Snapshot Engine】根据 Attr 3 抓拍现场数据
                 pipe_msg_t snapshots[8];
                 int captured = dcu_obj_snapshot(evt->oi, ev->device_id, snapshots, 8);
-                _capture_record_snapshots(evt, new_rec);
+                _capture_record_snapshots(evt, ev->device_id, new_rec);
 
                 // 💡 物理落盘：记录到事件历史表 (Class 7 Attr 2 落地)
-                /* ev->device_id 是 slot_id（影子表的设备身份），不是数组下标 */
-                const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, ev->device_id);
-                const char* addr = meter ? meter->address : "Unknown";
-
                 if (ctx->sink_ops.archive_event) {
                     ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi,
                                                 new_rec->start_time.epoch_s, 0, actual_val);
@@ -247,11 +248,7 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 new_rec->end_time.mono_ns = ev->ts;
                 new_rec->end_time.epoch_s = wall_s;
                 evt->last_end_time = new_rec->end_time;
-                _capture_record_snapshots(evt, new_rec);
-
-                const char* addr = (ctx->inv && ev->device_id < ctx->inv->count)
-                                       ? ctx->inv->meters[ev->device_id].address
-                                       : "Unknown";
+                _capture_record_snapshots(evt, ev->device_id, new_rec);
 
                 if (ctx->sink_ops.archive_event) {
                     ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi,
@@ -319,25 +316,26 @@ static stage_ret_t _freeze_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
     // 定时触发标签：匹配标准日冻结定时触发 OAD (OAD_DAILY_FREEZE)
     if (ev->tag_id == OAD_DAILY_FREEZE) {
-        uint32_t dev = ev->device_id;
-        if (ctx->inv && dev >= ctx->inv->count) return STAGE_DROP;
-        const char* addr =
-            (ctx->inv && dev < ctx->inv->count) ? ctx->inv->meters[dev].address : "Unknown";
+        /* slot_id 是稳定身份：地址与影子抓拍必须来自同一只表，不再用 count 当下标界。 */
+        uint32_t slot = ev->device_id;
+        const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, slot);
+        if (!meter) return STAGE_DROP;
+        const char* addr = meter->address;
 
         // 💡 [2D Matrix Snapshot] 瞬间抓取 DataHub Shadow 缓存全断面电参量快照
         double active_energy = 0.0, voltage = 0.0, current = 0.0;
         pipe_msg_t shadow_msg;
 
         // 抓拍电能 (Offset 1)
-        if (datahub_read_shadow_device(ctx->hub, OAD_ACTIVE_ENERGY, dev, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_ACTIVE_ENERGY, slot, &shadow_msg) == 0) {
             active_energy = shadow_msg.payload.val.f;
         }
         // 抓拍电压 (Offset 0)
-        if (datahub_read_shadow_device(ctx->hub, OAD_VOLTAGE, dev, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_VOLTAGE, slot, &shadow_msg) == 0) {
             voltage = shadow_msg.payload.val.f;
         }
         // 抓拍电流 (Offset 2)
-        if (datahub_read_shadow_device(ctx->hub, OAD_CURRENT, dev, &shadow_msg) == 0) {
+        if (datahub_read_shadow_device(ctx->hub, OAD_CURRENT, slot, &shadow_msg) == 0) {
             current = shadow_msg.payload.val.f;
         }
 

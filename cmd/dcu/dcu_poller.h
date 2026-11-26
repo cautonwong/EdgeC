@@ -25,17 +25,45 @@ typedef struct driver_manager_s driver_manager_t;
 #define MAX_SCHEME_OADS 32
 #define MAX_QUEUE_ENTRIES 128
 #define DCU_MAX_CHANNELS 32
+/* 表级熔断的半开冷却：打开后跳过该表，冷却到期放行一次探测访问；探测成功关闭，
+ * 失败重新计时。30s 为经验值，可按现场轮询周期调整。 */
+#define DCU_BREAKER_COOLDOWN_MS 30000ull
+typedef enum {
+    DCU_BREAKER_CLOSED = 0,
+    DCU_BREAKER_OPEN = 1,
+    DCU_BREAKER_HALF_OPEN = 2,
+} dcu_breaker_state_t;
 
 /**
  * @brief DL/T 698.45 采集任务监控单元 (OI 6035)
+ *
+ * 执行状态机 IDLE/ACTIVE/DONE；begin 时按档案+mask 快照 target 位图，
+ * 只对 target 记账，因此 succeeded ⊆ settled ⊆ target，success<=total 无条件成立。
+ * 该表全部分批的 tag 都成功才记该表成功；每表每执行结算一次（并集超容量时分批访问）。
+ * 线上字段语义不变。
  */
+typedef enum {
+    DCU_EXEC_IDLE = 0,
+    DCU_EXEC_ACTIVE = 1,
+    DCU_EXEC_DONE = 2,
+} dcu_exec_state_t;
 
 typedef struct {
     uint32_t task_id;
-    uint8_t status;
-    uint32_t total_meters;
-    uint32_t success_meters;
-    uint32_t total_packets;
+    uint8_t status; /* 6035 enum：DCU_EXEC_IDLE/ACTIVE/DONE */
+    uint32_t total_meters;   /* target 快照的 popcount */
+    uint32_t success_meters; /* target 中整次访问全成功且已结算的表数 */
+    uint32_t sent_packets;
+    uint32_t recv_packets;
+    uint32_t outstanding;  /* 本任务 mask 在途读 */
+    uint32_t settled_left; /* target 中尚未结算的表数 */
+    uint32_t exec_gen;     /* begin/重开时的全局执行序号，旧访问不结算新执行 */
+    uint64_t start_epoch_s;
+    uint64_t end_epoch_s;
+    uint8_t target[MAX_METERS / 8];   /* begin 快照：本执行的目标表 */
+    uint8_t visited[MAX_METERS / 8];  /* target 中本执行无需再访问的表（装载完或熔断按失败结算） */
+    uint8_t settled[MAX_METERS / 8];  /* target 中访问已结算的表 */
+    uint8_t succeeded[MAX_METERS / 8];/* target 中访问全成功且已计数的表 */
 } dcu_task_monitor_t;
 
 /**
@@ -52,6 +80,9 @@ typedef enum {
 
 typedef struct {
     uint32_t scheme_id;
+    /* 内容代际：由 poller 聚合根在 upsert 发现内容变化时递增，调用方传 0 即可。
+     * 与 scheme_id 一起标识一次执行读取的方案版本，旧 served 位图不得跨版本复用。 */
+    uint32_t content_gen;
     dcu_scheme_type_t type;
     union {
         struct {
@@ -143,21 +174,23 @@ typedef struct {
 
 // === [Consumer-Defined Interfaces] ===
 // 1. 数据持久化接口
-
+//
+// device_id 必须是稳定的设备身份 slot_id，不是可复用的档案下标。
 typedef struct {
     void* ctx;
-    int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t meter_idx, uint32_t tag_id,
+    int (*record_telemetry)(void* ctx, const char* meter_addr, uint32_t device_id, uint32_t tag_id,
                             double val);
     int (*commit_batch)(void* ctx);
 } poller_sink_ops_t;
 
 // 2. 实时数据总线接口
-
+//
+// 同上，device_id 是提交时的 slot_id；发布路径不得在回调时刻反查档案下标。
 typedef struct {
     void* ctx;
-    int (*publish_realtime)(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
+    int (*publish_realtime)(void* ctx, uint32_t tag_id, uint32_t device_id, double val,
                             uint64_t timestamp_ns);
-    int (*push_event)(void* ctx, uint32_t tag_id, uint32_t meter_idx, double val,
+    int (*push_event)(void* ctx, uint32_t tag_id, uint32_t device_id, double val,
                       uint64_t timestamp_ns);
 } poller_bus_ops_t;
 
@@ -172,8 +205,10 @@ typedef void (*poller_read_done_cb)(void* ud, int status, double value);
 typedef struct {
     void* ctx;
     /** @return 0=已受理（无论是否立即发出），非 0=提交失败，不会再有回调 */
-    int (*submit)(void* ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_done_cb cb, void* ud);
+    int (*submit)(void* ctx, uint32_t meter_idx, uint32_t tag_id, uint32_t task_mask,
+                  poller_read_done_cb cb, void* ud);
 } poller_source_ops_t;
+
 
 
 #include "driver_manager.h"
@@ -193,20 +228,53 @@ typedef struct {
      * 而且档案结构里还挂着待删除的 inject 指针，不该再往里塞东西。 */
     uint16_t task_mask;
     bool task_mask_set;
-    /* 注：S3 曾在这里放 done_mask/done_step 做"同一步去重"。链式模型下不需要——
-     * 游标每轮只访问每块表一次，在一次访问里把到期任务的项取并集，结构上就不会重复。 */
-    bool breaker_open;
+    uint8_t breaker_state;    /* DCU_BREAKER_CLOSED/OPEN/HALF_OPEN */
+    uint64_t breaker_since_ms;/* 最近一次状态迁移的单调时间 */
     bool tracked;
     bool tombstone; // 已退休：探测链必须跳过它，不能当作空槽终止
 } dcu_meter_poll_state_t;
 
 /**
+ * @brief 一次读的身份快照，回调只认它。
+ *
+ * address / device_id 在装载一次访问时冻结（档案随后可能删除/重排）；
+ * tag_id / task_mask / exec_seq 在每次提交这一项时写入。回调时刻按 meter_idx
+ * 反查实时档案会把 A 的读数写到顶替其下标的 B 名下。
+ */
+typedef struct {
+    char address[MAX_ADDR_LEN]; /* 表地址快照：落库归属，装载时冻结 */
+    uint32_t tag_id;            /* 本次提交的项 */
+    uint32_t task_mask;         /* 本项归属的 6035 任务位，提交时写入 */
+    uint32_t device_id;         /* slot_id 快照：影子表/实时发布的设备身份，装载时冻结 */
+    uint32_t exec_seq;          /* 提交时的执行代际：旧访问不结算新执行 */
+} dcu_read_ctx_t;
+
+/**
+ * @brief 一次执行的配置身份：任务配置、方案内容代际与执行代际共同界定 served 与失败记录。
+ *
+ * 装载、失败记账、结算都按它比较；任一分量变化都意味着旧 served 位图和旧失败
+ * 不再属于本次执行。exec_gen 在 begin/重开时递增；scheme_id/item_mask 由任务
+ * upsert 写入（6012 只改 scheme_id，item_mask 恒写 0）；scheme_gen 是方案内容
+ * 代际，upsert_scheme 在原 scheme_id 下换内容时递增并重开引用该方案的 ACTIVE
+ * 任务，旧 served 位图因此不会被新 csd_list 按下标解释。
+ */
+typedef struct {
+    uint32_t exec_gen;   /* 全局执行序号：任务每次 begin/重开递增 */
+    uint32_t scheme_id;  /* 执行开始时冻结的任务配置 */
+    uint32_t scheme_gen; /* 引用方案的内容代际；方案缺失为 0 */
+    uint32_t item_mask;  /* 0 = 全部 CSD */
+} dcu_exec_ident_t;
+
+/**
  * @brief 一条物理通道的提交链。
  *
  * 调度状态只有游标和一个自计数，没有队列、没有 in-flight 表：
- *   - 游标扫一圈 = 一个窗口（round），窗口内每块表只被访问一次；
+ *   - 游标扫一圈 = 一个窗口（round）；一块表的一次访问最多装 MAX_SCHEME_OADS 个 tag，
+ *     任务并集超容量时对同一块表连续分批，直到所有合格任务装载完或按失败结算；
  *   - outstanding 只约束"我给 arbiter 塞了几个"，通道忙不忙由 arbiter 判；
- *   - pending_tags 是本次访问要抄的项（已按 tag_id 去重），逐个提交。
+ *   - pending_tags 是本批要抄的项（按 tag_id 去重），逐个提交；跨批去重靠每任务的
+ *     served 位图。
+ * 在途读固定最多 1：链只保留一份 read 快照，多份在途需要按并发度扩成槽位数组。
  */
 typedef struct {
     void*    owner;                  // 回指 dcu_poller_t（回调里要用）
@@ -214,10 +282,17 @@ typedef struct {
     uint16_t cursor;                 // 下一块要看的表（档案下标）
     uint32_t round;                  // 本通道窗口号（扫完一圈 +1）
     uint8_t  outstanding;            // 已提交未回调的数量（自计数）
-    uint8_t  depth;                  // 允许并发，串口半双工默认 1
     uint32_t meter_idx;              // 本次访问的表
-    uint32_t inflight_tag;           // 在途那一项的 tag
-    uint32_t pending_tags[MAX_SCHEME_OADS]; // 本次访问要抄的项（按 tag 去重后）
+    char     visit_address[MAX_ADDR_LEN]; // 本次访问的表地址快照（熔断/统计归属）
+    dcu_read_ctx_t read;             // 在途读的身份快照：address/slot 装载时冻结，tag/mask/exec 每项提交时写入；回调只认它
+    uint32_t pending_tags[MAX_SCHEME_OADS]; // 本批要抄的项（按 tag 去重后）
+    uint32_t pending_masks[MAX_SCHEME_OADS]; // 每项归属的执行中任务位
+    /* 同一块表一次执行内按容量分批时，每任务已装载过的方案项位：
+     * 位 i = scheme->csd_list[i]（方案口径 MAX_SCHEME_OADS=32 项）。 */
+    uint32_t served[MAX_TASKS];
+    dcu_exec_ident_t served_ident[MAX_TASKS];  // served[] 归属的执行身份；身份变化先清零
+    dcu_exec_ident_t fail_ident[MAX_TASKS];  // 本表本执行最近一次失败所属的执行身份
+    uint32_t visit_exec_seq;                  // 本次访问装载时的全局执行序号
     uint8_t  pending_n;
     uint8_t  pending_i;
     uint16_t visit_ok;               // 本次访问成功项数
@@ -254,6 +329,11 @@ typedef struct {
     uint16_t ch_tracked[DCU_MAX_CHANNELS];
     uint16_t ch_broken[DCU_MAX_CHANNELS];
 
+    /* 6040/6041/6042 的墙钟纪元（秒）；0 = 本进程还没发生过。 */
+    uint64_t last_task_start_epoch_s;
+    uint64_t last_success_epoch_s;
+    uint64_t last_store_epoch_s;
+
     dcu_meter_poll_state_t meter_poll_state[METER_TABLE_CAP];
     uint32_t state_gen;     // 档案变更代际
     uint32_t last_inv_rev;  // 上次 GC 时的档案版本号
@@ -266,6 +346,8 @@ typedef struct {
     /* 每步快照"哪些任务到期"。edge_periodic_clock_check 会推进时钟，
      * 必须每步只问一次——在链里对每块表各问一次的话，第二块表就被判成"未到期"。 */
     bool task_due[MAX_TASKS];
+    uint32_t exec_seq; /* 全局执行序号：begin/重开递增，访问记录装载时的值 */
+    uint32_t scheme_gen_seq; /* 方案内容代际序号：upsert/add 写入 dcu_scheme_t.content_gen */
 } dcu_poller_t;
 
 int dcu_poller_init(dcu_poller_t* poller);
@@ -277,6 +359,7 @@ int dcu_poller_add_task(dcu_poller_t* poller, uint32_t task_id, uint32_t interva
  *
  * @param item_mask 位 i = scheme->csd_list[i]；传 0 等价于 add_task（全部项）。
  *                  位宽 32 与 MAX_SCHEME_OADS 对齐。
+ * 新增任务不改动已 ACTIVE 任务的执行；新任务按自己的 begin/due 开始。
  */
 int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t interval_s,
                            uint32_t scheme_id, uint32_t item_mask);
@@ -286,7 +369,8 @@ int dcu_poller_add_task_ex(dcu_poller_t* poller, uint32_t task_id, uint32_t inte
  */
 int dcu_task_interval_seconds(uint8_t unit, uint16_t value, uint32_t* out_seconds);
 
-/** @brief 按 task_id 增/改一条任务；周期变化才重置时钟，其余运行态保留。 */
+/** @brief 按 task_id 增/改一条任务；周期变化才重置时钟。scheme_id/item_mask 变化
+ * 只重开被改任务自己的 ACTIVE 执行（重快照、作废本轮），其它任务与在途访问不受影响。 */
 int dcu_poller_upsert_task(dcu_poller_t* poller, const dcu_task_unit_t* task);
 
 /** @brief 删除任务：槽位置 FREE，不压缩，避免 task_mask 位改指别的任务。 */
@@ -318,7 +402,9 @@ int dcu_poller_add_scheme(dcu_poller_t* poller, uint32_t scheme_id, uint8_t mode
                           const uint32_t* csds, uint16_t csd_count);
 dcu_scheme_t* dcu_poller_get_scheme(dcu_poller_t* poller, uint32_t scheme_id);
 
-/** @brief 按 scheme_id 增/改一个方案；表满返回 -1。 */
+/** @brief 按 scheme_id 增/改一个方案；表满返回 -1。
+ *  同 id 内容变化时递增内容代际并重开引用该方案的 ACTIVE 任务（只重开引用者），
+ *  旧 served 位图随旧执行身份作废；内容相同不重开。 */
 int dcu_poller_upsert_scheme(dcu_poller_t* poller, const dcu_scheme_t* scheme);
 
 /** @brief 删除方案并压缩数组（方案槽位不是外部身份，任务只认 scheme_id）。 */
@@ -342,6 +428,20 @@ void dcu_poller_pump(dcu_poller_t* poller, dcu_inventory_t* inv);
  * @brief 异步分步推进轮询调度 (消除 libuv 事件循环长时间阻塞)
  */
 int dcu_poller_step(dcu_poller_t* poller, dcu_inventory_t* inv, uint32_t max_meters_per_step);
+
+/* 60xx 时标来源：真实任务到期/采集成功/落库时刻的墙钟纪元；0 = 从未发生。 */
+uint64_t dcu_poller_last_task_start_epoch(const dcu_poller_t* poller);
+uint64_t dcu_poller_last_success_epoch(const dcu_poller_t* poller);
+uint64_t dcu_poller_last_store_epoch(const dcu_poller_t* poller);
+/* 任务级收发计数：数据源在每次真实提交/收到响应时调用；只统计执行中的任务。 */
+void dcu_poller_note_tx(dcu_poller_t* poller, uint32_t task_mask);
+void dcu_poller_note_rx(dcu_poller_t* poller, uint32_t task_mask);
+
+/* 6034/6035 读取：按 task_id 升序；0 = 成功，-1 = 不存在。 */
+int dcu_poller_task_monitor_count(const dcu_poller_t* poller);
+int dcu_poller_task_monitor_at(const dcu_poller_t* poller, int pos, dcu_task_monitor_t* out);
+int dcu_poller_task_monitor_get(const dcu_poller_t* poller, uint32_t task_id,
+                                dcu_task_monitor_t* out);
 
 /**
  * @brief 设置特定物理通道的调度与熔断策略 (AEP-401)

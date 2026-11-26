@@ -195,24 +195,28 @@ static int _sqlite_driver_snf_dequeue(storage_driver_t *drv, void *out_msg_ptr) 
     if (!db) return -1;
 
     sqlite3_stmt *stmt = NULL;
-    const char *sql = "SELECT ts, tag_id, val, q FROM telemetry WHERE synced = 0 ORDER BY ts ASC LIMIT 1;";
+    const char *sql =
+        "SELECT wall_ts_us, ts, tag_id, val, q FROM telemetry WHERE synced = 0 "
+        "ORDER BY wall_ts_us ASC, tag_id ASC LIMIT 1;";
     if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         return -1;
     }
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
+        uint64_t wall_ts_us = (uint64_t)sqlite3_column_int64(stmt, 0);
         PipeMsg *msg = (PipeMsg *)out_msg_ptr;
         memset(msg, 0, sizeof(PipeMsg));
-        msg->ts = (uint64_t)sqlite3_column_int64(stmt, 0);
-        msg->tag_id = (uint32_t)sqlite3_column_int(stmt, 1);
-        msg->payload.val.f = (float)sqlite3_column_double(stmt, 2);
-        msg->quality = (uint8_t)sqlite3_column_int(stmt, 3);
+        msg->ts = (uint64_t)sqlite3_column_int64(stmt, 1);
+        msg->tag_id = (uint32_t)sqlite3_column_int(stmt, 2);
+        msg->payload.val.f = (float)sqlite3_column_double(stmt, 3);
+        msg->quality = (uint8_t)sqlite3_column_int(stmt, 4);
         msg->type = PIPEMSG_TYPE_SCALAR;
         sqlite3_finalize(stmt);
 
-        char update_sql[128];
-        snprintf(update_sql, sizeof(update_sql), "UPDATE telemetry SET synced = 1 WHERE ts = %llu AND tag_id = %u;",
-                 (unsigned long long)msg->ts, msg->tag_id);
+        char update_sql[160];
+        snprintf(update_sql, sizeof(update_sql),
+                 "UPDATE telemetry SET synced = 1 WHERE wall_ts_us = %llu AND tag_id = %u;",
+                 (unsigned long long)wall_ts_us, msg->tag_id);
         sqlite3_exec(db, update_sql, NULL, NULL, NULL);
         return 0;
     }

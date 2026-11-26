@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lc_cfg_or_lc_user_cfg",
+  "description": "P6-04a round 1. Covers lc/lc_cfg.json (flat object) and lc_devs/LCx/lc_user_cfg.json (point override array). Converted array-root output uses the {schema_version, config} envelope enforced by config_schema.py.",
+  "x-schema-version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "EnBmsAlarm": {
+          "type": "integer"
+        },
+        "EnProtectDOD": {
+          "type": "integer"
+        },
+        "BmsPowerLimit": {
+          "type": "integer"
+        },
+        "PcsAutoTurn": {
+          "type": "integer"
+        },
+        "PcsAutoTurnOffTime": {
+          "type": "integer"
+        },
+        "EnIoProtect": {
+          "type": "integer"
+        },
+        "SOCmax": {
+          "type": "integer"
+        },
+        "SOCmin": {
+          "type": "integer"
+        },
+        "PowerLimit": {
+          "type": "integer"
+        },
+        "TMSCtrlTempCold": {
+          "type": "integer"
+        },
+        "TMSCtrlTempHot": {
+          "type": "integer"
+        },
+        "TMSCtrlState": {
+          "type": "integer"
+        },
+        "AirCondStartStopCtrl": {
+          "type": "integer"
+        },
+        "singleMaxVoltage": {
+          "type": "number"
+        },
+        "singleMinVoltage": {
+          "type": "number"
+        },
+        "enSingleVoltage": {
+          "type": "integer"
+        },
+        "singleMaxVoltageErr": {
+          "type": "number"
+        },
+        "singleMinVoltageErr": {
+          "type": "number"
+        },
+        "SOCminErr": {
+          "type": "integer"
+        },
+        "SOCmaxErr": {
+          "type": "integer"
+        },
+        "EnDraughtFanPower": {
+          "type": "integer"
+        },
+        "DFanPowerThreShold": {
+          "type": "integer"
+        },
+        "EnDraughtFanTem": {
+          "type": "integer"
+        },
+        "DFanTemThreShold": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "name"
+            ],
+            "properties": {
+              "type": {
+                "type": "integer",
+                "const": 0
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^.+$"
+              },
+              "int_value": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "name"
+            ],
+            "properties": {
+              "type": {
+                "type": "integer",
+                "const": 1
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^.+$"
+              },
+              "double_value": {
+                "type": "number"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+=== D0-16 TESTS (2026-11-24T06:06:24Z) ===
+--- poller unit ---
+[ RUN      ] test_channels_progress_independently
+[       OK ] test_channels_progress_independently
+[ RUN      ] test_gc_retires_deleted_meter
+[       OK ] test_gc_retires_deleted_meter
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+--- ctest -R 'dcu|poller|dlt698' ---
+100% tests passed, 0 tests failed out of 44
+
+Total Test time (real) =  63.03 sec
+--- ASAN detect_leaks=1 ---
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.09 sec
+--- gates ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 110/110 passed (100% sensitivity)

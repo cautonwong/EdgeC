@@ -12,7 +12,9 @@ import os
 import re
 import sys
 
-SKIP_DIRS = {".git", "build", "build-asan", "third_party", "vendor", "node_modules"}
+from c_source_scan import SHARED_PRUNE_DIRS, rel_scan_parts
+
+SKIP_DIRS = {".git", "build", "build-asan", "third_party", "vendor", "node_modules"} | SHARED_PRUNE_DIRS
 ALLOWED = {"0", "timeout_ms"}
 DEFINITION_PREFIX = re.compile(r"net_buf_t\s*\*+\s*$")
 
@@ -55,10 +57,9 @@ def split_args(raw):
 
 def scan(root):
     violations = []
-    inside_fixtures = os.path.join("tests", "guards", "fixtures") in root
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
-        if not inside_fixtures and os.path.join("tests", "guards", "fixtures") in dirpath:
+        if "fixtures" in rel_scan_parts(dirpath, root):
             continue
         for name in filenames:
             if not name.endswith((".c", ".h")):

@@ -1,0 +1,1521 @@
+[1/1249] Installing web workspace dependencies (once)...
+[2/1249] Generating src_generated/open62541/statuscodes.h, src_generated/open62541/statuscodes.c
+[3/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/iec_cp56time.c.o
+[4/1249] Generating src_generated/open62541/nodeids.h
+[5/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/simd_cdd_codec.c.o
+[6/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/multibus_bridge.c.o
+[7/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/edge_tlv.c.o
+[8/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/edge_app_root.c.o
+[9/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/edge_launcher_spec.c.o
+[10/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/contract_registry.c.o
+[11/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/edge_wasm_imports.c.o
+[12/1249] Building C object foundation/CMakeFiles/edge_foundation.dir/src/edge_thread_port.c.o
+[13/1249] Building C object foundation/CMakeFiles/edge_log.dir/src/edge_log.c.o
+[14/1249] Linking C static library foundation/libedge_log.a
+[15/1249] Linking C static library foundation/libedge_foundation.a
+[16/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/peak_shaving.c.o
+[17/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/control_algo.c.o
+[18/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/radar_algo.c.o
+[19/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/motor_algo.c.o
+[20/1249] Generating src_generated/open62541/transport_generated.c, src_generated/open62541/transport_generated.h
+[21/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/fmcw_dsp_neon.c.o
+[22/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/linalg_gsl.c.o
+[23/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/windowing.c.o
+[24/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/quat_math.c.o
+[25/1249] Building C object foundation/CMakeFiles/edge_math.dir/src/math/dsp_algo.c.o
+[26/1249] Building C object foundation/CMakeFiles/edge_crypto.dir/src/hal_crypto.c.o
+[27/1249] Building C object foundation/CMakeFiles/edge_netbuf.dir/src/net_buf.c.o
+[28/1249] Linking C static library foundation/libedge_math.a
+[29/1249] Linking C static library foundation/libedge_crypto.a
+[30/1249] Linking C static library foundation/libedge_netbuf.a
+[31/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/can_codec.c.o
+[32/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+[33/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt645_codec.c.o
+[34/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/ipc_binary_flow_codec.c.o
+[35/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/ydt1363_codec.c.o
+[36/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol_converter.c.o
+[37/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/edge_uns_engine.c.o
+[38/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/modbus_codec.c.o
+[39/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlms_codec.c.o
+[40/1249] Generating src_generated/open62541/types_generated.c, src_generated/open62541/types_generated.h
+[41/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlms_cosem.c.o
+[42/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlms_gbt.c.o
+[43/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlms_hdlc.c.o
+[44/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlms_security.c.o
+[45/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/iec_asdu_codec.c.o
+[46/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/iec104_apci.c.o
+[47/1249] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/iec101_link.c.o
+[48/1249] Linking C static library foundation/libedge_codec.a
+[49/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_version.c.o
+[50/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/shmring.c.o
+[51/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/datahub.c.o
+[52/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/datahub_shm.c.o
+[53/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/datahub_router.c.o
+[54/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/arbiter.c.o
+[55/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_params.c.o
+[56/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_os_zephyr.c.o
+[57/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_service.c.o
+[58/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_mesh.c.o
+[59/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/timesync.c.o
+[60/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/shm_waitset.c.o
+[61/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/thermal_throttle.c.o
+[62/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_metrics.c.o
+[63/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/device_twin.c.o
+[64/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/wasm_host_bridge.c.o
+[65/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_sched_deadline.c.o
+[66/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_pcp_mutex.c.o
+[67/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_edf_scheduler.c.o
+[68/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_rms_scheduler.c.o
+[69/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_cpu_affinity.c.o
+[70/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_prio_booster.c.o
+[71/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_coop_guard.c.o
+[72/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_mixed_criticality.c.o
+[73/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_fd_ipc.c.o
+[74/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_ebpf_telemetry.c.o
+[75/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_tmr_voter.c.o
+[76/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_thermal_scheduler.c.o
+[77/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_amp_ipc.c.o
+[78/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_swarm_offload.c.o
+[79/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_awq_gptq_gemm.c.o
+[80/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_dynamic_tensor_pool.c.o
+[81/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_fast_gemm.c.o
+[82/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_graph_pruner.c.o
+[83/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_hetero_pipeline.c.o
+[84/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_pinn_evaluator.c.o
+[85/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_quant_calibrator.c.o
+[86/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_slm_kv_cache.c.o
+[87/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_balancer.c.o
+[88/1249] Building C object modules/edge_ai/CMakeFiles/edge_ai.dir/src/ai_temporal_fault_net.c.o
+[89/1249] Building C object modules/edge_core/CMakeFiles/edge_core.dir/src/edge_periodic_clock.c.o
+[90/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_eis.c.o
+[91/1249] Linking C static library modules/edge_ai/libedge_ai.a
+[92/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_fo_ecm_ekf.c.o
+[93/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_gas_early_warning.c.o
+[94/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_pulse_heating.c.o
+[95/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_micro_isc.c.o
+[96/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_soh_fusion.c.o
+[97/1249] Linking C static library modules/edge_core/libedge_core.a
+[98/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_sop_dynamic_bounds.c.o
+[99/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_strategy.c.o
+[100/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_spatial_matrix.c.o
+[101/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_thermal_pinn.c.o
+[102/1249] Building C object modules/edge_battery/CMakeFiles/edge_battery.dir/src/battery_thermal_mesh.c.o
+[103/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/fall_detection.c.o
+[104/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/emg_dsp.c.o
+[105/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/motion_wavelet.c.o
+[106/1249] Linking C static library modules/edge_battery/libedge_battery.a
+[107/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/hrv_analyzer.c.o
+[108/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/ppg_spo2.c.o
+[109/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/rehab_kinematics.c.o
+[110/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/ecg_arrhythmia.c.o
+[111/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/tremor_analyzer.c.o
+[112/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/gait_balance.c.o
+[113/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/bia_estimator.c.o
+[114/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/apnea_detector.c.o
+[115/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/dicom_parser.c.o
+[116/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/gait_safety.c.o
+[117/1249] Building C object modules/edge_health/CMakeFiles/edge_health.dir/src/impedance_control.c.o
+[118/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/facility_coordinator.c.o
+[119/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/edge_vsg_engine.c.o
+[120/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_circulating.c.o
+[121/1249] Linking C static library modules/edge_health/libedge_health.a
+[122/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_black_start.c.o
+[123/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_control.c.o
+[124/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_compute_tracking.c.o
+[125/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_frt.c.o
+[126/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_presync.c.o
+[127/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_sso.c.o
+[128/1249] Building C object modules/edge_power/CMakeFiles/edge_power.dir/src/vsg_virtual_z.c.o
+[129/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/algorithm_sum.c.o
+[130/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/edge_cep_engine.c.o
+[131/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/edge_operator_fusion.c.o
+[132/1249] Linking C static library modules/edge_power/libedge_power.a
+[133/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/edge_wasm_nn.c.o
+[134/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/federated_aggregator.c.o
+[135/1249] Building C object modules/edge_runtime/CMakeFiles/edge_runtime.dir/src/onnx_host_guard.c.o
+[136/1249] Linking C static library modules/edge_runtime/libedge_runtime.a
+[137/1249] Building C object modules/edge_infra_security/CMakeFiles/edge_infra_security.dir/src/edge_esam_driver.c.o
+[138/1249] Building C object modules/edge_infra_security/CMakeFiles/edge_infra_security.dir/src/edge_sos_dscp.c.o
+[139/1249] Building C object modules/edge_infra_security/CMakeFiles/edge_infra_security.dir/src/license_engine.c.o
+[140/1249] Building C object modules/edge_infra_security/CMakeFiles/edge_infra_security.dir/src/edge_guard_dpi.c.o
+[141/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/src/edge_infra_base.c.o
+[142/1249] Linking C static library modules/edge_infra_security/libedge_infra_security.a
+[143/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/src/edge_anti_corruption.c.o
+[144/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/storage/timeseries_compressor.c.o
+[145/1249] Generating src_generated/open62541/namespace0_generated.c, src_generated/open62541/namespace0_generated.h
+INFO:__main__:Preprocessing /tmp/iems-fix/arch-graph-wt/third-party/open62541/tools/schema/Opc.Ua.NodeSet2.Reduced.xml
+INFO:__main__:Preprocessing /tmp/iems-fix/arch-graph-wt/third-party/open62541/tools/schema/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml
+INFO:__main__:Preprocessing /tmp/iems-fix/arch-graph-wt/third-party/open62541/tools/schema/Opc.Ua.NodeSet2.EventsMinimal.xml
+INFO:__main__:Preprocessing /tmp/iems-fix/arch-graph-wt/third-party/open62541/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml
+INFO:__main__:Generating Code for Backend: open62541
+INFO:__main__:NodeSet generation code successfully printed
+[146/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/bus_dds/dds_topology_monitor.c.o
+[147/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_hal.c.o
+[148/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/storage/edge_telemetry_store.c.o
+[149/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src_generated/open62541/types_generated.c.o
+[150/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types_definition.c.o
+[151/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src_generated/open62541/transport_generated.c.o
+[152/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src_generated/open62541/statuscodes.c.o
+[153/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types_encoding_binary.c.o
+[154/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_types_lex.c.o
+[155/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_encryptedsecret.c.o
+[156/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_util.c.o
+[157/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types.c.o
+[158/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_securechannel.c.o
+[159/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_securechannel_crypto.c.o
+[160/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_session.c.o
+[161/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_nodes.c.o
+[162/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_ns0_diagnostics.c.o
+[163/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_ns0_gds.c.o
+[164/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_ns0.c.o
+[165/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server.c.o
+[166/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_config.c.o
+[167/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_utils.c.o
+[168/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_binary.c.o
+[169/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_server_async.c.o
+[170/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_subscription_datachange.c.o
+[171/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_subscription_alarms_conditions.c.o
+[172/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_subscription.c.o
+[173/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services.c.o
+[174/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_method.c.o
+[175/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_subscription_event.c.o
+[176/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_view.c.o
+[177/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_session.c.o
+[178/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_discovery.c.o
+[179/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_subscription.c.o
+[180/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_securechannel.c.o
+[181/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/libc_time.c.o
+[182/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/pcg_basic.c.o
+[183/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_monitoreditem.c.o
+[184/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/dtoa.c.o
+[185/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_attribute.c.o
+[186/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/base64.c.o
+[187/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/utf8.c.o
+[188/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/musl_inet_pton.c.o
+[189/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/ziptree.c.o
+[190/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/parse_num.c.o
+[191/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/itoa.c.o
+[192/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/mp_printf.c.o
+[193/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_services_nodemanagement.c.o
+[194/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client.c.o
+[195/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client_discovery.c.o
+[196/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client_connect.c.o
+[197/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client_util.c.o
+[198/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client_highlevel.c.o
+[199/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_eventfilter_parser.c.o
+[200/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/client/ua_client_subscriptions.c.o
+[201/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/cj5.c.o
+[202/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types_encoding_json.c.o
+[203/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_eventfilter_grammar.c.o
+[204/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/deps/yxml.c.o
+[205/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types_encoding_xml.c.o
+[206/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/ua_types_encoding_json_105.c.o
+[207/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/server/ua_discovery.c.o
+[208/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_log_stdout.c.o
+[209/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_accesscontrol_default.c.o
+[210/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src/util/ua_eventfilter_lex.c.o
+[211/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_nodestore_ziptree.c.o
+[212/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/crypto/ua_certificategroup_none.c.o
+[213/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_config_default.c.o
+[214/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/crypto/ua_securitypolicy_none.c.o
+[215/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/clock_posix.c.o
+[216/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/common/eventloop_common.c.o
+[217/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/common/timer.c.o
+[218/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/eventloop_posix.c.o
+[219/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/eventloop_posix_tcp.c.o
+[220/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/eventloop_posix_udp.c.o
+[221/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/eventloop_posix_interrupt.c.o
+[222/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/arch/posix/eventloop_posix_eth.c.o
+[223/1249] Building C object tests/CMakeFiles/test_dcu_698_var.dir/test_dcu_698_var.c.o
+[224/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_log_syslog.c.o
+[225/1249] Building C object tests/CMakeFiles/test_dcu_north_source.dir/test_dcu_north_source.c.o
+[226/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_ascend_acl.c.o
+[227/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_rockchip_rknn.c.o
+[228/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_horizon_bpu.c.o
+[229/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_nvidia_trt.c.o
+[230/1249] Building C object third-party/open62541/CMakeFiles/open62541-plugins.dir/plugins/ua_config_json.c.o
+[231/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_ti_sitara.c.o
+[232/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/dma_buf_pool.c.o
+[233/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_pmu.c.o
+[234/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_enclave.c.o
+[235/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_self_healing.c.o
+[236/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/npu/npu_power_manager.c.o
+[237/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/src/edge_bus_resilience.c.o
+[238/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/storage/sqlite_storage_driver.c.o
+[239/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/src/edge_time_trust.c.o
+[240/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/storage/sqlite_service.c.o
+[241/1249] Building C object modules/edge_security_policy/CMakeFiles/edge_security_policy.dir/src/edge_acl.c.o
+[242/1249] Linking C static library modules/edge_security_policy/libedge_security_policy.a
+[243/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/bus_mqtt/datahub_mqtt.c.o
+[244/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stream_engine.c.o
+[245/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/pipeline_loader.c.o
+[246/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stream_dump.c.o
+[247/1249] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/bus_dds/datahub_dds.c.o
+[248/1249] Linking C static library modules/edge_infra/libedge_infra.a
+[249/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/dsp_stages.c.o
+[250/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/aggregator.c.o
+[251/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/energy_integrator.c.o
+[252/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stream_sql_dag.c.o
+[253/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/script_loader.c.o
+[254/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/mpc_dispatcher.c.o
+[255/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/edge_tensor_pipeline.c.o
+[256/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_advanced_pid.c.o
+[257/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_ahrs_quaternion.c.o
+[258/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/standard_stages.c.o
+[259/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_anomaly_baseline.c.o
+[260/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_compactor.c.o
+[261/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_dsp_rms.c.o
+[262/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_ekf_soc.c.o
+[263/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_ecg_anomaly.c.o
+[264/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_foc_core.c.o
+[265/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_iir_filter.c.o
+[266/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_kinematics.c.o
+[267/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_mpc_dispatcher.c.o
+[268/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_linear_system.c.o
+[269/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_notch_filter.c.o
+[270/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_rul_prediction.c.o
+[271/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_radar_tracker.c.o
+[272/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_sensor_fusion.c.o
+[273/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_tinyml_wasm.c.o
+[274/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_sliding_window.c.o
+[275/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_transfer_function.c.o
+[276/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_vibration_features.c.o
+[277/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_vpp_logger.c.o
+[278/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_wasm.c.o
+[279/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/stage_wavelet_anomaly.c.o
+[280/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/js_stage.c.o
+[281/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/js_engine.c.o
+[282/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/wasm_runtime/wasm_sandbox_watchdog.c.o
+[283/1249] Building C object adapters/stream_algo/CMakeFiles/edge_algo_stream.dir/src/edge_algo_stream_adapter.c.o
+[284/1249] Linking C static library adapters/stream_algo/libedge_algo_stream.a
+[285/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/wasm_runtime/wasm_app_scheduler.c.o
+[286/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/adc_driver.c.o
+[287/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/north_driver_adapter.c.o
+[288/1249] Building C object modules/edge_stream/CMakeFiles/edge_stream.dir/src/wasm_runtime/wasm_mgr.c.o
+[289/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_can.c.o
+[290/1249] Linking C static library modules/edge_stream/libedge_stream.a
+[291/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_ccsds.c.o
+[292/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_cia402.c.o
+[293/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_dlms.c.o
+[294/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_dlt645.c.o
+[295/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_hotplug.c.o
+[296/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_dlt698.c.o
+[297/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_hl7_fhir.c.o
+[298/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_manager.c.o
+[299/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_iec101.c.o
+[300/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_iec104.c.o
+[301/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_mqtt_json.c.o
+[302/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_radar_fmcw.c.o
+[303/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_sparkplug_b.c.o
+[304/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/driver_ydt1363.c.o
+[305/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/modbus_rtu_driver.c.o
+[306/1249] Building C object adapters/io_drivers/CMakeFiles/edge_io_drivers.dir/src/modbus_tcp_driver.c.o
+[307/1249] Building C object adapters/linux_platform/CMakeFiles/edge_linux_platform.dir/src/edge_tsn_engine.c.o
+[308/1249] Linking C static library adapters/io_drivers/libedge_io_drivers.a
+[309/1249] Building C object adapters/linux_platform/CMakeFiles/edge_linux_platform.dir/src/edge_bsp_hal.c.o
+[310/1249] Building C object adapters/linux_platform/CMakeFiles/edge_linux_platform.dir/src/edge_launcher_client.c.o
+[311/1249] Building C object modules/edge_session/CMakeFiles/edge_session.dir/src/session_manager.c.o
+[312/1249] Building C object adapters/linux_platform/CMakeFiles/edge_linux_platform.dir/src/io_executor_linux.c.o
+[313/1249] Linking C static library modules/edge_session/libedge_session.a
+[314/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/guard_port.c.o
+[315/1249] Building C object adapters/linux_platform/CMakeFiles/edge_linux_platform.dir/src/thread_port_uv.c.o
+[316/1249] Linking C static library adapters/linux_platform/libedge_linux_platform.a
+[317/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/bus_orchestrator.c.o
+[318/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/ws_proto.c.o
+[319/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/passthrough_mgr.c.o
+[320/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/protocol_bridge.c.o
+[321/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/engines/master_engine.c.o
+[322/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/engines/slave_engine.c.o
+[323/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/requests/req_driver_legacy.c.o
+[324/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/requests/req_raw_io.c.o
+[325/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/sched_engine.c.o
+[326/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/sched_port.c.o
+[327/1249] Building C object modules/edge_api/CMakeFiles/edge_api.dir/src/edge_api.c.o
+[328/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/rest_server.c.o
+[329/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/rest_system.c.o
+[330/1249] Building C object modules/edge_io/CMakeFiles/edge_io.dir/src/engines/opcua_engine.c.o
+In file included from /tmp/iems-fix/arch-graph-wt/third-party/open62541/include/open62541/types.h:21,
+                 from /tmp/iems-fix/arch-graph-wt/third-party/open62541/include/open62541/client.h:23,
+                 from /tmp/iems-fix/arch-graph-wt/modules/edge_io/src/engines/opcua_engine.c:3:
+/tmp/iems-fix/arch-graph-wt/build/third-party/open62541/src_generated/open62541/config.h: In function 'UA_LOCK_ASSERT':
+/tmp/iems-fix/arch-graph-wt/build/third-party/open62541/src_generated/open62541/config.h:505:25: warning: unused parameter 'lock' [-Wunused-parameter]
+  505 | UA_LOCK_ASSERT(UA_Lock *lock) {
+      |                ~~~~~~~~~^~~~
+[331/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/rest_apps_package.c.o
+[332/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/rest_apps_settings.c.o
+[333/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/rest_uds_server.c.o
+[334/1249] Building C object adapters/rest_api/CMakeFiles/edge_rest_api.dir/src/web_server.c.o
+[335/1249] Building C object modules/edge_north/CMakeFiles/edge_north.dir/src/northbound_mgr.c.o
+[336/1249] Building C object modules/edge_north/CMakeFiles/edge_north.dir/src/north_ipc.c.o
+[337/1249] Building C object modules/edge_north/CMakeFiles/edge_north.dir/src/snf_manager.c.o
+[338/1249] Linking C static library modules/edge_north/libedge_north.a
+[339/1249] Building C object adapters/mqtt_transport/CMakeFiles/mqtt_transport.dir/src/mqtt_producer.c.o
+[340/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/api/console_ws.c.o
+[341/1249] Building C object adapters/mqtt_transport/CMakeFiles/mqtt_transport.dir/src/edge_agent.c.o
+[342/1249] Linking C static library adapters/mqtt_transport/libmqtt_transport.a
+[343/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/api/sniffer_ws.c.o
+[344/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/auth/console_rbac.c.o
+[345/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/audit/console_audit.c.o
+[346/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_upgrade_grants.c.o
+[347/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_manifest.c.o
+[348/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/edge_app_mgr.c.o
+[349/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/edge_authz.c.o
+[350/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_settings.c.o
+[351/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_secret.c.o
+[352/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_pressure.c.o
+[353/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/edge_eapp.c.o
+[354/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_task.c.o
+[355/1249] Building C object modules/edge_app_host/CMakeFiles/edge_app_host.dir/src/app_host_server.c.o
+[356/1249] Building C object modules/edge_mcp/CMakeFiles/edge_mcp.dir/src/edge_mcp_dispatcher.c.o
+[357/1249] Linking C static library modules/edge_app_host/libedge_app_host.a
+[358/1249] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/point_history.c.o
+[359/1249] Building C object modules/edge_mcp/CMakeFiles/edge_mcp.dir/src/edge_mcp_bus.c.o
+[360/1249] Building C object modules/edge_mcp/CMakeFiles/edge_mcp.dir/src/transport/mcp_stdio.c.o
+[361/1249] Building C object modules/edge_mcp/CMakeFiles/edge_mcp.dir/src/transport/mcp_ws.c.o
+[362/1249] Building C object modules/edge_mcp/CMakeFiles/edge_mcp.dir/src/transport/mcp_uds.c.o
+[363/1249] Linking C static library modules/edge_mgmt/libedge_mgmt.a
+[364/1249] Linking C static library modules/edge_mcp/libedge_mcp.a
+[365/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/stream_bus_datahub_adapter.c.o
+[366/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/protocol_bridge_datahub_adapter.c.o
+[367/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/north_source_datahub_adapter.c.o
+[368/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/radar_datahub_adapter.c.o
+[369/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/adc_datahub_adapter.c.o
+[370/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/js_arbiter_service_adapter.c.o
+[371/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/bus_datahub_adapter.c.o
+[372/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/edge_mcp_datahub_adapter.c.o
+[373/1249] Building C object adapters/datahub_bridges/CMakeFiles/edge_datahub_bridges.dir/src/datahub_write_adapter.c.o
+[374/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/app_repo_sqlite.c.o
+[375/1249] Building C object adapters/edge_ports/CMakeFiles/edge_port_adapters.dir/src/edge_port_adapters.c.o
+[376/1249] Linking C static library adapters/edge_ports/libedge_port_adapters.a
+[377/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/app_points_sqlite.c.o
+[378/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/app_settings_sqlite.c.o
+[379/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_authz_sqlite.c.o
+[380/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/stream_sqlite_adapter.c.o
+[381/1249] Building C object tests/CMakeFiles/test_dcu_698_archive.dir/test_dcu_698_archive.c.o
+[382/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/snf_sqlite_adapter.c.o
+[383/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_params_sqlite_adapter.c.o
+[384/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_secret_sqlite.c.o
+[385/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_app_task_sqlite.c.o
+[386/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_registry_snapshot.c.o
+[387/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_backup.c.o
+[388/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_tar.c.o
+[389/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_app_export.c.o
+[390/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/history_bundle.c.o
+[391/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/edge_digest.c.o
+[392/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/alarm_history_migration.c.o
+[393/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/alarm_history_sqlite.c.o
+[394/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/snapshot_csv_adapter.c.o
+[395/1249] Building C object adapters/sqlite_adapters/CMakeFiles/edge_sqlite_adapters.dir/src/persistence_mgr.c.o
+[396/1249] Building C object modules/edge_bootstrap/CMakeFiles/edge_bootstrap.dir/src/edge_driver_runtime.c.o
+[397/1249] Linking C static library adapters/sqlite_adapters/libedge_sqlite_adapters.a
+[398/1249] Building C object modules/edge_bootstrap/CMakeFiles/edge_bootstrap.dir/src/edge_composition_root.c.o
+[399/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_power_quality.c.o
+[400/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_transformer.c.o
+[401/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_tou.c.o
+[402/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_interlock.c.o
+[403/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_microservices.c.o
+[404/1249] Building C object adapters/mcp_industry/CMakeFiles/edge_mcp_industry.dir/src/mcp_tools_registration.c.o
+[405/1249] Linking C static library adapters/mcp_industry/libedge_mcp_industry.a
+[406/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_five_safety_interlock.c.o
+[407/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_thermal_aging.c.o
+[408/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_node.c.o
+[409/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_driver_adapter.c.o
+[410/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_hw_io_adapter.c.o
+[411/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_north_adapter.c.o
+[412/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_peripheral_adapter.c.o
+[413/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_uds_ipc.c.o
+[414/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_bess_aggregate.c.o
+[415/1249] Building C object cmd/smart_box/CMakeFiles/smartbox_app_lib.dir/smartbox_ble_adapter.c.o
+[416/1249] Building C object cmd/iems/CMakeFiles/iems_vendor.dir/vendor/iems_vendor_semantics.c.o
+[417/1249] Building C object cmd/iems/CMakeFiles/iems_vendor.dir/vendor/iems_vendor_pcs_a.c.o
+[418/1249] Building C object cmd/iems/CMakeFiles/iems_vendor.dir/vendor/iems_vendor_pcs_b.c.o
+[419/1249] Building C object cmd/iems/CMakeFiles/iems_vendor.dir/vendor/iems_vendor_nonpcs.c.o
+[420/1249] Linking C static library cmd/iems/libiems_vendor.a
+[421/1249] Building C object cmd/iems/CMakeFiles/iems_points.dir/points/iems_point_model.c.o
+[422/1249] Linking C static library cmd/iems/libiems_points.a
+[423/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_node.c.o
+[424/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_app_manager_adapter.c.o
+[425/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_app.c.o
+[426/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_wal_start.c.o
+[427/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_app_host_ports.c.o
+[428/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_app_runtime.c.o
+[429/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_pressure_adapter.c.o
+[430/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_execution_adapter.c.o
+[431/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_north_adapter.c.o
+[432/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_microgrid_coordinator.c.o
+[433/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_driver_adapter.c.o
+[434/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_pcs_controller.c.o
+[435/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_bms_cluster_engine.c.o
+[436/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_multi_pcs_dispatcher.c.o
+[437/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_fire_safety_interlock.c.o
+[438/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_commissioning_tool.c.o
+[439/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_poll_scheduler.c.o
+[440/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_task_loader.c.o
+[441/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_southbound_adapter.c.o
+[442/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_tcp_link.c.o
+[443/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_internal_bus_adapter.c.o
+[444/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_ui_channel.c.o
+[445/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_north_listener.c.o
+[446/1249] Building C object cmd/iems/CMakeFiles/iems_app_lib.dir/iems_north_iec104.c.o
+[447/1249] Building C object cmd/iems/CMakeFiles/iems-cli.dir/iems_cli.c.o
+[448/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_poller.c.o
+[449/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_bus_source.c.o
+[450/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_inventory.c.o
+[451/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_task_store.c.o
+[452/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_storage.c.o
+[453/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_scheme_store.c.o
+[454/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_report_scheme_store.c.o
+[455/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_rules.c.o
+[456/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_rule_store.c.o
+[457/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_object_model.c.o
+[458/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_acq.c.o
+[459/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_event.c.o
+[460/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_control.c.o
+[461/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_security.c.o
+[462/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_axdr.c.o
+[463/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_scheme_axdr.c.o
+[464/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_param.c.o
+[465/1249] Building C object tests/CMakeFiles/test_dcu_698_value_table.dir/test_dcu_698_value_table.c.o
+[466/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_clock_port.c.o
+[467/1249] Building Web UI for smart_box...
+
+> edgeos-smart-box-ui@1.0.0 build
+> vite build
+
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 23 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                             0.43 kB │ gzip:  0.32 kB
+dist/assets/noto-emoji-1-CZSVBhxc.woff2     4.66 kB
+dist/assets/noto-emoji-0-Cm6SX98Y.woff2     5.18 kB
+dist/assets/edge-mono-400-V6pRDFza.woff2   21.16 kB
+dist/assets/edge-mono-600-C8RAYTDA.woff2   21.86 kB
+dist/assets/noto-emoji-2-DsyeskL9.woff2    33.85 kB
+dist/assets/noto-emoji-4-D1YLMdXR.woff2    48.26 kB
+dist/assets/noto-emoji-5-ikj0hddf.woff2    51.15 kB
+dist/assets/noto-emoji-6-DC-aesWy.woff2    52.94 kB
+dist/assets/noto-emoji-8-CSW1I2kC.woff2    64.13 kB
+dist/assets/noto-emoji-9-DUPZFmkX.woff2    69.66 kB
+dist/assets/noto-emoji-3-D42Gzc-g.woff2    80.07 kB
+dist/assets/noto-emoji-7-C2tMAGS-.woff2   112.08 kB
+dist/assets/edge-sans-400-CEyhjefA.woff2  869.40 kB
+dist/assets/edge-sans-600-B6-WISjZ.woff2  884.51 kB
+dist/assets/index-DDsPRuGa.css             77.24 kB │ gzip: 18.12 kB
+dist/assets/index-C7l1YecF.js             110.69 kB │ gzip: 39.40 kB
+
+✓ built in 1.22s
+[468/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_runtime_self_exit.c.o
+[469/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_appconn.c.o
+[470/1249] Building C object cmd/smart_box/CMakeFiles/smart_box.dir/main.c.o
+[471/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_var.c.o
+[472/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_record.c.o
+[473/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_freeze.c.o
+[474/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_freeze_cfg.c.o
+[475/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_report.c.o
+[476/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_router.c.o
+[477/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_security.c.o
+[478/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_source.c.o
+[479/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_discovery.c.o
+[480/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_event_monitor.c.o
+[481/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_topology_lineloss.c.o
+[482/1249] Building C object third-party/open62541/CMakeFiles/open62541-object.dir/src_generated/open62541/namespace0_generated.c.o
+[483/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_outage_detector.c.o
+[484/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_load_control.c.o
+[485/1249] Linking C static library bin/libopen62541.a
+[486/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_vertical_tasks.c.o
+[487/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_horizontal_tasks.c.o
+[488/1249] Linking C static library modules/edge_io/libedge_io.a
+[489/1249] Linking C static library modules/edge_api/libedge_api.a
+[490/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_soe_event_engine.c.o
+[491/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_peripheral_telecontrol.c.o
+[492/1249] Linking C static library adapters/rest_api/libedge_rest_api.a
+[493/1249] Linking C static library adapters/datahub_bridges/libedge_datahub_bridges.a
+[494/1249] Linking C static library modules/edge_bootstrap/libedge_bootstrap.a
+[495/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_dlt698_mgmt_engine.c.o
+[496/1249] Linking C static library cmd/smart_box/libsmartbox_app_lib.a
+[497/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_data_fusion_engine.c.o
+[498/1249] Linking C static library cmd/iems/libiems_app_lib.a
+[499/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_app_daemon.c.o
+[500/1249] Linking C executable products/iems/bin/iems-cli
+[501/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_twin_source.c.o
+[502/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_topology_phase_id.c.o
+[503/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_node.c.o
+[504/1249] Linking C executable products/smart_box/bin/smart_box
+[505/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_driver_adapter.c.o
+[506/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_adapter.c.o
+[507/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_bus_adapter.c.o
+[508/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_pipeline_adapter.c.o
+[509/1249] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_heartbeat.c.o
+[510/1249] Building C object cmd/edge_mcp_server/CMakeFiles/edge-mcp-server.dir/main.c.o
+[511/1249] Linking C static library cmd/dcu/libdcu_app_lib.a
+[512/1249] Building C object cmd/app-host/CMakeFiles/app-host.dir/main.c.o
+[513/1249] Building C object cmd/app-host/CMakeFiles/app-host.dir/no_exec_filter.c.o
+[514/1249] Building C object cmd/app-host/CMakeFiles/app-host.dir/__/__/sdk/c/edge_app_sdk.c.o
+[515/1249] Building C object cmd/edgeos-launcher/CMakeFiles/edgeos-launcher.dir/main.c.o
+[516/1249] Linking C executable cmd/app-host/app-host
+[517/1249] Linking C executable cmd/edgeos-launcher/edgeos-launcher
+[518/1249] Linking C executable cmd/edge_mcp_server/edge-mcp-server
+[519/1249] Building C object tests/CMakeFiles/test_memfd_seals.dir/test_memfd_seals.c.o
+[520/1249] Building C object cmd/nexus_lab/CMakeFiles/nexus_lab.dir/main.c.o
+[521/1249] Building C object examples/custom_driver/CMakeFiles/custom_inverter_driver.dir/src/custom_inverter_driver.c.o
+[522/1249] Linking C static library examples/custom_driver/libcustom_inverter_driver.a
+[523/1249] Linking C executable cmd/nexus_lab/nexus_lab
+[524/1249] Building C object examples/custom_algo/CMakeFiles/custom_soc_filter.dir/src/custom_soc_filter.c.o
+[525/1249] Building C object tools/edgeos-pack/CMakeFiles/edgeos-pack.dir/main.c.o
+[526/1249] Linking C static library examples/custom_algo/libcustom_soc_filter.a
+[527/1249] Building C object tools/appctl/CMakeFiles/appctl.dir/main.c.o
+[528/1249] Linking C executable tools/appctl/appctl
+[529/1249] Building C object tools/edgeos-backup/CMakeFiles/edgeos-backup.dir/main.c.o
+[530/1249] Linking C executable tools/edgeos-pack/edgeos-pack
+[531/1249] Building C object tests/CMakeFiles/test_version.dir/test_version.c.o
+[532/1249] Building C object tests/CMakeFiles/test_is_enabled.dir/test_is_enabled.c.o
+[533/1249] Linking C executable tools/edgeos-backup/edgeos-backup
+[534/1249] Linking C executable tests/test_version
+[535/1249] Building C object tests/CMakeFiles/test_edge_log.dir/test_edge_log.c.o
+[536/1249] Building C object tests/CMakeFiles/test_shmring.dir/test_shmring.c.o
+[537/1249] Linking C executable tests/test_is_enabled
+[538/1249] Building C object tests/CMakeFiles/test_net_buf.dir/test_net_buf.c.o
+[539/1249] Linking C executable tests/test_edge_log
+[540/1249] Building C object tests/CMakeFiles/test_arbiter.dir/test_arbiter.c.o
+[541/1249] Linking C executable tests/test_net_buf
+[542/1249] Building C object tests/CMakeFiles/test_edge_tlv.dir/test_edge_tlv.c.o
+[543/1249] Linking C executable tests/test_shmring
+[544/1249] Linking C executable tests/test_edge_tlv
+[545/1249] Building C object tests/CMakeFiles/test_edge_periodic_clock.dir/test_edge_periodic_clock.c.o
+[546/1249] Building C object tests/CMakeFiles/test_dlt698_action.dir/test_dlt698_action.c.o
+[547/1249] Linking C executable tests/test_arbiter
+[548/1249] Building C object tests/CMakeFiles/test_app_pressure.dir/test_app_pressure.c.o
+[549/1249] Linking C executable tests/test_edge_periodic_clock
+[550/1249] Building C object tests/CMakeFiles/test_dlt698_axdr.dir/test_dlt698_axdr.c.o
+[551/1249] Building C object tests/CMakeFiles/test_dlt698_get_list.dir/test_dlt698_get_list.c.o
+[552/1249] Linking C executable tests/test_dlt698_axdr
+[553/1249] Building C object tests/CMakeFiles/test_dcu_storage.dir/test_dcu_storage.c.o
+[554/1249] Building C object tests/CMakeFiles/test_dcu_698_axdr.dir/test_dcu_698_axdr.c.o
+[555/1249] Linking C executable tests/test_dlt698_action
+[556/1249] Building C object tests/CMakeFiles/test_dcu_polling_loop.dir/test_dcu_polling_loop.c.o
+[557/1249] Linking C executable tests/test_dlt698_get_list
+[558/1249] Building C object tests/CMakeFiles/test_dlt645_control.dir/test_dlt645_control.c.o
+[559/1249] Linking C executable tests/test_dlt645_control
+[560/1249] Building C object tests/CMakeFiles/test_dcu_inventory.dir/test_dcu_inventory.c.o
+[561/1249] Linking C executable tests/test_dcu_inventory
+[562/1249] Building C object tests/CMakeFiles/test_dcu_integration.dir/test_dcu_integration.c.o
+[563/1249] Linking C executable tests/test_dcu_polling_loop
+[564/1249] Building C object tests/CMakeFiles/test_dcu_advanced_modules.dir/test_dcu_advanced_modules.c.o
+[565/1249] Building C object tests/CMakeFiles/test_dcu_router.dir/test_dcu_router.c.o
+[566/1249] Linking C executable tests/test_dcu_storage
+[567/1249] Building Web UI for iems...
+
+> edgeos-iems-ui@2.3.0 build
+> node ../../tooling/cli.mjs registry --product iems && vite build
+
+✓ iems: 30 页面 / 58 接口 → products/iems/src/generated/registry.json
+  registry digest sha256:9fbc0b07bb6e6e40d72a3c1c4b3f3db0256bb0d72e512621ba85dc24343b28ca
+  ! 因 release-scope 关闭而未生成的接口: upgradeFirmware
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:7:34). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 848 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                     1.35 kB │ gzip:   0.76 kB
+dist/assets/noto-emoji-1-CZSVBhxc.woff2             4.66 kB
+dist/assets/noto-emoji-0-Cm6SX98Y.woff2             5.18 kB
+dist/assets/edge-mono-400-V6pRDFza.woff2           21.16 kB
+dist/assets/edge-mono-600-C8RAYTDA.woff2           21.86 kB
+dist/assets/noto-emoji-2-DsyeskL9.woff2            33.85 kB
+dist/assets/noto-emoji-4-D1YLMdXR.woff2            48.26 kB
+dist/assets/noto-emoji-5-ikj0hddf.woff2            51.15 kB
+dist/assets/noto-emoji-6-DC-aesWy.woff2            52.94 kB
+dist/assets/noto-emoji-8-CSW1I2kC.woff2            64.13 kB
+dist/assets/noto-emoji-9-DUPZFmkX.woff2            69.66 kB
+dist/assets/noto-emoji-3-D42Gzc-g.woff2            80.07 kB
+dist/assets/noto-emoji-7-C2tMAGS-.woff2           112.08 kB
+dist/assets/edge-sans-400-CEyhjefA.woff2          869.40 kB
+dist/assets/edge-sans-600-B6-WISjZ.woff2          884.51 kB
+dist/assets/WebConsoleDrawer-C-4-V-N4.css           0.07 kB │ gzip:   0.09 kB
+dist/assets/ChannelTopologyHeatmap-CIe7JSEn.css     0.12 kB │ gzip:   0.13 kB
+dist/assets/StrategyView-Nkfbz8Z7.css               0.23 kB │ gzip:   0.14 kB
+dist/assets/LogStreamTerminal-DZ8K6TFN.css          0.27 kB │ gzip:   0.15 kB
+dist/assets/FirewallView-yZQMlm43.css               0.37 kB │ gzip:   0.20 kB
+dist/assets/TimeView-BBnMD0ds.css                   0.37 kB │ gzip:   0.20 kB
+dist/assets/CellularView-B-MiFgIb.css               0.39 kB │ gzip:   0.21 kB
+dist/assets/TelemetryOverview-BXi9K8D2.css          0.39 kB │ gzip:   0.21 kB
+dist/assets/EnergyFlowView-BxG_wA6P.css             0.40 kB │ gzip:   0.19 kB
+dist/assets/NetworkView-k-n1ki6u.css                0.54 kB │ gzip:   0.24 kB
+dist/assets/SessionsView-IPIJcQSP.css               0.54 kB │ gzip:   0.25 kB
+dist/assets/AICopilotDrawer-IpXg3bL3.css            0.55 kB │ gzip:   0.23 kB
+dist/assets/AboutView-Byq_lc3m.css                  0.69 kB │ gzip:   0.30 kB
+dist/assets/ConfigTransactionBar-B3U3L-3t.css       0.72 kB │ gzip:   0.32 kB
+dist/assets/StatusBadge-B3lho4fE.css                0.87 kB │ gzip:   0.35 kB
+dist/assets/NotificationsView-Ap2-hzyW.css          0.89 kB │ gzip:   0.38 kB
+dist/assets/Storage-CfVk5oj8.css                    0.90 kB │ gzip:   0.34 kB
+dist/assets/MetricCard-C6jPZanV.css                 0.96 kB │ gzip:   0.35 kB
+dist/assets/DataTable-CrQOazB1.css                  1.03 kB │ gzip:   0.40 kB
+dist/assets/AuditView-B1lh-Gu1.css                  1.05 kB │ gzip:   0.40 kB
+dist/assets/SchemaForm-C5eHJmeo.css                 1.09 kB │ gzip:   0.40 kB
+dist/assets/AlarmsView-t5-xgWeU.css                 1.25 kB │ gzip:   0.48 kB
+dist/assets/Scheduling-Zjsy5P0T.css                 1.32 kB │ gzip:   0.46 kB
+dist/assets/Dashboard-Dg32Dt7N.css                  1.41 kB │ gzip:   0.50 kB
+dist/assets/UsersView-BSKZ_koY.css                  1.64 kB │ gzip:   0.49 kB
+dist/assets/ControlView-CJ3m2VsI.css                1.99 kB │ gzip:   0.55 kB
+dist/assets/RolesView-kcXFF6JU.css                  2.28 kB │ gzip:   0.64 kB
+dist/assets/AppStore-C73H0IIb.css                  13.64 kB │ gzip:   2.47 kB
+dist/assets/index-C4w4kOUt.css                     81.22 kB │ gzip:  19.11 kB
+dist/assets/rolldown-runtime-DK3Fl9T5.js            0.15 kB │ gzip:   0.15 kB
+dist/assets/ui-DibpYn-5.js                          0.16 kB │ gzip:   0.13 kB
+dist/assets/useLiveFeed-7_uO_pC6.js                 0.25 kB │ gzip:   0.19 kB
+dist/assets/useAuthz-B3cvjqA0.js                    0.50 kB │ gzip:   0.30 kB
+dist/assets/StatusBadge-19l6577S.js                 0.74 kB │ gzip:   0.50 kB
+dist/assets/chartTheme-IY6dalXY.js                  0.94 kB │ gzip:   0.58 kB
+dist/assets/MetricCard-B0L9ueN4.js                  0.96 kB │ gzip:   0.54 kB
+dist/assets/useDialogA11y-CYsT6qld.js               0.98 kB │ gzip:   0.49 kB
+dist/assets/Storage-J1_nc4EG.js                     1.13 kB │ gzip:   0.72 kB
+dist/assets/StrategyView-B5KuqGQo.js                1.21 kB │ gzip:   0.87 kB
+dist/assets/DataTable-DUyGZGdM.js                   1.33 kB │ gzip:   0.73 kB
+dist/assets/AboutView-DVZSuCGh.js                   1.46 kB │ gzip:   0.81 kB
+dist/assets/TelemetryOverview-DxYqtHbY.js           1.52 kB │ gzip:   0.96 kB
+dist/assets/Scheduling-JC4BxWG9.js                  1.54 kB │ gzip:   0.96 kB
+dist/assets/CellularView-CpSh6Oaf.js                1.56 kB │ gzip:   0.99 kB
+dist/assets/TimeView-BG-9p_2L.js                    1.62 kB │ gzip:   1.10 kB
+dist/assets/FirewallView-D9iW7P4j.js                1.96 kB │ gzip:   1.28 kB
+dist/assets/SystemConfig-CDBKP3Ub.js                2.02 kB │ gzip:   1.09 kB
+dist/assets/PipelineList-IHF7PfTH.js                2.54 kB │ gzip:   1.32 kB
+dist/assets/SchemaForm-BQF1Wf6j.js                  2.76 kB │ gzip:   1.10 kB
+dist/assets/NetworkView-Nv5wCN-s.js                 3.14 kB │ gzip:   1.76 kB
+dist/assets/SessionsView-D6Hfi4tA.js                3.30 kB │ gzip:   1.70 kB
+dist/assets/DeviceList-xpvfYuzI.js                  3.32 kB │ gzip:   1.59 kB
+dist/assets/ConfigEditor-D-K3ovIC.js                3.62 kB │ gzip:   1.92 kB
+dist/assets/Dashboard-uh10O15O.js                   3.71 kB │ gzip:   1.94 kB
+dist/assets/AuditView-aJ4DJhr2.js                   3.83 kB │ gzip:   2.02 kB
+dist/assets/ConfigTransactionBar-B0Q8N3E_.js        4.23 kB │ gzip:   1.97 kB
+dist/assets/NotificationsView-CH_VvlGg.js           4.91 kB │ gzip:   2.16 kB
+dist/assets/ControlView-CNzw9Hwv.js                 6.11 kB │ gzip:   2.63 kB
+dist/assets/UsersView-ChXVcEeo.js                   6.17 kB │ gzip:   2.56 kB
+dist/assets/RolesView-2qXhhesF.js                   6.24 kB │ gzip:   2.69 kB
+dist/assets/HistoryCurves-BMQgoLXV.js               6.56 kB │ gzip:   2.95 kB
+dist/assets/AlarmsView-CMHsFBlc.js                  7.21 kB │ gzip:   2.93 kB
+dist/assets/DataCurves-CVz6Z2HI.js                 11.05 kB │ gzip:   4.23 kB
+dist/assets/PacketCapture-BX-IcqMB.js              13.69 kB │ gzip:   4.34 kB
+dist/assets/EventStreamHub-B8bhGugD.js             17.03 kB │ gzip:   5.99 kB
+dist/assets/LogStreamTerminal-BH8lqsDz.js          17.12 kB │ gzip:   6.52 kB
+dist/assets/AICopilotDrawer-CUpGW_EG.js            18.52 kB │ gzip:   6.63 kB
+dist/assets/AppStore-J2Q_arYq.js                   21.01 kB │ gzip:   7.95 kB
+dist/assets/MetricsMatrix-BOqnfSQD.js              22.26 kB │ gzip:   6.11 kB
+dist/assets/PowerQuality-DvLjXr4f.js               26.04 kB │ gzip:   7.32 kB
+dist/assets/EnergyFlowView-BRFc9G6e.js             30.43 kB │ gzip:   7.67 kB
+dist/assets/ChannelTopologyHeatmap-Byd3a6dZ.js     36.91 kB │ gzip:  10.14 kB
+dist/assets/WebConsoleDrawer-COfc90V9.js           58.99 kB │ gzip:  18.48 kB
+dist/assets/runtime-core.esm-bundler-M-rpxDl-.js   68.63 kB │ gzip:  26.79 kB
+dist/assets/index-DqNrrkkv.js                     197.87 kB │ gzip:  65.61 kB
+dist/assets/echarts-cFGeznsF.js                   528.71 kB │ gzip: 178.20 kB
+
+✓ built in 3.08s
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+[PLUGIN_TIMINGS] JavaScript callbacks ran for 2.4s of this 3.1s build (80%).
+1 callback is listed without a time. Its calls overlapped, so the time inside one call includes work from other calls. To find its cost, profile the build with `node --cpu-prof`:
+  - plugin vite:css transform (40 calls)
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+
+[568/1249] Linking C executable tests/test_dcu_integration
+[569/1249] Building C object tests/CMakeFiles/test_dcu_business_engines.dir/test_dcu_business_engines.c.o
+[570/1249] Linking C executable tests/test_dcu_router
+[571/1249] Building C object tests/CMakeFiles/test_sqlite_injection.dir/test_sqlite_injection.c.o
+[572/1249] Building C object cmd/iems/CMakeFiles/iems.dir/main.c.o
+[573/1249] Building C object tests/CMakeFiles/test_wasm_stage.dir/test_wasm_stage.c.o
+[574/1249] Building C object tests/CMakeFiles/test_dcu_node.dir/test_dcu_node.c.o
+[575/1249] Building C object tests/CMakeFiles/test_dcu_phase1_delivery.dir/test_dcu_phase1_delivery.c.o
+[576/1249] Linking C executable tests/test_dcu_north_source
+[577/1249] Building C object tests/CMakeFiles/test_stream_engine.dir/test_stream_engine.c.o
+[578/1249] Linking C executable tests/test_dcu_business_engines
+[579/1249] Linking C executable tests/test_dcu_advanced_modules
+[580/1249] Linking C executable products/iems/bin/iems
+[581/1249] Building C object tests/CMakeFiles/test_rest_boundaries.dir/test_rest_boundaries.c.o
+[582/1249] Building C object tests/CMakeFiles/test_dcu_runtime_health.dir/test_dcu_runtime_health.c.o
+[583/1249] Linking C executable tests/test_dcu_phase1_delivery
+[584/1249] Linking C executable tests/test_dcu_node
+[585/1249] Building C object tests/CMakeFiles/test_dcu_698_object_model.dir/test_dcu_698_object_model.c.o
+[586/1249] Building C object tests/CMakeFiles/test_wasm_tensor_abi.dir/test_wasm_tensor_abi.c.o
+[587/1249] Building C object tests/CMakeFiles/test_dcu_698_catalog.dir/test_dcu_698_catalog.c.o
+[588/1249] Linking C executable tests/test_dcu_runtime_health
+[589/1249] Building C object tests/CMakeFiles/test_pcp_mutex.dir/test_pcp_mutex.c.o
+[590/1249] Linking C executable tests/test_dcu_698_object_model
+[591/1249] Linking C executable tests/test_dcu_698_archive
+[592/1249] Building C object tests/CMakeFiles/test_dcu_698_report.dir/test_dcu_698_report.c.o
+[593/1249] Linking C executable tests/test_dcu_698_catalog
+[594/1249] Linking C executable tests/test_dcu_698_var
+[595/1249] Building C object tests/CMakeFiles/test_dcu_698_param.dir/test_dcu_698_param.c.o
+[596/1249] Linking C executable tests/test_dcu_698_report
+[597/1249] Linking C executable tests/test_dcu_698_param
+[598/1249] Linking C executable tests/test_dcu_698_axdr
+[599/1249] Building C object tests/CMakeFiles/test_arbiter_ownership.dir/test_arbiter_ownership.c.o
+[600/1249] Building C object tests/CMakeFiles/test_dcu_698_record.dir/test_dcu_698_record.c.o
+[601/1249] Building C object tests/CMakeFiles/test_dcu_698_tasks.dir/test_dcu_698_tasks.c.o
+[602/1249] Building C object tests/CMakeFiles/test_dcu_698_schemes.dir/test_dcu_698_schemes.c.o
+[603/1249] Linking C executable tests/test_dcu_698_record
+[604/1249] Building C object tests/CMakeFiles/test_dcu_698_rules.dir/test_dcu_698_rules.c.o
+[605/1249] Building C object tests/CMakeFiles/test_dcu_698_scheme_mgmt.dir/test_dcu_698_scheme_mgmt.c.o
+[606/1249] Linking C executable tests/test_dcu_698_value_table
+[607/1249] Building C object tests/CMakeFiles/test_dcu_runtime_self_exit.dir/test_dcu_runtime_self_exit.c.o
+[608/1249] Linking C executable tests/test_dcu_698_tasks
+[609/1249] Building C object tests/CMakeFiles/test_app_host_process.dir/test_app_host_process.c.o
+[610/1249] Building C object tests/CMakeFiles/test_fake_app_host.dir/fake_app_host.c.o
+[611/1249] Linking C executable tests/test_dcu_698_schemes
+[612/1249] Building C object tests/CMakeFiles/test_dcu_698_freeze.dir/test_dcu_698_freeze.c.o
+[613/1249] Linking C executable tests/test_dcu_698_scheme_mgmt
+[614/1249] Linking C executable tests/test_dcu_698_rules
+[615/1249] Building C object tests/CMakeFiles/test_dcu_heartbeat_stop.dir/test_dcu_heartbeat_stop.c.o
+[616/1249] Building C object tests/CMakeFiles/test_no_exec_filter.dir/test_no_exec_filter.c.o
+[617/1249] Linking C executable tests/test_dcu_runtime_self_exit
+[618/1249] Linking C executable tests/test_dcu_698_freeze
+[619/1249] Building C object tests/CMakeFiles/test_datahub_shadow.dir/test_datahub_shadow.c.o
+[620/1249] Building C object tests/CMakeFiles/test_dlt698_conformance_suite.dir/test_dlt698_conformance_suite.c.o
+[621/1249] Building C object tests/CMakeFiles/test_datahub_dynamic_chunk.dir/test_datahub_dynamic_chunk.c.o
+[622/1249] Building C object tests/CMakeFiles/test_stream_dag.dir/test_stream_dag.c.o
+[623/1249] Building C object tests/CMakeFiles/test_datahub.dir/test_datahub.c.o
+[624/1249] Linking C executable tests/test_dcu_heartbeat_stop
+[625/1249] Linking C executable tests/test_dlt698_conformance_suite
+[626/1249] Linking C executable tests/test_datahub
+[627/1249] Building C object tests/CMakeFiles/test_datahub_attach.dir/test_datahub_attach.c.o
+[628/1249] Linking C executable tests/test_datahub_shadow
+[629/1249] Building Web UI for dcu...
+
+> edgeos-dcu-ui@1.4.0 build
+> node ../../tooling/cli.mjs registry --product dcu && vite build
+
+✓ dcu: 29 页面 / 59 接口 → products/dcu/src/generated/registry.json
+  registry digest sha256:61621d1387bfb9e311cb39c14daaa09ea598b7b50870e302e907549afbb18a16
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:7:34). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 845 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                     1.28 kB │ gzip:   0.69 kB
+dist/assets/noto-emoji-1-CZSVBhxc.woff2             4.66 kB
+dist/assets/noto-emoji-0-Cm6SX98Y.woff2             5.18 kB
+dist/assets/edge-mono-400-V6pRDFza.woff2           21.16 kB
+dist/assets/edge-mono-600-C8RAYTDA.woff2           21.86 kB
+dist/assets/noto-emoji-2-DsyeskL9.woff2            33.85 kB
+dist/assets/noto-emoji-4-D1YLMdXR.woff2            48.26 kB
+dist/assets/noto-emoji-5-ikj0hddf.woff2            51.15 kB
+dist/assets/noto-emoji-6-DC-aesWy.woff2            52.94 kB
+dist/assets/noto-emoji-8-CSW1I2kC.woff2            64.13 kB
+dist/assets/noto-emoji-9-DUPZFmkX.woff2            69.66 kB
+dist/assets/noto-emoji-3-D42Gzc-g.woff2            80.07 kB
+dist/assets/noto-emoji-7-C2tMAGS-.woff2           112.08 kB
+dist/assets/edge-sans-400-CEyhjefA.woff2          869.40 kB
+dist/assets/edge-sans-600-B6-WISjZ.woff2          884.51 kB
+dist/assets/WebConsoleDrawer-C-4-V-N4.css           0.07 kB │ gzip:   0.09 kB
+dist/assets/ChannelTopologyHeatmap-CIe7JSEn.css     0.12 kB │ gzip:   0.13 kB
+dist/assets/MetersView-BSJwHZy2.css                 0.23 kB │ gzip:   0.14 kB
+dist/assets/LogStreamTerminal-DZ8K6TFN.css          0.27 kB │ gzip:   0.15 kB
+dist/assets/FirewallView-yZQMlm43.css               0.37 kB │ gzip:   0.20 kB
+dist/assets/TimeView-BBnMD0ds.css                   0.37 kB │ gzip:   0.20 kB
+dist/assets/CellularView-B-MiFgIb.css               0.39 kB │ gzip:   0.21 kB
+dist/assets/EnergyFlowView-BxG_wA6P.css             0.40 kB │ gzip:   0.19 kB
+dist/assets/NetworkView-k-n1ki6u.css                0.54 kB │ gzip:   0.24 kB
+dist/assets/SessionsView-IPIJcQSP.css               0.54 kB │ gzip:   0.25 kB
+dist/assets/AICopilotDrawer-IpXg3bL3.css            0.55 kB │ gzip:   0.23 kB
+dist/assets/AboutView-Byq_lc3m.css                  0.69 kB │ gzip:   0.30 kB
+dist/assets/ConfigTransactionBar-B3U3L-3t.css       0.72 kB │ gzip:   0.32 kB
+dist/assets/StatusBadge-B3lho4fE.css                0.87 kB │ gzip:   0.35 kB
+dist/assets/NotificationsView-Ap2-hzyW.css          0.89 kB │ gzip:   0.38 kB
+dist/assets/Storage-CfVk5oj8.css                    0.90 kB │ gzip:   0.34 kB
+dist/assets/MetricCard-C6jPZanV.css                 0.96 kB │ gzip:   0.35 kB
+dist/assets/DataTable-CrQOazB1.css                  1.03 kB │ gzip:   0.40 kB
+dist/assets/AuditView-B1lh-Gu1.css                  1.05 kB │ gzip:   0.40 kB
+dist/assets/SchemaForm-C5eHJmeo.css                 1.09 kB │ gzip:   0.40 kB
+dist/assets/AlarmsView-t5-xgWeU.css                 1.25 kB │ gzip:   0.48 kB
+dist/assets/Scheduling-Zjsy5P0T.css                 1.32 kB │ gzip:   0.46 kB
+dist/assets/Dashboard-Dg32Dt7N.css                  1.41 kB │ gzip:   0.50 kB
+dist/assets/UsersView-BSKZ_koY.css                  1.64 kB │ gzip:   0.49 kB
+dist/assets/ControlView-CJ3m2VsI.css                1.99 kB │ gzip:   0.55 kB
+dist/assets/RolesView-kcXFF6JU.css                  2.28 kB │ gzip:   0.64 kB
+dist/assets/AppStore-C73H0IIb.css                  13.64 kB │ gzip:   2.47 kB
+dist/assets/index-DXS3c2su.css                     81.11 kB │ gzip:  19.07 kB
+dist/assets/rolldown-runtime-DK3Fl9T5.js            0.15 kB │ gzip:   0.15 kB
+dist/assets/useLiveFeed-CF5VvyCJ.js                 0.25 kB │ gzip:   0.19 kB
+dist/assets/useAuthz-lE3rqos_.js                    0.50 kB │ gzip:   0.31 kB
+dist/assets/StatusBadge-Dn_q--Mh.js                 0.74 kB │ gzip:   0.50 kB
+dist/assets/chartTheme-CZuVizpD.js                  0.94 kB │ gzip:   0.58 kB
+dist/assets/MetricCard-SzEcSQrB.js                  0.96 kB │ gzip:   0.54 kB
+dist/assets/useDialogA11y-CYsT6qld.js               0.98 kB │ gzip:   0.49 kB
+dist/assets/Storage-Cxd1lvk_.js                     1.13 kB │ gzip:   0.72 kB
+dist/assets/DataTable-DP78Dapn.js                   1.33 kB │ gzip:   0.73 kB
+dist/assets/AboutView-017H27jV.js                   1.46 kB │ gzip:   0.81 kB
+dist/assets/MetersView-Cqix6_LH.js                  1.49 kB │ gzip:   0.97 kB
+dist/assets/Scheduling-DdsOlqCR.js                  1.54 kB │ gzip:   0.96 kB
+dist/assets/CellularView-DGigahGF.js                1.56 kB │ gzip:   0.99 kB
+dist/assets/TimeView-DMCt3LAP.js                    1.62 kB │ gzip:   1.09 kB
+dist/assets/FirewallView-Dsx2F1lQ.js                1.96 kB │ gzip:   1.27 kB
+dist/assets/SystemConfig-HlxlSlqs.js                2.02 kB │ gzip:   1.10 kB
+dist/assets/PipelineList-Dhg9KemM.js                2.54 kB │ gzip:   1.32 kB
+dist/assets/SchemaForm-Cf5xb0aS.js                  2.76 kB │ gzip:   1.10 kB
+dist/assets/NetworkView-P7z4UUUR.js                 3.14 kB │ gzip:   1.76 kB
+dist/assets/SessionsView-CIEHI1zk.js                3.30 kB │ gzip:   1.70 kB
+dist/assets/DeviceList-9Mzx7wr5.js                  3.32 kB │ gzip:   1.59 kB
+dist/assets/ConfigEditor-CRCsUXQZ.js                3.62 kB │ gzip:   1.92 kB
+dist/assets/Dashboard-4YPI37xK.js                   3.71 kB │ gzip:   1.94 kB
+dist/assets/AuditView-BmM09Iem.js                   3.83 kB │ gzip:   2.02 kB
+dist/assets/ConfigTransactionBar-BpHb9FKG.js        4.23 kB │ gzip:   1.97 kB
+dist/assets/NotificationsView-CH28iuAw.js           4.91 kB │ gzip:   2.15 kB
+dist/assets/ControlView-QJGGGf7e.js                 6.11 kB │ gzip:   2.62 kB
+dist/assets/UsersView-Ccrt1Zgc.js                   6.17 kB │ gzip:   2.55 kB
+dist/assets/RolesView-BiY9IhCu.js                   6.24 kB │ gzip:   2.68 kB
+dist/assets/HistoryCurves-Bs3gDzTa.js               6.56 kB │ gzip:   2.95 kB
+dist/assets/AlarmsView-CtkFO25s.js                  7.21 kB │ gzip:   2.93 kB
+dist/assets/DataCurves-Coy-Riex.js                 11.05 kB │ gzip:   4.23 kB
+dist/assets/PacketCapture-rgORYA-e.js              13.69 kB │ gzip:   4.34 kB
+dist/assets/EventStreamHub-ByPexLGz.js             17.03 kB │ gzip:   5.99 kB
+dist/assets/LogStreamTerminal-BOnvLms4.js          17.12 kB │ gzip:   6.52 kB
+dist/assets/AICopilotDrawer-DmdTBWLX.js            18.52 kB │ gzip:   6.63 kB
+dist/assets/AppStore-DtowdsTO.js                   21.01 kB │ gzip:   7.95 kB
+dist/assets/MetricsMatrix-UNReDrrG.js              22.26 kB │ gzip:   6.11 kB
+dist/assets/PowerQuality-DvLjXr4f.js               26.04 kB │ gzip:   7.32 kB
+dist/assets/EnergyFlowView-DdxkTK2N.js             30.43 kB │ gzip:   7.67 kB
+dist/assets/ChannelTopologyHeatmap-CCy_SKZH.js     36.91 kB │ gzip:  10.14 kB
+dist/assets/WebConsoleDrawer-BXXedGBR.js           58.99 kB │ gzip:  18.48 kB
+dist/assets/runtime-core.esm-bundler-M-rpxDl-.js   68.63 kB │ gzip:  26.79 kB
+dist/assets/index-TbG37uT_.js                     197.28 kB │ gzip:  65.39 kB
+dist/assets/echarts-cFGeznsF.js                   528.71 kB │ gzip: 178.20 kB
+
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 2.98s
+[630/1249] Building C object tests/CMakeFiles/test_fuzz_iec104.dir/test_fuzz_iec104.c.o
+[631/1249] Linking C executable tests/test_datahub_attach
+[632/1249] Building C object tests/CMakeFiles/test_datahub_multi_backend.dir/test_datahub_multi_backend.c.o
+[633/1249] Building C object cmd/dcu/CMakeFiles/dcu.dir/main.c.o
+[634/1249] Building C object tests/CMakeFiles/test_sqlite_service.dir/test_sqlite_service.c.o
+[635/1249] Building C object tests/CMakeFiles/test_datahub_shm_legacy.dir/test_datahub_shm_legacy.c.o
+[636/1249] Linking C executable tests/test_datahub_multi_backend
+[637/1249] Building C object tests/CMakeFiles/test_fuzz_datahub.dir/test_fuzz_datahub.c.o
+[638/1249] Building C object tests/CMakeFiles/test_passthrough.dir/test_passthrough.c.o
+[639/1249] Linking C executable tests/test_datahub_shm_legacy
+[640/1249] Linking C executable tests/test_memfd_seals
+[641/1249] Linking C executable tests/test_passthrough
+[642/1249] Linking C executable products/dcu/bin/dcu
+[643/1249] Linking C executable tests/test_stream_engine
+[644/1249] Linking C executable tests/test_fuzz_datahub
+[645/1249] Building C object tests/CMakeFiles/test_edge_app_mgr.dir/test_edge_app_mgr.c.o
+[646/1249] Building C object tests/CMakeFiles/test_sqlite_app_registry.dir/test_sqlite_app_registry.c.o
+[647/1249] Building C object tests/CMakeFiles/test_pipeline_hot_reload.dir/test_pipeline_hot_reload.c.o
+[648/1249] Linking C executable tests/test_sqlite_service
+[649/1249] Building C object tests/CMakeFiles/test_js_engine.dir/test_js_engine.c.o
+[650/1249] Building C object tests/CMakeFiles/test_sqlite_migration.dir/test_sqlite_migration.c.o
+[651/1249] Linking C executable tests/test_sqlite_app_registry
+[652/1249] Building C object tests/CMakeFiles/test_app_manifest.dir/test_app_manifest.c.o
+[653/1249] Linking C executable tests/test_app_manifest
+[654/1249] Linking C executable tests/test_sqlite_migration
+[655/1249] Linking C executable tests/test_edge_app_mgr
+[656/1249] Building C object tests/CMakeFiles/test_dds_shm_zerocopy_perf.dir/test_dds_shm_zerocopy_perf.c.o
+[657/1249] Building C object tests/CMakeFiles/test_edge_authz.dir/test_edge_authz.c.o
+[658/1249] Building C object tests/CMakeFiles/test_app_settings.dir/test_app_settings.c.o
+[659/1249] Building C object tests/CMakeFiles/test_wasm_sandbox.dir/test_wasm_sandbox.c.o
+[660/1249] Linking C executable tests/test_app_pressure
+[661/1249] Building C object tests/CMakeFiles/test_app_secret.dir/test_app_secret.c.o
+[662/1249] Building C object tests/CMakeFiles/test_app_backfill.dir/test_app_backfill.c.o
+[663/1249] Building C object tests/CMakeFiles/test_app_task.dir/test_app_task.c.o
+[664/1249] Linking C executable tests/test_app_settings
+[665/1249] Building C object tests/CMakeFiles/test_edge_authz_sqlite.dir/test_edge_authz_sqlite.c.o
+[666/1249] Building C object tests/CMakeFiles/test_vsg_control.dir/test_vsg_control.c.o
+[667/1249] Linking C executable tests/test_edge_authz
+[668/1249] Linking C executable tests/test_edge_authz_sqlite
+[669/1249] Building C object tests/CMakeFiles/test_algorithm_sum.dir/test_algorithm_sum.c.o
+[670/1249] Linking C executable tests/test_app_secret
+[671/1249] Building C object tests/CMakeFiles/test_iems_business_engines.dir/test_iems_business_engines.c.o
+[672/1249] Linking C executable tests/test_wasm_tensor_abi
+[673/1249] Building C object tests/CMakeFiles/test_edge_wasm_imports.dir/test_edge_wasm_imports.c.o
+[674/1249] Linking C executable tests/test_app_backfill
+[675/1249] Building C object tests/CMakeFiles/test_edge_eapp.dir/test_edge_eapp.c.o
+[676/1249] Linking C executable tests/test_app_task
+[677/1249] Linking C executable tests/test_edge_wasm_imports
+[678/1249] Building C object tests/CMakeFiles/test_alarm_history_migration.dir/test_alarm_history_migration.c.o
+[679/1249] Building C object tests/CMakeFiles/test_alarm_history_archive.dir/test_alarm_history_archive.c.o
+[680/1249] Building C object tests/CMakeFiles/test_mixed_criticality.dir/test_mixed_criticality.c.o
+[681/1249] Building C object tests/CMakeFiles/test_edge_backup.dir/test_edge_backup.c.o
+[682/1249] Linking C executable tests/test_edge_eapp
+[683/1249] Building C object tests/CMakeFiles/test_snapshot_csv.dir/test_snapshot_csv.c.o
+[684/1249] Building C object tests/CMakeFiles/test_app_export.dir/test_app_export.c.o
+[685/1249] Building C object tests/CMakeFiles/test_mpc_dispatcher.dir/test_mpc_dispatcher.c.o
+[686/1249] Building C object tests/CMakeFiles/test_web_log_terminal.dir/test_web_log_terminal.c.o
+[687/1249] Linking C executable tests/test_edge_backup
+[688/1249] Linking C executable tests/test_alarm_history_archive
+[689/1249] Building C object tests/CMakeFiles/test_web_server_path.dir/test_web_server_path.c.o
+[690/1249] Linking C executable tests/test_app_export
+[691/1249] Building C object tests/CMakeFiles/test_edge_eapp_build.dir/test_edge_eapp_build.c.o
+[692/1249] Linking C executable tests/test_alarm_history_migration
+[693/1249] Building C object tests/CMakeFiles/test_time_trust.dir/test_time_trust.c.o
+[694/1249] Linking C executable tests/test_snapshot_csv
+[695/1249] Building C object tests/CMakeFiles/test_rest_uds.dir/test_rest_uds.c.o
+[696/1249] Linking C executable tests/test_edge_eapp_build
+[697/1249] Linking C executable tests/test_time_trust
+[698/1249] Building C object tests/CMakeFiles/test_app_points.dir/test_app_points.c.o
+[699/1249] Building C object tests/CMakeFiles/test_web_server_limits.dir/test_web_server_limits.c.o
+[700/1249] Linking C executable tests/test_rest_uds
+[701/1249] Building C object tests/CMakeFiles/test_app_host_server.dir/__/sdk/c/edge_app_sdk.c.o
+[702/1249] Linking C executable tests/test_web_server_path
+[703/1249] Building C object tests/CMakeFiles/test_app_host_server.dir/test_app_host_server.c.o
+[704/1249] Building C object tests/CMakeFiles/test_oom_injection.dir/test_oom_injection.c.o
+[705/1249] Linking C executable tests/test_web_server_limits
+[706/1249] Building C object tests/CMakeFiles/test_sdk_real_host_conformance.dir/__/sdk/c/edge_app_sdk.c.o
+[707/1249] Linking C executable tests/test_app_points
+[708/1249] Building C object tests/CMakeFiles/test_sdk_real_host_conformance.dir/test_sdk_real_host_conformance.c.o
+[709/1249] Linking C executable tests/test_app_host_server
+[710/1249] Linking C executable tests/test_oom_injection
+[711/1249] Building C object tests/CMakeFiles/test_stream_engine_industrial.dir/test_stream_engine_industrial.c.o
+[712/1249] Building C object tests/CMakeFiles/test_iems_app_host_ports.dir/__/sdk/c/edge_app_sdk.c.o
+[713/1249] Building C object tests/CMakeFiles/test_iems_app_host_ports.dir/test_iems_app_host_ports.c.o
+[714/1249] Building C object tests/CMakeFiles/test_registry_snapshot.dir/test_registry_snapshot.c.o
+[715/1249] Building C object tests/CMakeFiles/test_shm_waitset.dir/test_shm_waitset.c.o
+[716/1249] Linking C executable tests/test_sdk_real_host_conformance
+[717/1249] Building C object tests/CMakeFiles/test_standard_stages_math.dir/test_standard_stages_math.c.o
+[718/1249] Building C object tests/CMakeFiles/test_no_exec_filter.dir/__/cmd/app-host/no_exec_filter.c.o
+[719/1249] Building C object tests/CMakeFiles/test_edge_launcher.dir/test_edge_launcher.c.o
+[720/1249] Building C object tests/CMakeFiles/test_smart_box_hw.dir/test_smart_box_hw.c.o
+[721/1249] Linking C executable tests/test_iems_app_host_ports
+[722/1249] Linking C executable tests/test_fake_app_host
+[723/1249] Linking C executable tests/test_app_host_process
+[724/1249] Building C object tests/CMakeFiles/test_proc_filter_pid.dir/test_proc_filter_pid.c.o
+[725/1249] Building C object tests/CMakeFiles/test_stream_engine_timeguard.dir/test_stream_engine_timeguard.c.o
+[726/1249] Building C object tests/CMakeFiles/test_iems_app_runtime.dir/test_iems_app_runtime.c.o
+[727/1249] Linking C executable tests/test_standard_stages_math
+[728/1249] Linking C executable tests/test_registry_snapshot
+[729/1249] Linking C executable tests/test_stream_engine_industrial
+[730/1249] Linking C executable tests/test_edge_launcher
+[731/1249] Building C object tests/CMakeFiles/test_integration.dir/test_integration.c.o
+[732/1249] Linking C executable tests/test_iems_app_runtime
+[733/1249] Linking C executable tests/test_no_exec_filter
+[734/1249] Building C object tests/CMakeFiles/test_protocol_loopback.dir/test_protocol_loopback.c.o
+[735/1249] Building C object tests/CMakeFiles/test_edge_mesh.dir/test_edge_mesh.c.o
+[736/1249] Building C object tests/CMakeFiles/test_omnis_integration.dir/test_omnis_integration.c.o
+[737/1249] Linking C executable tests/test_datahub_dynamic_chunk
+[738/1249] Linking C executable tests/test_integration
+[739/1249] Linking C executable tests/test_edge_mesh
+[740/1249] Building C object tests/CMakeFiles/test_fuzz_dlms_dlt698.dir/test_fuzz_dlms_dlt698.c.o
+[741/1249] Building C object tests/CMakeFiles/test_dlms_hdlc.dir/test_dlms_hdlc.c.o
+[742/1249] Building C object tests/CMakeFiles/test_dlms_codec.dir/test_dlms_codec.c.o
+[743/1249] Linking C executable tests/test_stream_dag
+[744/1249] Linking C executable tests/test_fuzz_iec104
+[745/1249] Linking C executable tests/test_fuzz_dlms_dlt698
+[746/1249] Building C object tests/CMakeFiles/test_dlms_security_validation.dir/test_dlms_security_validation.c.o
+[747/1249] Building C object tests/CMakeFiles/test_dlms_set.dir/test_dlms_set.c.o
+[748/1249] Linking C executable tests/test_dlms_hdlc
+[749/1249] Linking C executable tests/test_dlms_codec
+[750/1249] Building C object tests/CMakeFiles/test_master_link_lifecycle.dir/test_master_link_lifecycle.c.o
+[751/1249] Linking C executable tests/test_dlms_security_validation
+[752/1249] Building C object tests/CMakeFiles/test_driver_manager.dir/test_driver_manager.c.o
+[753/1249] Building C object tests/CMakeFiles/test_io_executor.dir/test_io_executor.c.o
+[754/1249] Linking C executable tests/test_dlms_set
+[755/1249] Building C object tests/CMakeFiles/test_iems_vendor_semantics.dir/test_iems_vendor_semantics.c.o
+[756/1249] Linking C executable tests/test_driver_manager
+[757/1249] Building C object tests/CMakeFiles/test_dcu_698_appconn.dir/test_dcu_698_appconn.c.o
+[758/1249] Linking C executable tests/test_io_executor
+[759/1249] Building C object tests/CMakeFiles/test_driver_dlt645.dir/test_driver_dlt645.c.o
+[760/1249] Linking C executable tests/test_master_link_lifecycle
+[761/1249] Linking C executable tests/test_arbiter_ownership
+[762/1249] Linking C executable tests/test_driver_dlt645
+[763/1249] Building C object tests/CMakeFiles/test_driver_dlt698.dir/test_driver_dlt698.c.o
+[764/1249] Building C object tests/CMakeFiles/test_dlt698_appconn.dir/test_dlt698_appconn.c.o
+[765/1249] Building C object tests/CMakeFiles/test_driver_iec104.dir/test_driver_iec104.c.o
+[766/1249] Linking C executable tests/test_dcu_698_appconn
+[767/1249] Linking C executable tests/test_dlt698_appconn
+[768/1249] Linking C executable tests/test_driver_dlt698
+[769/1249] Building C object tests/CMakeFiles/test_driver_v3.dir/test_driver_v3.c.o
+[770/1249] Building C object tests/CMakeFiles/test_modbus_v3.dir/test_modbus_v3.c.o
+[771/1249] Linking C executable tests/test_driver_iec104
+[772/1249] Building C object tests/CMakeFiles/test_smartbox_node.dir/test_smartbox_node.c.o
+[773/1249] Building C object tests/CMakeFiles/test_io_http.dir/test_io_http.c.o
+[774/1249] Building C object tests/CMakeFiles/test_modbus_write_guard.dir/test_modbus_write_guard.c.o
+[775/1249] Linking C executable tests/test_driver_v3
+[776/1249] Building C object tests/CMakeFiles/test_fuzz_modbus.dir/test_fuzz_modbus.c.o
+[777/1249] Building C object tests/CMakeFiles/test_anti_corruption_engine.dir/test_anti_corruption_engine.c.o
+[778/1249] Building C object tests/CMakeFiles/test_dx_scaffolding.dir/test_dx_scaffolding.c.o
+[779/1249] Building C object tests/CMakeFiles/test_radar_fmcw.dir/test_radar_fmcw.c.o
+[780/1249] Building C object tests/CMakeFiles/test_tag_domains_and_aliases.dir/test_tag_domains_and_aliases.c.o
+[781/1249] Linking C executable tests/test_modbus_v3
+[782/1249] Linking C executable tests/test_modbus_write_guard
+[783/1249] Linking C executable tests/test_fuzz_modbus
+[784/1249] Building C object tests/CMakeFiles/test_tag_collision_checker.dir/test_tag_collision_checker.c.o
+[785/1249] Linking C executable tests/test_radar_fmcw
+[786/1249] Building C object tests/CMakeFiles/test_stream_batch_ownership.dir/test_stream_batch_ownership.c.o
+[787/1249] Building C object tests/CMakeFiles/test_rest_limits.dir/test_rest_limits.c.o
+[788/1249] Building C object tests/CMakeFiles/test_rest_apps.dir/test_rest_apps.c.o
+[789/1249] Linking C executable tests/test_io_http
+[790/1249] Linking C executable tests/test_rest_boundaries
+[791/1249] Linking C executable tests/test_rest_limits
+[792/1249] Building C object tests/CMakeFiles/test_stage_factory_extension.dir/test_stage_factory_extension.c.o
+[793/1249] Building C object tests/CMakeFiles/test_stream_bus_port.dir/test_stream_bus_port.c.o
+[794/1249] Building C object tests/CMakeFiles/test_pipeline_loader.dir/test_pipeline_loader.c.o
+[795/1249] Linking C executable tests/test_rest_apps
+[796/1249] Linking C executable tests/test_stream_batch_ownership
+[797/1249] Linking C executable tests/test_stream_bus_port
+[798/1249] Linking C executable tests/test_pipeline_loader
+[799/1249] Linking C executable tests/test_pipeline_hot_reload
+[800/1249] Building C object tests/CMakeFiles/test_wasm_host_api.dir/test_wasm_host_api.c.o
+[801/1249] Linking C executable tests/test_stage_factory_extension
+[802/1249] Linking C executable tests/test_js_engine
+[803/1249] Building C object tests/CMakeFiles/test_wasm_scheduler.dir/test_wasm_scheduler.c.o
+[804/1249] Building C object tests/CMakeFiles/test_smartbox_interlock_thermal.dir/test_smartbox_interlock_thermal.c.o
+[805/1249] Linking C executable tests/test_wasm_stage
+[806/1249] Linking C executable tests/test_wasm_host_api
+[807/1249] Building C object tests/CMakeFiles/test_web_design_tokens.dir/test_web_design_tokens.c.o
+[808/1249] Building C object tests/CMakeFiles/test_dds_discovery_liveliness.dir/test_dds_discovery_liveliness.c.o
+[809/1249] Building C object tests/CMakeFiles/test_web_data_curves.dir/test_web_data_curves.c.o
+[810/1249] Building C object tests/CMakeFiles/test_linalg.dir/test_linalg.c.o
+[811/1249] Linking C executable tests/test_wasm_scheduler
+[812/1249] Linking C executable tests/test_web_data_curves
+[813/1249] Building C object tests/CMakeFiles/test_web_ai_copilot.dir/test_web_ai_copilot.c.o
+[814/1249] Linking C executable tests/test_web_ai_copilot
+[815/1249] Linking C executable tests/test_wasm_sandbox
+[816/1249] Linking C executable tests/test_linalg
+[817/1249] Building C object tests/CMakeFiles/test_battery_algo.dir/test_battery_algo.c.o
+[818/1249] Linking C executable tests/test_algorithm_sum
+[819/1249] Building C object tests/CMakeFiles/test_prio_booster.dir/test_prio_booster.c.o
+[820/1249] Building C object tests/CMakeFiles/test_iems_advanced_delivery.dir/test_iems_advanced_delivery.c.o
+[821/1249] Building C object tests/CMakeFiles/test_iems_bess_aggregate.dir/test_iems_bess_aggregate.c.o
+[822/1249] Linking C executable tests/test_sqlite_injection
+[823/1249] Linking C executable tests/test_battery_algo
+[824/1249] Building C object tests/CMakeFiles/test_ekf_soc.dir/test_ekf_soc.c.o
+[825/1249] Linking C executable tests/test_iems_business_engines
+[826/1249] Linking C executable tests/test_iems_advanced_delivery
+[827/1249] Linking C executable tests/test_iems_bess_aggregate
+[828/1249] Linking C executable tests/test_ekf_soc
+[829/1249] Building C object tests/CMakeFiles/test_sparkplug_b.dir/test_sparkplug_b.c.o
+[830/1249] Linking C executable tests/test_mpc_dispatcher
+[831/1249] Building C object tests/CMakeFiles/test_aggregate_roots_governance.dir/test_aggregate_roots_governance.c.o
+[832/1249] Linking C executable tests/test_sparkplug_b
+[833/1249] Building C object tests/CMakeFiles/test_cia402.dir/test_cia402.c.o
+[834/1249] Building C object tests/CMakeFiles/test_foc_latency.dir/test_foc_latency.c.o
+[835/1249] Building C object tests/CMakeFiles/test_kinematics.dir/test_kinematics.c.o
+[836/1249] Linking C executable tests/test_cia402
+[837/1249] Building C object tests/CMakeFiles/test_wavelet_anomaly.dir/test_wavelet_anomaly.c.o
+[838/1249] Building C object tests/CMakeFiles/test_dcu_poller.dir/test_dcu_poller.c.o
+[839/1249] Linking C executable tests/test_foc_latency
+[840/1249] Building C object tests/CMakeFiles/test_dlt645_codec.dir/test_dlt645_codec.c.o
+[841/1249] Linking C executable tests/test_kinematics
+[842/1249] Building C object tests/CMakeFiles/test_ydt1363_codec.dir/test_ydt1363_codec.c.o
+[843/1249] Building C object tests/CMakeFiles/test_ipc_binary_flow_codec.dir/test_ipc_binary_flow_codec.c.o
+[844/1249] Linking C executable tests/test_wavelet_anomaly
+[845/1249] Linking C executable tests/test_dcu_poller
+[846/1249] Linking C executable tests/test_dlt645_codec
+[847/1249] Linking C executable tests/test_ipc_binary_flow_codec
+[848/1249] Building C object tests/CMakeFiles/test_driver_iec101.dir/test_driver_iec101.c.o
+[849/1249] Linking C executable tests/test_ydt1363_codec
+[850/1249] Building C object tests/CMakeFiles/test_protocol_bridge.dir/test_protocol_bridge.c.o
+[851/1249] Linking C executable tests/test_driver_iec101
+[852/1249] Building C object tests/CMakeFiles/test_dcu_scale_benchmark.dir/test_dcu_scale_benchmark.c.o
+[853/1249] Building C object tests/CMakeFiles/test_wasm_secure.dir/test_wasm_secure.c.o
+[854/1249] Linking C executable tests/test_protocol_bridge
+[855/1249] Linking C executable tests/test_dcu_scale_benchmark
+[856/1249] Building C object tests/CMakeFiles/test_tinyml_overhead.dir/test_tinyml_overhead.c.o
+[857/1249] Building C object tests/CMakeFiles/test_notch_filter.dir/test_notch_filter.c.o
+[858/1249] Building C object tests/CMakeFiles/test_sensor_fusion.dir/test_sensor_fusion.c.o
+[859/1249] Building C object tests/CMakeFiles/test_ecg_anomaly.dir/test_ecg_anomaly.c.o
+[860/1249] Linking C executable tests/test_sensor_fusion
+[861/1249] Linking C executable tests/test_wasm_secure
+[862/1249] Building C object tests/CMakeFiles/test_vibra_sense_rul.dir/test_vibra_sense_rul.c.o
+[863/1249] Linking C executable tests/test_tinyml_overhead
+[864/1249] Linking C executable tests/test_notch_filter
+[865/1249] Building C object tests/CMakeFiles/test_radar_tracker.dir/test_radar_tracker.c.o
+[866/1249] Building C object tests/CMakeFiles/test_vibration_features.dir/test_vibration_features.c.o
+[867/1249] Building C object tests/CMakeFiles/test_ahrs_quaternion.dir/test_ahrs_quaternion.c.o
+[868/1249] Building C object tests/CMakeFiles/test_os_port.dir/test_os_port.c.o
+[869/1249] Linking C executable tests/test_ecg_anomaly
+[870/1249] Linking C executable tests/test_vibra_sense_rul
+[871/1249] Linking C executable tests/test_radar_tracker
+[872/1249] Building C object tests/CMakeFiles/test_license_engine.dir/test_license_engine.c.o
+[873/1249] Linking C executable tests/test_vibration_features
+[874/1249] Linking C executable tests/test_ahrs_quaternion
+[875/1249] Linking C executable tests/test_os_port
+[876/1249] Building C object tests/CMakeFiles/test_ws_binary.dir/test_ws_binary.c.o
+[877/1249] Building C object tests/CMakeFiles/test_edge_guard.dir/test_edge_guard.c.o
+[878/1249] Linking C executable tests/test_license_engine
+[879/1249] Linking C executable tests/test_ws_binary
+[880/1249] Building C object tests/CMakeFiles/test_northbound_snf_online.dir/test_northbound_snf_online.c.o
+[881/1249] Linking C executable tests/test_edge_guard
+[882/1249] Building C object tests/CMakeFiles/test_edge_params_store.dir/test_edge_params_store.c.o
+[883/1249] Building C object tests/CMakeFiles/test_northbound_restart.dir/test_northbound_restart.c.o
+[884/1249] Linking C executable tests/test_edge_params_store
+[885/1249] Building C object tests/CMakeFiles/test_snf_delivery_confirm.dir/test_snf_delivery_confirm.c.o
+[886/1249] Building C object tests/CMakeFiles/test_snf_resilience.dir/test_snf_resilience.c.o
+[887/1249] Linking C executable tests/test_northbound_restart
+[888/1249] Linking C executable tests/test_northbound_snf_online
+[889/1249] Building C object tests/CMakeFiles/test_ccsds_driver.dir/test_ccsds_driver.c.o
+[890/1249] Building C object tests/CMakeFiles/test_pid_antiwindup.dir/test_pid_antiwindup.c.o
+[891/1249] Linking C executable tests/test_snf_resilience
+[892/1249] Building C object tests/CMakeFiles/test_hl7_fhir.dir/test_hl7_fhir.c.o
+[893/1249] Linking C executable tests/test_ccsds_driver
+[894/1249] Linking C executable tests/test_snf_delivery_confirm
+[895/1249] Building C object tests/CMakeFiles/test_bus_orchestrator.dir/test_bus_orchestrator.c.o
+[896/1249] Linking C executable tests/test_hl7_fhir
+[897/1249] Linking C executable tests/test_bus_orchestrator
+[898/1249] Linking C executable tests/test_pid_antiwindup
+[899/1249] Building C object tests/CMakeFiles/test_sdk_full_chain.dir/test_sdk_full_chain.c.o
+[900/1249] Linking C executable tests/test_stream_engine_timeguard
+[901/1249] Linking C executable tests/test_proc_filter_pid
+[902/1249] Linking C executable tests/test_smart_box_hw
+[903/1249] Building C object tests/CMakeFiles/test_dcu.dir/test_dcu.c.o
+[904/1249] Building C object tests/CMakeFiles/test_scheduler.dir/test_scheduler.c.o
+[905/1249] Linking C executable tests/test_protocol_loopback
+[906/1249] Linking C executable tests/test_sdk_full_chain
+[907/1249] Building C object tests/CMakeFiles/test_scheduler.dir/mock_time.c.o
+[908/1249] Linking C executable tests/test_dcu
+[909/1249] Building C object tests/CMakeFiles/test_northbound_mqtt.dir/test_northbound_mqtt.c.o
+[910/1249] Building C object tests/CMakeFiles/test_northbound_mqtt.dir/mock_servers.c.o
+[911/1249] Building C object tests/CMakeFiles/test_northbound_mqtt.dir/mock_mqtt.c.o
+[912/1249] Linking C executable tests/test_omnis_integration
+[913/1249] Linking C executable tests/test_scheduler
+[914/1249] Linking C executable tests/test_northbound_mqtt
+[915/1249] Building C object tests/CMakeFiles/test_northbound_address.dir/test_northbound_address.c.o
+[916/1249] Building C object tests/CMakeFiles/test_driver_mqtt_json.dir/test_driver_mqtt_json.c.o
+[917/1249] Building C object tests/CMakeFiles/test_northbound_ipc_topic.dir/test_northbound_ipc_topic.c.o
+[918/1249] Building C object tests/CMakeFiles/test_mqtt_subscribe.dir/test_mqtt_subscribe.c.o
+[919/1249] Building C object tests/CMakeFiles/test_northbound_downlink.dir/test_northbound_downlink.c.o
+[920/1249] Linking C executable tests/test_northbound_address
+[921/1249] Linking C executable tests/test_driver_mqtt_json
+[922/1249] Linking C executable tests/test_mqtt_subscribe
+[923/1249] Building C object tests/CMakeFiles/test_northbound_event_driven.dir/test_northbound_event_driven.c.o
+[924/1249] Linking C executable tests/test_northbound_downlink
+[925/1249] Building C object tests/CMakeFiles/test_northbound_ipc_dispatch.dir/test_northbound_ipc_dispatch.c.o
+[926/1249] Linking C executable tests/test_northbound_ipc_topic
+[927/1249] Building C object tests/CMakeFiles/test_iems_node.dir/test_iems_node.c.o
+[928/1249] Building C object tests/CMakeFiles/test_adc_dsp_local.dir/test_adc_dsp_local.c.o
+[929/1249] Linking C executable tests/test_northbound_ipc_dispatch
+[930/1249] Building C object tests/CMakeFiles/test_iems_full_stack.dir/test_iems_full_stack.c.o
+[931/1249] Linking C executable tests/test_northbound_event_driven
+[932/1249] Building C object tests/CMakeFiles/test_sos_dscp.dir/test_sos_dscp.c.o
+[933/1249] Building C object tests/CMakeFiles/test_fall_detection.dir/test_fall_detection.c.o
+[934/1249] Building C object tests/CMakeFiles/test_iems_execution_port.dir/test_iems_execution_port.c.o
+[935/1249] Linking C executable tests/test_iems_node
+[936/1249] Building C object tests/CMakeFiles/test_wasm_watchdog.dir/test_wasm_watchdog.c.o
+[937/1249] Linking C executable tests/test_iems_full_stack
+[938/1249] Linking C executable tests/test_adc_dsp_local
+[939/1249] Building C object tests/CMakeFiles/test_emg_dsp.dir/test_emg_dsp.c.o
+[940/1249] Linking C executable tests/test_iems_execution_port
+[941/1249] Building C object tests/CMakeFiles/test_timesync.dir/test_timesync.c.o
+[942/1249] Linking C executable tests/test_fall_detection
+[943/1249] Building C object tests/CMakeFiles/test_protocol_converter.dir/test_protocol_converter.c.o
+[944/1249] Building C object tests/CMakeFiles/test_edge_acl.dir/test_edge_acl.c.o
+[945/1249] Linking C executable tests/test_sos_dscp
+[946/1249] Building C object tests/CMakeFiles/test_rehab_kinematics.dir/test_rehab_kinematics.c.o
+[947/1249] Linking C executable tests/test_wasm_watchdog
+[948/1249] Building C object tests/CMakeFiles/test_motion_wavelet.dir/test_motion_wavelet.c.o
+[949/1249] Linking C executable tests/test_timesync
+[950/1249] Linking C executable tests/test_emg_dsp
+[951/1249] Linking C executable tests/test_protocol_converter
+[952/1249] Building C object tests/CMakeFiles/test_ecg_arrhythmia.dir/test_ecg_arrhythmia.c.o
+[953/1249] Linking C executable tests/test_edge_acl
+[954/1249] Building C object tests/CMakeFiles/test_hrv_analyzer.dir/test_hrv_analyzer.c.o
+[955/1249] Building C object tests/CMakeFiles/test_ppg_spo2.dir/test_ppg_spo2.c.o
+[956/1249] Linking C executable tests/test_rehab_kinematics
+[957/1249] Linking C executable tests/test_motion_wavelet
+[958/1249] Building C object tests/CMakeFiles/test_bia_estimator.dir/test_bia_estimator.c.o
+[959/1249] Linking C executable tests/test_hrv_analyzer
+[960/1249] Building C object tests/CMakeFiles/test_tremor_analyzer.dir/test_tremor_analyzer.c.o
+[961/1249] Linking C executable tests/test_ppg_spo2
+[962/1249] Linking C executable tests/test_bia_estimator
+[963/1249] Building C object tests/CMakeFiles/test_gait_balance.dir/test_gait_balance.c.o
+[964/1249] Building C object tests/CMakeFiles/test_apnea_detector.dir/test_apnea_detector.c.o
+[965/1249] Building C object tests/CMakeFiles/test_dicom_parser.dir/test_dicom_parser.c.o
+[966/1249] Linking C executable tests/test_ecg_arrhythmia
+[967/1249] Linking C executable tests/test_tremor_analyzer
+[968/1249] Building C object tests/CMakeFiles/test_federated_aggregator.dir/test_federated_aggregator.c.o
+[969/1249] Building C object tests/CMakeFiles/test_thermal_throttle.dir/test_thermal_throttle.c.o
+[970/1249] Linking C executable tests/test_gait_balance
+[971/1249] Linking C executable tests/test_apnea_detector
+[972/1249] Building C object tests/CMakeFiles/test_device_twin.dir/test_device_twin.c.o
+[973/1249] Linking C executable tests/test_dicom_parser
+[974/1249] Building C object tests/CMakeFiles/test_driver_hotplug.dir/test_driver_hotplug.c.o
+[975/1249] Linking C executable tests/test_federated_aggregator
+[976/1249] Building C object tests/CMakeFiles/test_impedance_control.dir/test_impedance_control.c.o
+[977/1249] Linking C executable tests/test_shm_waitset
+[978/1249] Building C object tests/CMakeFiles/test_gait_safety.dir/test_gait_safety.c.o
+[979/1249] Linking C executable tests/test_thermal_throttle
+[980/1249] Building C object tests/CMakeFiles/test_facility_coordinator.dir/test_facility_coordinator.c.o
+[981/1249] Linking C executable tests/test_driver_hotplug
+[982/1249] Linking C executable tests/test_device_twin
+[983/1249] Linking C executable tests/test_gait_safety
+[984/1249] Building C object tests/CMakeFiles/test_simd_cdd_codec.dir/test_simd_cdd_codec.c.o
+[985/1249] Linking C executable tests/test_facility_coordinator
+[986/1249] Building C object tests/CMakeFiles/test_multibus_bridge.dir/test_multibus_bridge.c.o
+[987/1249] Linking C executable tests/test_impedance_control
+[988/1249] Building C object tests/CMakeFiles/test_stream_sql_dag.dir/test_stream_sql_dag.c.o
+[989/1249] Building C object tests/CMakeFiles/test_edge_cep_engine.dir/test_edge_cep_engine.c.o
+[990/1249] Linking C executable tests/test_simd_cdd_codec
+[991/1249] Building C object tests/CMakeFiles/test_wasm_host_bridge.dir/test_wasm_host_bridge.c.o
+[992/1249] Linking C executable tests/test_multibus_bridge
+[993/1249] Linking C executable tests/test_stream_sql_dag
+[994/1249] Building C object tests/CMakeFiles/test_timeseries_compressor.dir/test_timeseries_compressor.c.o
+[995/1249] Building C object tests/CMakeFiles/test_onnx_host_guard.dir/test_onnx_host_guard.c.o
+[996/1249] Linking C executable tests/test_wasm_host_bridge
+[997/1249] Linking C executable tests/test_timeseries_compressor
+[998/1249] Linking C executable tests/test_edge_cep_engine
+[999/1249] Linking C executable tests/test_onnx_host_guard
+[1000/1249] Building C object tests/CMakeFiles/test_iems_point_model.dir/test_iems_point_model.c.o
+[1001/1249] Building C object tests/CMakeFiles/test_iems_control_route_e2e.dir/test_iems_control_route_e2e.c.o
+[1002/1249] Building C object tests/CMakeFiles/test_infra_interfaces.dir/test_infra_interfaces.c.o
+[1003/1249] Building C object tests/CMakeFiles/test_iems_task_loader.dir/test_iems_task_loader.c.o
+[1004/1249] Linking C executable tests/test_iems_vendor_semantics
+[1005/1249] Building C object tests/CMakeFiles/test_iems_tag_map.dir/test_iems_tag_map.c.o
+[1006/1249] Linking C executable tests/test_infra_interfaces
+[1007/1249] Building C object tests/CMakeFiles/test_driver_registry_smart_box.dir/test_smartbox_driver_adapter.c.o
+[1008/1249] Linking C executable tests/test_iems_control_route_e2e
+[1009/1249] Linking C executable tests/test_iems_task_loader
+[1010/1249] Linking C executable tests/test_iems_point_model
+[1011/1249] Building C object tests/CMakeFiles/test_driver_registry_dcu.dir/test_dcu_driver_adapter.c.o
+[1012/1249] Building C object tests/CMakeFiles/test_driver_registry.dir/test_driver_registry.c.o
+[1013/1249] Linking C executable tests/test_iems_tag_map
+[1014/1249] Building C object tests/CMakeFiles/test_domain_scenarios.dir/test_domain_scenarios.c.o
+[1015/1249] Linking C executable tests/test_driver_registry_smart_box
+[1016/1249] Linking C executable tests/test_driver_registry
+[1017/1249] Linking C executable tests/test_driver_registry_dcu
+[1018/1249] Linking C executable tests/test_dx_scaffolding
+[1019/1249] Linking C executable tests/test_tag_domains_and_aliases
+[1020/1249] Building C object tests/CMakeFiles/test_sdk_public_headers.dir/test_sdk_public_headers.c.o
+[1021/1249] Linking C executable tests/test_anti_corruption_engine
+[1022/1249] Linking C executable tests/test_smartbox_node
+[1023/1249] Linking C executable tests/test_domain_scenarios
+[1024/1249] Linking C executable tests/test_tag_collision_checker
+[1025/1249] Building C object tests/CMakeFiles/test_developer_manuals.dir/test_developer_manuals.c.o
+[1026/1249] Building C object tests/CMakeFiles/test_examples_integration.dir/test_examples_integration.c.o
+[1027/1249] Linking C executable tests/test_sdk_public_headers
+[1028/1249] Building C object tests/CMakeFiles/test_stream_yaml_assembly.dir/test_stream_yaml_assembly.c.o
+[1029/1249] Building C object tests/CMakeFiles/test_cli_migrate.dir/test_cli_migrate.c.o
+[1030/1249] Building C object tests/CMakeFiles/test_telemetry_store_crash.dir/test_telemetry_store_crash.c.o
+[1031/1249] Linking C executable tests/test_examples_integration
+[1032/1249] Linking C executable tests/test_cli_migrate
+[1033/1249] Linking C executable tests/test_developer_manuals
+[1034/1249] Building C object tests/CMakeFiles/test_datahub_subscription.dir/test_datahub_subscription.c.o
+[1035/1249] Linking C executable tests/test_telemetry_store_crash
+[1036/1249] Building C object tests/CMakeFiles/test_dds_qos_matrix.dir/test_dds_qos_matrix.c.o
+[1037/1249] Linking C executable tests/test_datahub_subscription
+[1038/1249] Building C object tests/CMakeFiles/test_dds_idl_codec.dir/test_dds_idl_codec.c.o
+[1039/1249] Linking C executable tests/test_dds_qos_matrix
+[1040/1249] Linking C executable tests/test_dds_idl_codec
+[1041/1249] Linking C executable tests/test_stream_yaml_assembly
+[1042/1249] Building C object tests/CMakeFiles/test_dcu_power_quality.dir/__/cmd/dcu/dcu_power_quality.c.o
+[1043/1249] Building C object tests/CMakeFiles/test_dcu_power_quality.dir/test_dcu_power_quality.c.o
+[1044/1249] Building C object tests/CMakeFiles/test_iems_energy_strategy.dir/test_iems_energy_strategy.c.o
+[1045/1249] Building C object tests/CMakeFiles/test_iems_energy_strategy.dir/__/cmd/iems/iems_microgrid_coordinator.c.o
+[1046/1249] Linking C executable tests/test_web_design_tokens
+[1047/1249] Building C object tests/CMakeFiles/test_datahub_dds_mesh.dir/test_datahub_dds_mesh.c.o
+[1048/1249] Linking C executable tests/test_dds_shm_zerocopy_perf
+[1049/1249] Linking C executable tests/test_iems_energy_strategy
+[1050/1249] Linking C executable tests/test_dcu_power_quality
+[1051/1249] Building C object tests/CMakeFiles/test_dds_cli_diagnostics.dir/test_dds_cli_diagnostics.c.o
+[1052/1249] Linking C executable tests/test_smartbox_interlock_thermal
+[1053/1249] Building C object tests/CMakeFiles/test_web_iems_energy_flow.dir/test_web_iems_energy_flow.c.o
+[1054/1249] Linking C executable tests/test_dds_cli_diagnostics
+[1055/1249] Building C object tests/CMakeFiles/test_smartbox_scope_double_auth.dir/test_smartbox_scope_double_auth.c.o
+[1056/1249] Linking C executable tests/test_datahub_dds_mesh
+[1057/1249] Building C object tests/CMakeFiles/test_web_dcu_power_quality.dir/test_web_dcu_power_quality.c.o
+[1058/1249] Linking C executable tests/test_web_iems_energy_flow
+[1059/1249] Building C object tests/CMakeFiles/test_web_dcu_power_quality.dir/__/cmd/dcu/dcu_power_quality.c.o
+[1060/1249] Building C object tests/CMakeFiles/test_web_event_stream.dir/test_web_event_stream.c.o
+[1061/1249] Building C object tests/CMakeFiles/test_web_event_stream.dir/__/cmd/dcu/dcu_soe_event_engine.c.o
+[1062/1249] Linking C executable tests/test_smartbox_scope_double_auth
+[1063/1249] Linking C executable tests/test_dds_discovery_liveliness
+[1064/1249] Building C object tests/CMakeFiles/test_web_metrics_matrix.dir/test_web_metrics_matrix.c.o
+[1065/1249] Linking C executable tests/test_web_dcu_power_quality
+[1066/1249] Building C object tests/CMakeFiles/test_web_channel_topology.dir/test_web_channel_topology.c.o
+[1067/1249] Linking C executable tests/test_web_event_stream
+[1068/1249] Linking C executable tests/test_web_log_terminal
+[1069/1249] Building C object tests/CMakeFiles/test_web_app_store.dir/test_web_app_store.c.o
+[1070/1249] Building C object tests/CMakeFiles/test_web_console_drawer.dir/test_web_console_drawer.c.o
+[1071/1249] Linking C executable tests/test_web_metrics_matrix
+[1072/1249] Linking C executable tests/test_web_channel_topology
+[1073/1249] Linking C executable tests/test_web_app_store
+[1074/1249] Linking C executable tests/test_web_console_drawer
+[1075/1249] Building C object tests/CMakeFiles/test_web_cli_bridge.dir/test_web_cli_bridge.c.o
+[1076/1249] Building C object tests/CMakeFiles/test_web_protocol_sniffer.dir/test_web_protocol_sniffer.c.o
+[1077/1249] Building C object tests/CMakeFiles/test_web_console_rbac_audit.dir/test_web_console_rbac_audit.c.o
+[1078/1249] Linking C executable tests/test_web_cli_bridge
+[1079/1249] Linking C executable tests/test_web_protocol_sniffer
+[1080/1249] Linking C executable tests/test_web_console_rbac_audit
+[1081/1249] Building C object tests/CMakeFiles/test_mcp_dispatcher.dir/test_mcp_dispatcher.c.o
+[1082/1249] Building C object tests/CMakeFiles/test_mcp_industry_tools.dir/test_mcp_industry_tools.c.o
+[1083/1249] Building C object tests/CMakeFiles/test_mcp_uds.dir/test_mcp_uds.c.o
+[1084/1249] Building C object tests/CMakeFiles/test_mcp_server_protocol.dir/test_mcp_server_protocol.c.o
+[1085/1249] Linking C executable tests/test_mcp_dispatcher
+[1086/1249] Building C object tests/CMakeFiles/test_battery_fo_ecm_ekf.dir/test_battery_fo_ecm_ekf.c.o
+[1087/1249] Linking C executable tests/test_mcp_industry_tools
+[1088/1249] Building C object tests/CMakeFiles/test_battery_micro_isc.dir/test_battery_micro_isc.c.o
+[1089/1249] Linking C executable tests/test_battery_fo_ecm_ekf
+[1090/1249] Linking C executable tests/test_mcp_uds
+[1091/1249] Building C object tests/CMakeFiles/test_battery_spatial_matrix.dir/test_battery_spatial_matrix.c.o
+[1092/1249] Building C object tests/CMakeFiles/test_battery_eis.dir/test_battery_eis.c.o
+[1093/1249] Linking C executable tests/test_mcp_server_protocol
+[1094/1249] Building C object tests/CMakeFiles/test_battery_soh_fusion.dir/test_battery_soh_fusion.c.o
+[1095/1249] Linking C executable tests/test_battery_micro_isc
+[1096/1249] Building C object tests/CMakeFiles/test_battery_balancer.dir/test_battery_balancer.c.o
+[1097/1249] Linking C executable tests/test_battery_spatial_matrix
+[1098/1249] Building C object tests/CMakeFiles/test_battery_gas_early_warning.dir/test_battery_gas_early_warning.c.o
+[1099/1249] Linking C executable tests/test_battery_eis
+[1100/1249] Building C object tests/CMakeFiles/test_battery_pulse_heating.dir/test_battery_pulse_heating.c.o
+[1101/1249] Linking C executable tests/test_battery_soh_fusion
+[1102/1249] Building C object tests/CMakeFiles/test_battery_thermal_mesh.dir/test_battery_thermal_mesh.c.o
+[1103/1249] Linking C executable tests/test_battery_balancer
+[1104/1249] Building C object tests/CMakeFiles/test_battery_sop_dynamic_bounds.dir/test_battery_sop_dynamic_bounds.c.o
+[1105/1249] Linking C executable tests/test_battery_gas_early_warning
+[1106/1249] Linking C executable tests/test_battery_pulse_heating
+[1107/1249] Linking C executable tests/test_battery_thermal_mesh
+[1108/1249] Building C object tests/CMakeFiles/test_mcp_bus_security.dir/test_mcp_bus_security.c.o
+[1109/1249] Linking C executable tests/test_battery_sop_dynamic_bounds
+[1110/1249] Building C object tests/CMakeFiles/test_npu_ascend_acl.dir/test_npu_ascend_acl.c.o
+[1111/1249] Building C object tests/CMakeFiles/test_npu_rockchip_rknn.dir/test_npu_rockchip_rknn.c.o
+[1112/1249] Building C object tests/CMakeFiles/test_mcp_microservices_integration.dir/test_mcp_microservices_integration.c.o
+[1113/1249] Linking C executable tests/test_mcp_bus_security
+[1114/1249] Linking C executable tests/test_npu_ascend_acl
+[1115/1249] Linking C executable tests/test_npu_rockchip_rknn
+[1116/1249] Building C object tests/CMakeFiles/test_npu_horizon_bpu.dir/test_npu_horizon_bpu.c.o
+[1117/1249] Building C object tests/CMakeFiles/test_npu_nvidia_trt.dir/test_npu_nvidia_trt.c.o
+[1118/1249] Building C object tests/CMakeFiles/test_npu_ti_sitara.dir/test_npu_ti_sitara.c.o
+[1119/1249] Linking C executable tests/test_mcp_microservices_integration
+[1120/1249] Linking C executable tests/test_npu_horizon_bpu
+[1121/1249] Building C object tests/CMakeFiles/test_dma_buf_pool.dir/test_dma_buf_pool.c.o
+[1122/1249] Linking C executable tests/test_npu_nvidia_trt
+[1123/1249] Linking C executable tests/test_npu_ti_sitara
+[1124/1249] Building C object tests/CMakeFiles/test_npu_hal.dir/test_npu_hal.c.o
+[1125/1249] Linking C executable tests/test_dma_buf_pool
+[1126/1249] Building C object tests/CMakeFiles/test_npu_self_healing.dir/test_npu_self_healing.c.o
+[1127/1249] Linking C executable tests/test_npu_hal
+[1128/1249] Linking C executable tests/test_npu_self_healing
+[1129/1249] Building C object tests/CMakeFiles/test_npu_pmu.dir/test_npu_pmu.c.o
+[1130/1249] Building C object tests/CMakeFiles/test_npu_power_manager.dir/test_npu_power_manager.c.o
+[1131/1249] Building C object tests/CMakeFiles/test_npu_enclave.dir/test_npu_enclave.c.o
+[1132/1249] Building C object tests/CMakeFiles/test_caller_allocated_storage.dir/test_caller_allocated_storage.c.o
+[1133/1249] Linking C executable tests/test_npu_pmu
+[1134/1249] Building C object tests/CMakeFiles/test_edge_sched_deadline.dir/test_edge_sched_deadline.c.o
+[1135/1249] Building C object tests/CMakeFiles/test_composition_root.dir/test_composition_root.c.o
+[1136/1249] Linking C executable tests/test_npu_enclave
+[1137/1249] Linking C executable tests/test_npu_power_manager
+[1138/1249] Building C object tests/CMakeFiles/test_vsg_golden_trace.dir/test_vsg_golden_trace.c.o
+[1139/1249] Linking C executable tests/test_vsg_control
+[1140/1249] Linking C executable tests/test_vsg_golden_trace
+[1141/1249] Building C object tests/CMakeFiles/test_cpu_affinity.dir/test_cpu_affinity.c.o
+[1142/1249] Linking C executable tests/test_composition_root
+[1143/1249] Building C object tests/CMakeFiles/test_edf_scheduler.dir/test_edf_scheduler.c.o
+[1144/1249] Linking C executable tests/test_edge_sched_deadline
+[1145/1249] Building C object tests/CMakeFiles/test_rms_scheduler.dir/test_rms_scheduler.c.o
+[1146/1249] Linking C executable tests/test_pcp_mutex
+[1147/1249] Linking C executable tests/test_caller_allocated_storage
+[1148/1249] Linking C executable tests/test_edf_scheduler
+[1149/1249] Linking C executable tests/test_rms_scheduler
+[1150/1249] Linking C executable tests/test_cpu_affinity
+[1151/1249] Building C object tests/CMakeFiles/test_coop_guard.dir/test_coop_guard.c.o
+[1152/1249] Linking C executable tests/test_prio_booster
+[1153/1249] Linking C executable tests/test_mixed_criticality
+[1154/1249] Linking C executable tests/test_coop_guard
+[1155/1249] Building C object tests/CMakeFiles/test_ai_quant_calibrator.dir/test_ai_quant_calibrator.c.o
+[1156/1249] Building C object tests/CMakeFiles/test_ai_slm_kv_cache.dir/test_ai_slm_kv_cache.c.o
+[1157/1249] Building C object tests/CMakeFiles/test_ai_temporal_fault_net.dir/test_ai_temporal_fault_net.c.o
+[1158/1249] Building C object tests/CMakeFiles/test_ai_dynamic_tensor_pool.dir/test_ai_dynamic_tensor_pool.c.o
+[1159/1249] Building C object tests/CMakeFiles/test_ai_fast_gemm.dir/test_ai_fast_gemm.c.o
+[1160/1249] Building C object tests/CMakeFiles/test_ai_awq_gptq_gemm.dir/test_ai_awq_gptq_gemm.c.o
+[1161/1249] Linking C executable tests/test_ai_dynamic_tensor_pool
+[1162/1249] Linking C executable tests/test_ai_quant_calibrator
+[1163/1249] Building C object tests/CMakeFiles/test_tmr_failover.dir/test_tmr_failover.c.o
+[1164/1249] Building C object tests/CMakeFiles/test_ai_graph_pruner.dir/test_ai_graph_pruner.c.o
+[1165/1249] Linking C executable tests/test_ai_temporal_fault_net
+[1166/1249] Building C object tests/CMakeFiles/test_ebpf_telemetry.dir/test_ebpf_telemetry.c.o
+[1167/1249] Linking C executable tests/test_ai_awq_gptq_gemm
+[1168/1249] Linking C executable tests/test_ai_slm_kv_cache
+[1169/1249] Linking C executable tests/test_ai_graph_pruner
+[1170/1249] Building C object tests/CMakeFiles/test_tsn_engine.dir/test_tsn_engine.c.o
+[1171/1249] Linking C executable tests/test_ai_fast_gemm
+[1172/1249] Building C object tests/CMakeFiles/test_thermal_scheduler.dir/test_thermal_scheduler.c.o
+[1173/1249] Building C object tests/CMakeFiles/test_uns_sparkplug_opcua.dir/test_uns_sparkplug_opcua.c.o
+[1174/1249] Linking C executable tests/test_tmr_failover
+[1175/1249] Linking C executable tests/test_ebpf_telemetry
+[1176/1249] Linking C executable tests/test_thermal_scheduler
+[1177/1249] Building C object tests/CMakeFiles/test_amp_ipc_ring.dir/test_amp_ipc_ring.c.o
+[1178/1249] Building C object tests/CMakeFiles/test_operator_fusion.dir/test_operator_fusion.c.o
+[1179/1249] Building C object tests/CMakeFiles/test_vsg_ffr.dir/test_vsg_ffr.c.o
+[1180/1249] Building C object tests/CMakeFiles/test_swarm_ai_offloading.dir/test_swarm_ai_offloading.c.o
+[1181/1249] Linking C executable tests/test_uns_sparkplug_opcua
+[1182/1249] Linking C executable tests/test_tsn_engine
+[1183/1249] Building C object tests/CMakeFiles/test_battery_thermal_pinn.dir/test_battery_thermal_pinn.c.o
+[1184/1249] Building C object tests/CMakeFiles/test_wasm_nn_sandbox.dir/test_wasm_nn_sandbox.c.o
+[1185/1249] Linking C executable tests/test_amp_ipc_ring
+[1186/1249] Building C object tests/CMakeFiles/test_cdd_tensor_schema.dir/test_cdd_tensor_schema.c.o
+[1187/1249] Linking C executable tests/test_vsg_ffr
+[1188/1249] Building C object tests/CMakeFiles/test_ai_pinn_evaluator.dir/test_ai_pinn_evaluator.c.o
+[1189/1249] Linking C executable tests/test_swarm_ai_offloading
+[1190/1249] Linking C executable tests/test_operator_fusion
+[1191/1249] Building C object tests/CMakeFiles/test_ai_hetero_pipeline.dir/test_ai_hetero_pipeline.c.o
+[1192/1249] Linking C executable tests/test_battery_thermal_pinn
+[1193/1249] Linking C executable tests/test_cdd_tensor_schema
+[1194/1249] Linking C executable tests/test_wasm_nn_sandbox
+[1195/1249] Linking C executable tests/test_ai_pinn_evaluator
+[1196/1249] Linking C executable tests/test_ai_hetero_pipeline
+[1197/1249] Building C object tests/CMakeFiles/test_dcu_topology_phase_id.dir/test_dcu_topology_phase_id.c.o
+[1198/1249] Building C object tests/CMakeFiles/test_bus_resilience_recovery.dir/test_bus_resilience_recovery.c.o
+[1199/1249] Linking C executable tests/test_bus_resilience_recovery
+[1200/1249] Building C object tests/CMakeFiles/test_dcu_mutex_marathon.dir/test_dcu_mutex_marathon.c.o
+[1201/1249] Building C object tests/CMakeFiles/test_northbound_dual_track_snf.dir/test_northbound_dual_track_snf.c.o
+[1202/1249] Building C object tests/CMakeFiles/test_northbound_dual_track_snf.dir/__/services/northbound/northbound_dual_track_snf.c.o
+[1203/1249] Linking C executable tests/test_dcu_topology_phase_id
+[1204/1249] Linking C executable tests/test_northbound_dual_track_snf
+[1205/1249] Building C object tests/CMakeFiles/test_storage_powercut_resilience.dir/test_storage_powercut_resilience.c.o
+[1206/1249] Building C object tests/CMakeFiles/test_storage_powercut_resilience.dir/__/tools/fault_injector/storage_powercut_fault_injector.c.o
+[1207/1249] Linking C executable tests/test_dcu_mutex_marathon
+[1208/1249] Building C object tests/CMakeFiles/test_iec104_type_test_suite.dir/test_iec104_type_test_suite.c.o
+[1209/1249] Linking C executable tests/test_aggregate_roots_governance
+[1210/1249] Linking C executable tests/test_storage_powercut_resilience
+[1211/1249] Linking C executable tests/test_iec104_type_test_suite
+[1212/1249] Building C object tests/CMakeFiles/test_sdk_conformance.dir/test_sdk_conformance.c.o
+[1213/1249] Building C object tests/CMakeFiles/test_sdk_conformance.dir/__/sdk/c/edge_app_sdk.c.o
+[1214/1249] Building C object tests/CMakeFiles/test_soak_memory_convergence.dir/test_soak_memory_convergence.c.o
+[1215/1249] Building C object tests/CMakeFiles/test_iec_cp56time.dir/test_iec_cp56time.c.o
+[1216/1249] Linking C executable tests/test_sdk_conformance
+[1217/1249] Linking C executable tests/test_soak_memory_convergence
+[1218/1249] Building C object tests/CMakeFiles/test_iems_connectivity.dir/test_iems_connectivity.c.o
+[1219/1249] Building C object tests/CMakeFiles/test_iems_southbound_transport.dir/test_iems_southbound_transport.c.o
+[1220/1249] Linking C executable tests/test_iec_cp56time
+[1221/1249] Building C object tests/CMakeFiles/test_iems_north_iec104.dir/test_iems_iec104_north.c.o
+[1222/1249] Linking C executable tests/test_iems_connectivity
+[1223/1249] Building C object tests/CMakeFiles/test_iems_southbound_uart_pty.dir/test_iems_southbound_uart_pty.c.o
+[1224/1249] Linking C executable tests/test_iems_north_iec104
+[1225/1249] Building C object tests/CMakeFiles/test_iems_modbus_rtu_uart_pty.dir/test_iems_modbus_rtu_uart_pty.c.o
+[1226/1249] Building C object tests/CMakeFiles/test_iems_modbus_tcp_loopback.dir/test_iems_modbus_tcp_loopback.c.o
+[1227/1249] Linking C executable tests/test_iems_southbound_uart_pty
+[1228/1249] Linking C executable tests/test_iems_southbound_transport
+[1229/1249] Building C object tests/CMakeFiles/test_iems_tcp_link.dir/test_iems_tcp_link.c.o
+[1230/1249] Linking C executable tests/test_iems_modbus_rtu_uart_pty
+[1231/1249] Building C object tests/CMakeFiles/test_iems_dlt645_uart_pty.dir/test_iems_dlt645_uart_pty.c.o
+[1232/1249] Linking C executable tests/test_iems_modbus_tcp_loopback
+[1233/1249] Building C object tests/CMakeFiles/test_datahub_subscription_capacity.dir/test_datahub_subscription_capacity.c.o
+[1234/1249] Linking C executable tests/test_iems_tcp_link
+[1235/1249] Building C object tests/CMakeFiles/test_iems_ydt1363_uart_pty.dir/test_iems_ydt1363_uart_pty.c.o
+[1236/1249] Building C object tests/CMakeFiles/test_iems_cli_write.dir/test_iems_cli_write.c.o
+[1237/1249] Linking C executable tests/test_iems_dlt645_uart_pty
+[1238/1249] Linking C executable tests/test_iems_ydt1363_uart_pty
+[1239/1249] Linking C executable tests/test_datahub_subscription_capacity
+[1240/1249] Building C object fuzz/CMakeFiles/fuzz_protocol_decoder.dir/fuzz_protocol_decoder.c.o
+[1241/1249] Building C object fuzz/CMakeFiles/fuzz_cp56time.dir/fuzz_cp56time.c.o
+[1242/1249] Linking C executable fuzz/fuzz_protocol_decoder
+[1243/1249] Linking C executable tests/test_iems_cli_write
+[1244/1249] Building C object fuzz/CMakeFiles/fuzz_simd_cdd.dir/fuzz_simd_cdd.c.o
+[1245/1249] Linking C executable fuzz/fuzz_cp56time
+[1246/1249] Linking C executable fuzz/fuzz_simd_cdd
+[1247/1249] Compiling OMG IDL 4.2 files using Cyclone DDS idlc compiler...
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+No default extensibility provided. For one or more of the aggregated types in the IDL the extensibility is not explicitly set. Currently the default extensibility for these types is 'final', but this may change to 'appendable' in a future release because that is the default in the DDS XTypes specification.
+[1248/1249] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[1249/1249] Linking C executable tests/test_idl_generated_serialization

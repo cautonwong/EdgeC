@@ -27,6 +27,7 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
+from c_source_scan import SHARED_PRUNE_DIRS, rel_scan_parts, skip_subtree
 
 
 # Directories that are never "our source". Walking into them produces false
@@ -44,7 +45,7 @@ PRUNE_DIR_NAMES = {
     ".cache",
     "_deps",
     "third-party",    # vendored, already skipped below - prune it for speed
-}
+} | SHARED_PRUNE_DIRS
 
 
 def _walk_pruned(target_dir):
@@ -166,16 +167,11 @@ def check_stack_usage(target_dir, max_bytes=DEFAULT_MAX_STACK_BYTES):
                 su_found = True
                 violations.extend(parse_su_file(os.path.join(root, f), max_bytes))
 
-    is_fixture_root = os.path.basename(target_dir).startswith(("good_", "bad_"))
-
-    if not su_found or "guards" in target_dir:
+    if not su_found or guard_baseline.is_selftest_fixture(target_dir):
         for root, _, files in _walk_pruned(target_dir):
-            if "third-party" in root:
+            if "third-party" in rel_scan_parts(root, target_dir):
                 continue
-            # Guard fixtures are validated by the refutation suite, never as repo code.
-            if "guards" + os.sep + "fixtures" in root and not is_fixture_root:
-                continue
-            if "tests" in root and "guards" not in root:
+            if skip_subtree(root, target_dir):
                 continue
             for f in files:
                 if f.endswith((".c", ".cpp")):

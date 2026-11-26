@@ -1,0 +1,45 @@
+{
+  "devices": [
+    {
+      "disabled": 0,
+      "ipaddr": "",
+      "name": "cabinetA",
+      "no": "LC1",
+      "sn": "SN0001",
+      "type": "vlc"
+    },
+    {
+      "disabled": 0,
+      "ipaddr": "",
+      "name": "cabinetB",
+      "no": "LC2",
+      "sn": "SN0002",
+      "type": "vlc"
+    },
+    {
+      "disabled": 0,
+      "ipaddr": "",
+      "name": "cabinetC",
+      "no": "LC3",
+      "sn": "SN0003",
+      "type": "vlc"
+    },
+    {
+      "disabled": 0,
+      "ipaddr": "",
+      "name": "cabinetD",
+      "no": "LC4",
+      "sn": "SN0004",
+      "type": "vlc"
+    },
+    {
+      "disabled": 0,
+      "ipaddr": "",
+      "name": "cabinetE",
+      "no": "LC5",
+      "sn": "SN0005",
+      "type": "vlc"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

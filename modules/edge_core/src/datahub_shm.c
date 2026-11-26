@@ -43,6 +43,9 @@ static void _shm_legacy_async_cb(uv_async_t *handle) {
 
 int datahub_shm_init(datahub_t *hub, const datahub_config_t *config) {
     if (!hub) return -1;
+    /* Direct backend callers may pass a zeroed hub; fd 0 is stdin, not "off". */
+    hub->wal_fd = -1;
+    hub->shadow_fd = -1;
     hub->backend_type = DATAHUB_BACKEND_SHM;
     hub->ops = &g_datahub_shm_ops;
 

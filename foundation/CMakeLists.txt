@@ -79,6 +79,7 @@ set(EDGE_CODEC_SOURCES
     src/protocol/can_codec.c
     src/protocol/dlt645_codec.c
     src/protocol/dlt698_codec.c
+    src/protocol/ipc_binary_flow_codec.c
     src/protocol/ydt1363_codec.c
     src/protocol_converter.c
     src/edge_uns_engine.c

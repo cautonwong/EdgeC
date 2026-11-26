@@ -1,0 +1,18 @@
+=== red: tracked, unregistered formal file
+❌ [FORMAL-SYNC] tracked formal file is not registered: formal/cbmc/stray.c
+SYNC_RC=1
+
+=== red: missing manifest dir (clone), sync then positive gate
+❌ [FORMAL-SYNC] formal/manifest/ is missing
+SYNC_RC=1
+❌ [FORMAL-MANIFEST] formal/manifest/ is missing
+❌ [FORMAL] manifest parse failed
+POSITIVE_RC=1
+
+=== red: property_count 2 on a 1-property harness (clone)
+❌ [FORMAL] property count 1 != manifest 2 (assertions changed without a manifest update): /tmp/iems-formal/red-count/build/formal/iems/red_probe.proof.log
+POSITIVE_RC=1
+
+=== red: declared artifact missing (clone, sync)
+❌ [FORMAL-SYNC] formal/manifest/iems.tsv:2: artifact missing: formal/cbmc/missing.c
+SYNC_RC=1

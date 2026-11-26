@@ -1,0 +1,4 @@
+56528bb3629f89acb3f104f4bf1d98c9dbc8b1e6
+Validated code tip (all gates re-run on this tree). Evidence txt captured at
+d181c42d; summary.md/commands.md/runtime.md/residual.md added in the following
+docs-only commit. Indicator rerun: the docs-only commits touch no code.

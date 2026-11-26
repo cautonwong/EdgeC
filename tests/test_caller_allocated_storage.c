@@ -16,6 +16,7 @@
 #include <cmocka.h>
 #include <math.h>
 #include <setjmp.h>
+#include <sqlite3.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -803,9 +804,10 @@ static void test_protocol_bridge_caller_allocated_storage(void **state) {
     uv_loop_close(&loop);
 }
 
-static int _dummy_snf_pub(void *user_data, const PipeMsg *msg) {
+static int _dummy_snf_pub(void *user_data, const PipeMsg *msg, uint64_t wall_ts_us) {
     (void)user_data;
     (void)msg;
+    (void)wall_ts_us;
     return 0;
 }
 
@@ -1452,8 +1454,24 @@ static void test_sqlite_svc_caller_allocated_storage(void **state) {
     assert_non_null(svc);
 
     PipeMsg msg = {.ts = 1700000000, .tag_id = 1, .payload.val.f = 380.0f, .quality = 1};
+    /* 零分配 SERIES 没有逐条墙钟存储：insert_at 必须 fail closed，不能静默改用 flush 时刻。 */
+    assert_int_equal(sqlite_svc_insert_at(svc, &msg, 1600000000000123ULL), -1);
     assert_int_equal(sqlite_svc_insert(svc, &msg), 0);
-    assert_int_equal(sqlite_svc_flush(svc), 0);
+    assert_int_equal(sqlite_svc_flush_sync(svc), 0);
+
+    sqlite3 *raw = NULL;
+    assert_int_equal(sqlite3_open(db_path, &raw), SQLITE_OK);
+    sqlite3_stmt *stmt = NULL;
+    assert_int_equal(sqlite3_prepare_v2(raw, "SELECT count(*), max(wall_ts_us) FROM telemetry;",
+                                        -1, &stmt, NULL),
+                     SQLITE_OK);
+    assert_int_equal(sqlite3_step(stmt), SQLITE_ROW);
+    assert_int_equal(sqlite3_column_int(stmt, 0), 1);
+    sqlite3_int64 wall = sqlite3_column_int64(stmt, 1);
+    sqlite3_finalize(stmt);
+    sqlite3_close(raw);
+    assert_true(wall > 0);
+    assert_true(wall != 1600000000000123LL); /* insert() 的墙钟来自 flush 时刻 */
 
     sqlite_svc_destroy(svc);
     uv_loop_close(&loop);

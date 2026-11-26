@@ -1,0 +1,8 @@
+{
+  "sample_rate": 60,
+  "history": 0,
+  "data_persistence": 1,
+  "history_rolling": 48,
+  "snapshoot_interval": 15,
+  "db_update_interval": 60
+}

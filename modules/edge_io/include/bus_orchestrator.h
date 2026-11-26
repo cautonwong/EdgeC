@@ -19,6 +19,12 @@ typedef struct {
     alignas(max_align_t) uint8_t raw[4096];
 } bus_orchestrator_storage_t;
 
+/** 从站响应单独的小池：容纳 EDGE_SLAVE_AXDR_MAX 的 A-XDR 加 698 帧开销。
+ *  共享池的 4096 B 装不下 106 项对象列表（4306 B + 帧 = 4328 B）；32 × 10496 B
+ *  约 328 KB，避免把 8192 × 4096 的共享池抬到约 85 MB。 */
+#define BUS_SLAVE_POOL_COUNT 32u
+#define BUS_SLAVE_POOL_BUF_SIZE (EDGE_SLAVE_AXDR_MAX + 256u)
+
 typedef struct {
     uint32_t tag_netbuf_total;
     uint32_t tag_netbuf_free;

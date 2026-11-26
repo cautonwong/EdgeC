@@ -1,0 +1,10 @@
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d1-10b-window/build ===
+
+[MUTATION] DCU-D1-10B-fixed-line-window (scripts/extract_dcu_698_catalog.py)
+  [mutate] scripts/extract_dcu_698_catalog.py: 1 occurrence replaced
+  [mutated] build rc=0, test rc=1
+  [restore] scripts/extract_dcu_698_catalog.py: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D1-10B-fixed-line-window: red under mutation (rc=1), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

@@ -10,6 +10,8 @@
 #define CATALOG_OI_COUNT (sizeof(dcu698_catalog_ois) / sizeof(dcu698_catalog_ois[0]))
 #define CATALOG_OI_ATTR_COUNT (sizeof(dcu698_catalog_oi_attrs) / sizeof(dcu698_catalog_oi_attrs[0]))
 #define CATALOG_CLASS_COUNT (sizeof(dcu698_catalog_classes) / sizeof(dcu698_catalog_classes[0]))
+#define CATALOG_OI_METHOD_COUNT \
+    (sizeof(dcu698_catalog_oi_methods) / sizeof(dcu698_catalog_oi_methods[0]))
 
 static const dcu698_catalog_oi_t *catalog_oi(uint16_t oi) {
     for (size_t i = 0; i < CATALOG_OI_COUNT; i++) {
@@ -30,6 +32,14 @@ static const dcu698_catalog_class_t *catalog_class(uint8_t class_id) {
         if (dcu698_catalog_classes[i].class_id == class_id) return &dcu698_catalog_classes[i];
     }
     return NULL;
+}
+
+static bool catalog_oi_defines_method(uint16_t oi, uint8_t method) {
+    for (size_t i = 0; i < CATALOG_OI_METHOD_COUNT; i++) {
+        if (dcu698_catalog_oi_methods[i].oi == oi &&
+            dcu698_catalog_oi_methods[i].method == method) return true;
+    }
+    return false;
 }
 
 static void test_every_table_oi_is_in_the_catalog(void **state) {
@@ -55,6 +65,20 @@ static void test_masks_stay_within_the_class_definition(void **state) {
         for (unsigned id = 0; id <= 255; id++) {
             if (dcu_mask_test(obj->attr_mask, (uint8_t)id)) assert_true(id <= max_attr);
             if (dcu_mask_test(obj->method_mask, (uint8_t)id)) assert_true(id <= cls->max_method);
+        }
+    }
+}
+
+static void test_methods_stay_within_the_oi_definition(void **state) {
+    (void)state;
+    for (size_t i = 0; i < dcu_698_object_count(); i++) {
+        const dcu_698_object_t *obj = dcu_698_object_at(i);
+        const dcu698_catalog_class_t *cls = catalog_class(obj->class_id);
+        assert_non_null(cls);
+        for (unsigned id = 0; id <= 255; id++) {
+            if (!dcu_mask_test(obj->method_mask, (uint8_t)id)) continue;
+            if (id <= cls->max_class_method) continue;
+            assert_true(catalog_oi_defines_method(obj->oi, (uint8_t)id));
         }
     }
 }
@@ -86,6 +110,7 @@ int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_every_table_oi_is_in_the_catalog),
         cmocka_unit_test(test_masks_stay_within_the_class_definition),
+        cmocka_unit_test(test_methods_stay_within_the_oi_definition),
         cmocka_unit_test(test_class_attr_limit_matches_catalog),
         cmocka_unit_test(test_no_duplicate_ois),
     };

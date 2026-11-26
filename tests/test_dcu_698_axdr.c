@@ -1,4 +1,8 @@
+#define _GNU_SOURCE
+
 #include <cmocka.h>
+#include <errno.h>
+#include <ftw.h>
 #include <setjmp.h>
 #include <stdalign.h>
 #include <stdarg.h>
@@ -8,10 +12,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "datahub.h"
+#include "dcu_comm_info.h"
 #include "dcu_698_axdr.h"
+#include "dcu_698_object_internal.h"
 #include "dcu_698_object_model.h"
 #include "dcu_698_param.h"
 #include "dcu_698_var.h"
@@ -19,6 +27,7 @@
 #include "dcu_inventory.h"
 #include "dcu_north_adapter.h"
 #include "dcu_poller.h"
+#include "dcu_relay_map.h"
 #include "dcu_router.h"
 #include "dlt698_codec.h"
 #include "edge_driver.h"
@@ -212,7 +221,7 @@ static void test_product_accept_set_event_attrs(void **state) {
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(
         dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), u8_one, sizeof(u8_one)),
-        EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        EDGE_SLAVE_SRC_DENIED);
 
     dcu_698_object_model_reset();
 }
@@ -289,9 +298,9 @@ static void test_product_accept_set_paths(void **state) {
     init_product_model();
 
     const uint8_t baud[] = {0x06, 0x00, 0x00, 0x09, 0x60}; /* 2400, double-long-unsigned */
-    /* F200 的 A2/A3/A4 没有真实可落地的串口重配路径，全部不对外。 */
+    /* F200 A2 已广告但只读（无写处理器）：SET 回 DAR 3。 */
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_CHANNEL_CONFIG, 2), baud, sizeof(baud)),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+                     EDGE_SLAVE_SRC_DENIED);
     uint32_t got = 0;
     assert_int_equal(dcu_698_read(MK_OAD(OI_CHANNEL_CONFIG, 2), &got), -1);
 
@@ -303,7 +312,7 @@ static void test_product_accept_set_paths(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), baud, sizeof(baud)),
-                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+                     EDGE_SLAVE_SRC_DENIED);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 18), baud, sizeof(baud)),
                      EDGE_SLAVE_SRC_UNDEFINED);
 
@@ -400,6 +409,589 @@ static void test_product_class2_and_5_have_no_value_yet(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 }
 
+static void test_product_class14_15_16_have_no_value_yet(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    static const uint16_t defined[] = {
+        0x2100, 0x2101, 0x2102, 0x2103, 0x2104, 0x2110, 0x2111, 0x2112,
+        0x2113, 0x2114, 0x2120, 0x2121, 0x2122, 0x2123, 0x2124,
+    };
+    for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
+        for (uint8_t attr = 1; attr <= 3; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 4), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 5), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2141, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class17_has_no_value_yet(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    static const uint16_t defined[] = {0xF300, 0xF301};
+    for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
+        for (uint8_t attr = 1; attr <= 4; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 5), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 6; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 7), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0xF302, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class11_collection_sets_have_no_value_yet(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    static const uint16_t defined[] = {0x7000, 0x7010};
+    for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
+        for (uint8_t attr = 1; attr <= 4; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 5), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    for (uint8_t method = 127; method <= 129; method++) {
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x7000, method), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x7000, 130), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    for (uint8_t method = 127; method <= 130; method++) {
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x7010, method), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x7010, 131), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x7011, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x9999, 127), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class12_pulse_has_no_value_yet(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    /* 表157 类定义 A1..A19；16/17 的归属在表157/158 之间有冲突，按类定义表157
+     * 视为已定义，主站侧因 ACL 未广告先回 DAR 3。 */
+    for (uint8_t attr = 1; attr <= 19; attr++) {
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, attr), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, 20), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    for (uint8_t method = 1; method <= 4; method++) {
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, method), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, 5), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2402, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2402, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class25_26_comm_dar(void **state) {
+    (void)state;
+    init_product_model();
+
+    static const uint8_t k_mac[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dcu_comm_info_t info = {.mac_present = true};
+    memcpy(info.mac, k_mac, sizeof(k_mac));
+    dcu_comm_info_install(&info);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+
+    /* 表196：Class 25 定义 A1..A11、方法 1；产品没有 APN/ICCID/IMSI/信号来源。 */
+    static const uint16_t wireless[] = {0x4500, 0x4501};
+    for (size_t i = 0; i < sizeof(wireless) / sizeof(wireless[0]); i++) {
+        for (uint8_t attr = 1; attr <= 11; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(wireless[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(wireless[i], 12), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_UNDEFINED);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(wireless[i], 1), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(wireless[i], 2), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    /* 表199：Class 26 定义 A1..A5、方法 1；只有 4510 A5 有平台 MAC 来源。 */
+    for (uint16_t oi = 0x4510; oi <= 0x4517; oi++) {
+        for (uint8_t attr = 1; attr <= 4; attr++) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        if (oi == 0x4510) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 5), buf, sizeof(buf), &len),
+                             0);
+            assert_int_equal(len, 8);
+            static const uint8_t want[] = {DLT698_TAG_OCTET_STRING, 6, 0x02, 0x11,
+                                           0x22,                   0x33, 0x44, 0x55};
+            assert_memory_equal(buf, want, sizeof(want));
+        } else {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 5), buf, sizeof(buf), &len),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 6), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 1), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 2), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    /* 平台没给接口时 A5 回 DAR 5，不拿全零 MAC 冒充。 */
+    dcu_comm_info_reset();
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4510, 5), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4502, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4518, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4502, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    /* SET 不伪装：4510 A5 类定义但无写处理器 → 拒绝；类定义未广告 → DAR 5。 */
+    static const uint8_t mac_data[] = {DLT698_TAG_OCTET_STRING, 6, 1, 2, 3, 4, 5, 6};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4510, 5), mac_data, sizeof(mac_data)),
+                     EDGE_SLAVE_SRC_DENIED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4500, 1), mac_data, sizeof(mac_data)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4502, 1), mac_data, sizeof(mac_data)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class19_devmgr_dar(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+
+    /* 表178：Class 19 定义 A1..A10、方法 1..6；产品没有设备管理/复位/初始化端口。 */
+    static const uint16_t ois[] = {0x4300, 0x4307, 0x4308, 0x4309};
+    for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
+        for (uint8_t attr = 1; attr <= 10; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(ois[i], attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(ois[i], 11), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 6; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(ois[i], method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(ois[i], 7), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    /* 4307..4309 的 OI 专属方法 127..129 由标准定义、无处理器；4300 没有专属方法。 */
+    for (uint16_t oi = 0x4307; oi <= 0x4309; oi++) {
+        for (uint8_t method = 127; method <= 129; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 130), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 127), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4301, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4310, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4301, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4300, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4300, 11), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4301, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class21_esam_dar(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+
+    /* 表184：Class 21 定义 A1..A15、方法 1..12；产品没有 ESAM 硬件/会话来源，
+     * F100 只有对象行与只读 ACL，不返回序列号/版本/会话。 */
+    for (uint8_t attr = 1; attr <= 15; attr++) {
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0xF100, attr), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0xF100, 16), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    for (uint8_t method = 1; method <= 12; method++) {
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF100, method), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF100, 13), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    /* F101 是 Class 8 安全模式参数，不是 Class 21 实例；对象表无此行 → DAR 6。 */
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0xF101, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF101, 127), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF100, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF100, 16), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF101, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class23_group_dar(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+
+    /* 表190：Class 23 定义 A1..A18、方法 1..5；产品没有总加组配置/总加值来源。 */
+    for (uint16_t oi = 0x2301; oi <= 0x2308; oi++) {
+        for (uint8_t attr = 1; attr <= 18; attr++) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 19), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 5; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 6), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2309, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2309, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2301, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2301, 19), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2309, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_product_class18_file_dar(void **state) {
+    (void)state;
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+
+    /* 表175/表A.11：F000 定义 A1..A5，F001/F002 定义 A1..A4；产品没有文件传输存储。 */
+    static const uint8_t max_attr[3] = {5, 4, 4};
+    static const uint16_t ois[3] = {0xF000, 0xF001, 0xF002};
+    for (size_t i = 0; i < 3; i++) {
+        for (uint8_t attr = 1; attr <= max_attr[i]; attr++) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(ois[i], attr), buf, sizeof(buf),
+                                                    &len),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(ois[i], (uint8_t)(max_attr[i] + 1)), buf,
+                                   sizeof(buf), &len),
+            EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 8; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(ois[i], method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+    }
+    /* F001 的 OI 方法 9/10 由表A.11 定义、无处理器。 */
+    for (uint8_t method = 9; method <= 10; method++) {
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF001, method), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF001, 11), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF000, 9), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF002, 9), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0xF003, 2), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0xF003, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+
+    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF000, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF000, 6), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0xF003, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
+}
+
+static void test_comm_info_platform_snapshot_encodes_or_refuses(void **state) {
+    (void)state;
+    init_product_model();
+
+    dcu_comm_info_t info = {0};
+    assert_int_equal(dcu_comm_info_read(&info), 0);
+    dcu_comm_info_install(&info);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    int rc = dcu_north_resolve_axdr(NULL, MK_OAD(0x4510, 5), buf, sizeof(buf), &len);
+    if (info.mac_present) {
+        assert_int_equal(rc, 0);
+        assert_int_equal(len, 8);
+        assert_int_equal(buf[0], DLT698_TAG_OCTET_STRING);
+        assert_int_equal(buf[1], 6);
+        assert_memory_equal(buf + 2, info.mac, sizeof(info.mac));
+        uint8_t nonzero = 0;
+        for (size_t i = 0; i < sizeof(info.mac); i++) nonzero = (uint8_t)(nonzero | info.mac[i]);
+        assert_true(nonzero != 0);
+    } else {
+        assert_int_equal(rc, EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    dcu_comm_info_reset();
+}
+
+/* ---- dcu_comm_info_scan sysfs 夹具 ------------------------------------- */
+
+static char g_net_root[256];
+
+static int remove_entry(const char *path, const struct stat *sb, int flag, struct FTW *ftw) {
+    (void)sb;
+    (void)flag;
+    (void)ftw;
+    return remove(path);
+}
+
+static int setup_net_root(void **state) {
+    (void)state;
+    snprintf(g_net_root, sizeof(g_net_root), "/tmp/dcu-comm-net-XXXXXX");
+    return mkdtemp(g_net_root) ? 0 : -1;
+}
+
+static int teardown_net_root(void **state) {
+    (void)state;
+    if (g_net_root[0] != '\0') nftw(g_net_root, remove_entry, 16, FTW_DEPTH | FTW_PHYS);
+    g_net_root[0] = '\0';
+    return 0;
+}
+
+static void fixture_path(char *out, size_t cap, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(out, cap, fmt, ap);
+    va_end(ap);
+    assert_true(n > 0 && (size_t)n < cap);
+}
+
+static void fixture_iface(const char *name, const char *type, const char *address) {
+    char path[256];
+    fixture_path(path, sizeof(path), "%s/%s", g_net_root, name);
+    assert_int_equal(mkdir(path, 0755), 0);
+    fixture_path(path, sizeof(path), "%s/%s/type", g_net_root, name);
+    FILE *f = fopen(path, "w");
+    assert_non_null(f);
+    fputs(type, f);
+    fclose(f);
+    fixture_path(path, sizeof(path), "%s/%s/address", g_net_root, name);
+    f = fopen(path, "w");
+    assert_non_null(f);
+    fputs(address, f);
+    fclose(f);
+}
+
+static void fixture_marker(const char *name, const char *marker) {
+    char path[256];
+    fixture_path(path, sizeof(path), "%s/%s/%s", g_net_root, name, marker);
+    assert_int_equal(mkdir(path, 0755), 0);
+}
+
+static void fixture_device(const char *name) {
+    char target[256];
+    char path[256];
+    fixture_path(target, sizeof(target), "%s/bus", g_net_root);
+    if (mkdir(target, 0755) != 0) assert_int_equal(errno, EEXIST);
+    fixture_path(path, sizeof(path), "%s/%s/device", g_net_root, name);
+    assert_int_equal(symlink("../bus", path), 0);
+}
+
+static void assert_selected(const dcu_comm_info_t *info, const uint8_t expect[6]) {
+    assert_true(info->mac_present);
+    assert_memory_equal(info->mac, expect, sizeof(info->mac));
+}
+
+static void test_comm_info_scan_prefers_eth0(void **state) {
+    (void)state;
+    const uint8_t eth0_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x01};
+    fixture_iface("eth0", "1\n", "02:00:00:00:00:01\n");
+    fixture_device("eth0");
+    fixture_iface("eth1", "1\n", "02:00:00:00:00:02\n");
+    fixture_device("eth1");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, eth0_mac);
+}
+
+/* 评审缺陷 1：组播 MAC 曾被当成物理口 MAC。 */
+static void test_comm_info_scan_rejects_multicast_only(void **state) {
+    (void)state;
+    fixture_iface("enp1s0", "1\n", "01:00:5e:00:00:02\n");
+    fixture_device("enp1s0");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_false(info.mac_present);
+}
+
+static void test_comm_info_scan_skips_multicast_for_physical(void **state) {
+    (void)state;
+    const uint8_t ens3_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x03};
+    fixture_iface("enp1s0", "1\n", "01:00:5e:00:00:02\n");
+    fixture_device("enp1s0");
+    fixture_iface("ens3", "1\n", "02:00:00:00:00:03\n");
+    fixture_device("ens3");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, ens3_mac);
+}
+
+/* 评审缺陷 2：以 en 或 eth 开头的 Linux bridge 曾被当成物理口。合成 device 链接
+ * 让 bridge/ 判据单独承重（真实 bridge 没有 device 链接）。 */
+static void test_comm_info_scan_skips_en_named_bridge(void **state) {
+    (void)state;
+    const uint8_t ens3_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x03};
+    fixture_iface("enbr0", "1\n", "02:00:00:00:00:0b\n");
+    fixture_device("enbr0");
+    fixture_marker("enbr0", "bridge");
+    fixture_iface("ens3", "1\n", "02:00:00:00:00:03\n");
+    fixture_device("ens3");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, ens3_mac);
+}
+
+static void test_comm_info_scan_rejects_wireless_and_non_ethernet(void **state) {
+    (void)state;
+    const uint8_t eth5_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x05};
+    fixture_iface("ena0", "1\n", "02:00:00:00:00:0a\n");
+    fixture_device("ena0");
+    fixture_marker("ena0", "wireless");
+    fixture_iface("eth1", "65534\n", "02:00:00:00:00:01\n");
+    fixture_device("eth1");
+    fixture_iface("eth5", "1\n", "02:00:00:00:00:05\n");
+    fixture_device("eth5");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, eth5_mac);
+}
+
+static void test_comm_info_scan_rejects_all_zero_mac(void **state) {
+    (void)state;
+    const uint8_t eth6_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x06};
+    fixture_iface("eth5", "1\n", "00:00:00:00:00:00\n");
+    fixture_device("eth5");
+    fixture_iface("eth6", "1\n", "02:00:00:00:00:06\n");
+    fixture_device("eth6");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, eth6_mac);
+}
+
+/* 评审缺陷 3：容器里 eth0 是 veth，没有总线 device 链接，不能报它的 MAC。 */
+static void test_comm_info_scan_rejects_veth_named_eth0(void **state) {
+    (void)state;
+    const uint8_t ens3_mac[6] = {0x02, 0x00, 0x00, 0x00, 0x00, 0x03};
+    fixture_iface("eth0", "1\n", "02:00:00:00:00:0e\n");
+
+    dcu_comm_info_t info;
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_false(info.mac_present);
+
+    fixture_iface("ens3", "1\n", "02:00:00:00:00:03\n");
+    fixture_device("ens3");
+    assert_int_equal(dcu_comm_info_scan(g_net_root, &info), 0);
+    assert_selected(&info, ens3_mac);
+}
+
 static const uint8_t k_structure[] = {0x01, 0x02, DCU_698_TAG_LONG_UNSIGNED, 0x00, 0x01, 0x12,
                                       0x00, 0x02}; /* array(2) long-unsigned */
 
@@ -450,8 +1042,9 @@ static int too_big_resolve(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, si
     (void)ctx;
     (void)oad;
     (void)buf;
+    (void)cap;
     (void)len;
-    return (cap < 4096) ? -1 : 0;
+    return -1;
 }
 
 static const edge_slave_source_ops_t k_too_big_src = {.resolve_axdr = too_big_resolve};
@@ -599,7 +1192,7 @@ static int test_exchange_with(void *priv, const uint8_t *frame, size_t frame_len
                               int (*object_list)(void *, uint32_t, uint8_t *, size_t, size_t *)) {
     edge_slave_source_ops_t wrapped = *src;
     wrapped.object_list = object_list;
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     return dlt698_driver.req_slave_exchange(priv, session, frame, frame_len, &wrapped, (void *)src,
                                             out, consumed);
@@ -833,13 +1426,13 @@ static const edge_slave_source_ops_t k_big_list_src = {.resolve_axdr = big_list_
 
 static void test_driver_normal_list_reuses_one_buffer(void **state) {
     (void)state;
-    uint32_t oads[8];
-    for (size_t i = 0; i < 8; i++) oads[i] = 0x50000200U | (uint32_t)i;
+    uint32_t oads[4];
+    for (size_t i = 0; i < 4; i++) oads[i] = 0x50000200U | (uint32_t)i;
 
     uint8_t frame[128];
-    size_t frame_len = build_get_list(frame, oads, 8);
+    size_t frame_len = build_get_list(frame, oads, 4);
 
-    net_buf_pool_t *pool = net_buf_pool_new(2, 32768, 0);
+    net_buf_pool_t *pool = net_buf_pool_new(2, 49152, 0);
     assert_non_null(pool);
     net_buf_t *out = net_buf_alloc(pool, 0);
     assert_non_null(out);
@@ -851,13 +1444,13 @@ static void test_driver_normal_list_reuses_one_buffer(void **state) {
     assert_int_equal(rc, 0);
 
     /* 帧头 9 字节后：85 | 02 | PIID | n。 */
-    assert_true(out->b.len > 16000);
+    assert_true(out->b.len > 32000);
     assert_int_equal(out->b.data[9], DLT698_SVC_GET_RES);
     assert_int_equal(out->b.data[10], DLT698_CHOICE_GET_NORMAL_LIST);
-    assert_int_equal(out->b.data[12], 8);
+    assert_int_equal(out->b.data[12], 4);
 
-    /* 每项的首尾标记都必须在：证明 8 份 2040 字节都被完整写入、没有互相覆盖。 */
-    for (uint8_t k = 0; k < 8; k++) {
+    /* 每项的首尾标记都必须在：证明 4 份整块 AXDR 缓冲都被完整写入、没有互相覆盖。 */
+    for (uint8_t k = 0; k < 4; k++) {
         const uint8_t head[] = {0xA0, k, 0xB0, k};
         const uint8_t tail[] = {0xC0, k};
         assert_true(contains(out->b.data, out->b.len, head, sizeof(head)));
@@ -1467,6 +2060,74 @@ static void test_action_131_password_close_param(void **state) {
                       DLT698_DAR_TYPE_MISMATCH);
 }
 
+/* 继电器映射默认空：129/130/131 解析出继电器 OAD 后查不到目标，诚实回 DAR 2。 */
+static void test_action_129_131_empty_relay_map_dar2(void **state) {
+    (void)state;
+    dcu_relay_map_bind(NULL);
+    assert_action_dar(129, k_trip_param, sizeof(k_trip_param), DLT698_DAR_TEMPORARY_FAILURE);
+    assert_action_dar(130, k_close_param, sizeof(k_close_param), DLT698_DAR_TEMPORARY_FAILURE);
+    assert_action_dar(131, k_plain_close_param, sizeof(k_plain_close_param),
+                      DLT698_DAR_TEMPORARY_FAILURE);
+}
+
+/* 静态存储：断言中途失败也不会把栈上的表留在进程级绑定里。 */
+static dcu_relay_map_t g_relay_map;
+
+/* 命中一条映射后，目标表地址与 DO 通道可观察；本产品尚未接真实 DO 执行，
+ * 129/130/131 仍回 DAR 5（类定义存在、实现未接线），不得回成功。 */
+static void test_action_129_131_relay_map_resolves_target(void **state) {
+    (void)state;
+    memset(&g_relay_map, 0, sizeof(g_relay_map));
+    assert_int_equal(dcu_relay_map_set(&g_relay_map, 0x20000400u, "202610180001", 7), 0);
+    dcu_relay_map_bind(&g_relay_map);
+
+    const dcu_relay_entry_t *target = dcu_relay_map_find(dcu_relay_map_active(), 0x20000400u);
+    assert_non_null(target);
+    assert_string_equal(target->meter_addr, "202610180001");
+    assert_int_equal(target->do_channel, 7);
+
+    assert_action_dar(129, k_trip_param, sizeof(k_trip_param),
+                      DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_action_dar(130, k_close_param, sizeof(k_close_param),
+                      DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_action_dar(131, k_plain_close_param, sizeof(k_plain_close_param),
+                      DLT698_DAR_OBJECT_CLASS_MISMATCH);
+
+    dcu_relay_map_bind(NULL);
+}
+
+/* 映射表本身：同 OAD 覆盖不追加；非法地址与容量上限显式拒绝，不静默截断。 */
+static void test_relay_map_set_find_and_limits(void **state) {
+    (void)state;
+    static dcu_relay_map_t map;
+    memset(&map, 0, sizeof(map));
+    assert_null(dcu_relay_map_find(&map, 0x20000400u));
+
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000400u, "000000000001", 1), 0);
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000401u, "000000000002", 2), 0);
+    const dcu_relay_entry_t *entry = dcu_relay_map_find(&map, 0x20000401u);
+    assert_non_null(entry);
+    assert_string_equal(entry->meter_addr, "000000000002");
+    assert_int_equal(entry->do_channel, 2);
+
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000400u, "000000000003", 3), 0);
+    assert_int_equal(map.count, 2);
+    assert_string_equal(dcu_relay_map_find(&map, 0x20000400u)->meter_addr, "000000000003");
+
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000402u, NULL, 0), -1);
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000402u, "", 0), -1);
+    assert_int_equal(dcu_relay_map_set(&map, 0x20000402u, "000000000000000000000000000000000", 0),
+                     -1);
+
+    for (size_t i = map.count; i < DCU_RELAY_MAP_CAPACITY; i++) {
+        char addr[16];
+        snprintf(addr, sizeof(addr), "%012zu", i);
+        assert_int_equal(dcu_relay_map_set(&map, 0x30000000u + (uint32_t)i, addr, (uint8_t)i), 0);
+    }
+    assert_int_equal(map.count, DCU_RELAY_MAP_CAPACITY);
+    assert_int_equal(dcu_relay_map_set(&map, 0x40000000u, "000000000099", 0), -1);
+}
+
 static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
     (void)state;
     assert_action_dar(126, k_close_param, sizeof(k_close_param), DLT698_DAR_OBJECT_NOT_FOUND);
@@ -1479,13 +2140,78 @@ static void test_action_rejects_other_methods_and_trailing_bytes(void **state) {
     assert_action_dar(127, ti_present, sizeof(ti_present), DLT698_DAR_TYPE_MISMATCH);
 }
 
-static void test_action_non8000_class_defined_unexposed_dar5(void **state) {
+static void test_action_class9_attr3_method_shape_dar7(void **state) {
     (void)state;
     const uint8_t null_param[] = {0x00};
-    /* 5004 方法 3：Class 9 定义。 */
+    /* 5004 方法 3 已暴露，但参数必须是 long-unsigned 延时；NULL 形状错回 DAR 7。 */
     assert_int_equal(run_action_dar_omd_acl(((uint32_t)0x5004 << 16) | (3u << 8), null_param,
                                             sizeof(null_param), routing_object_list),
-                     5);
+                     7);
+}
+
+
+
+/* 缓冲不足时 6000 A2 仍必须回 DAR 2，不能拿一个计数冒充配置表。 */
+static void test_archive_config_short_buffer_dar2(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    for (int i = 0; i < 40; i++) {
+        char addr[16];
+        snprintf(addr, sizeof(addr), "%012d", i + 1);
+        assert_int_equal(dcu_inventory_add(&inv, addr, "DLT645", 2400, (uint8_t)(i % 10 + 22)), 0);
+    }
+    uint8_t buf[64];
+    size_t len = 0;
+    assert_int_equal(dcu_698_archive_encode_axdr(&inv, 0x60000200, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_TEMPORARY);
+    dcu_inventory_destroy(&inv);
+}
+
+/* 目录里 Class 7 的 OI（3009..）与 Class 24 未实现的 300B 都没有对象实例；
+ * GET 必须回 DAR 6，不能凭空造事件记录。 */
+static void test_event_catalog_ois_without_instance_dar6(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model();
+    const uint32_t oads[] = {0x30090200u, 0x300C0200u, 0x30110200u, 0x30130200u, 0x300B0200u};
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
+        assert_int_equal(dcu_north_resolve_axdr(NULL, oads[i], buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_NOT_FOUND);
+    }
+}
+
+static void test_class13_readonly_dar(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model();
+    uint8_t buf[32];
+    size_t len = 0;
+    static const struct {
+        uint32_t oad;
+        int rc;
+    } cases[] = {
+        {0x80000200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x80000400u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x80000500u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x80000300u, EDGE_SLAVE_SRC_CLASS_MISMATCH},
+        {0x80000600u, EDGE_SLAVE_SRC_UNDEFINED},
+        {0x80010200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x80010500u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x81000200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x81010200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x81020200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x81030200u, EDGE_SLAVE_SRC_TEMPORARY},
+        {0x810E0200u, EDGE_SLAVE_SRC_CLASS_MISMATCH},
+        {0x99990200u, EDGE_SLAVE_SRC_NOT_FOUND},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        len = 0;
+        assert_int_equal(dcu_north_resolve_axdr(NULL, cases[i].oad, buf, sizeof(buf), &len),
+                         cases[i].rc);
+    }
 }
 
 static void test_action_unknown_oi_dar6(void **state) {
@@ -1699,6 +2425,30 @@ int main(void) {
         cmocka_unit_test(test_product_accept_set_paths),
         cmocka_unit_test(test_product_class8_datetime_round_trip),
         cmocka_unit_test(test_product_class2_and_5_have_no_value_yet),
+        cmocka_unit_test(test_product_class14_15_16_have_no_value_yet),
+        cmocka_unit_test(test_product_class17_has_no_value_yet),
+        cmocka_unit_test(test_product_class11_collection_sets_have_no_value_yet),
+        cmocka_unit_test(test_product_class12_pulse_has_no_value_yet),
+        cmocka_unit_test(test_product_class25_26_comm_dar),
+        cmocka_unit_test(test_product_class19_devmgr_dar),
+        cmocka_unit_test(test_product_class21_esam_dar),
+        cmocka_unit_test(test_product_class23_group_dar),
+        cmocka_unit_test(test_product_class18_file_dar),
+        cmocka_unit_test(test_comm_info_platform_snapshot_encodes_or_refuses),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_prefers_eth0, setup_net_root,
+                                        teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_rejects_multicast_only, setup_net_root,
+                                        teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_skips_multicast_for_physical,
+                                        setup_net_root, teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_skips_en_named_bridge, setup_net_root,
+                                        teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_rejects_wireless_and_non_ethernet,
+                                        setup_net_root, teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_rejects_all_zero_mac, setup_net_root,
+                                        teardown_net_root),
+        cmocka_unit_test_setup_teardown(test_comm_info_scan_rejects_veth_named_eth0, setup_net_root,
+                                        teardown_net_root),
         cmocka_unit_test(test_product_accept_set_event_attrs),
         cmocka_unit_test(test_set_response_dar_paths),
         cmocka_unit_test(test_set_missing_data_dar7),
@@ -1708,8 +2458,14 @@ int main(void) {
         cmocka_unit_test(test_action_129_trip_param),
         cmocka_unit_test(test_action_130_close_param),
         cmocka_unit_test(test_action_131_password_close_param),
+        cmocka_unit_test(test_action_129_131_empty_relay_map_dar2),
+        cmocka_unit_test(test_action_129_131_relay_map_resolves_target),
+        cmocka_unit_test(test_relay_map_set_find_and_limits),
         cmocka_unit_test(test_action_rejects_other_methods_and_trailing_bytes),
-        cmocka_unit_test(test_action_non8000_class_defined_unexposed_dar5),
+        cmocka_unit_test(test_action_class9_attr3_method_shape_dar7),
+        cmocka_unit_test(test_archive_config_short_buffer_dar2),
+        cmocka_unit_test(test_event_catalog_ois_without_instance_dar6),
+        cmocka_unit_test(test_class13_readonly_dar),
         cmocka_unit_test(test_action_unknown_oi_dar6),
         cmocka_unit_test(test_action_non8000_reaches_handler),
         cmocka_unit_test(test_action_6012_method127_valid_body_dar0),

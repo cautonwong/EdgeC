@@ -1,0 +1,28 @@
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 16:07:39][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+[2026-11-26 16:07:39][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 16:07:39][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 16:07:39][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000004) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000004)！记录更新。
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).

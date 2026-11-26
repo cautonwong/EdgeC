@@ -1,0 +1,9 @@
+# check_formal_negative.sh: mutation deletes 'if (in->len < resp_len) return 1;' in a temp copy
+# CBMC 5.12, --bounds-check --pointer-check --unwind 17 --unwinding-assertions
+
+[_get_crc.pointer_dereference.16] line 56 dereference failure: pointer outside object bounds in p[(signed long int)(frame_len - (unsigned long int)2)]: FAILURE
+[_get_crc.pointer_dereference.19] line 56 dereference failure: pointer outside object bounds in p[(signed long int)(frame_len - (unsigned long int)1)]: FAILURE
+[modbus_calculate_crc.unwind.0] line 41 unwinding assertion loop 0: FAILURE
+[modbus_calculate_crc.pointer_dereference.6] line 42 dereference failure: pointer outside object bounds in buf[(signed long int)pos]: FAILURE
+** 4 of 1012 failed (5 iterations)
+VERIFICATION FAILED

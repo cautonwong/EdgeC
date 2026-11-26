@@ -1,0 +1,7 @@
+{
+  "family": "device",
+  "mode": "check",
+  "out": "expected",
+  "schema_dir": "schema",
+  "description": "expected artifact still carries a plaintext secret"
+}

@@ -1,6 +1,7 @@
 #include "io_executor.h"
 #include "io_handle_priv.h"
-#include "open62541.h"
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 #include "edge_log.h"
 #include <stdlib.h>
 #include <string.h>

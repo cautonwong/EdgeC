@@ -1,0 +1,16 @@
+{
+  "devID": "SN0001",
+  "clientID": "SN0001",
+  "protocol": "MQTT_Send",
+  "desc": "mqttA",
+  "mainIP": "10.0.0.10",
+  "portnum": 1883,
+  "username": "",
+  "password": "",
+  "certEnable": 1,
+  "cafilePath": "/opt/certs/serverca.pem",
+  "certfilePath": "/opt/certs/client.pem",
+  "keyfilePath": "/opt/certs/client.key",
+  "httpsCa": "/opt/certs/httpsca.pem",
+  "keepAlive": 30
+}

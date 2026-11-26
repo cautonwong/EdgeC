@@ -1,0 +1,14 @@
+=== D3-03 ACCEPTANCE (2026-11-24T00:20:54Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/tmp/edgec-acc-venv/bin/python ./acceptance/run.sh dcu
+3 passed, 2 warnings in 1.95s
+33 passed, 2 warnings in 37.83s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- cases 000032/000033 present ---
+D_00_00_02_000032
+D_00_00_02_000033
+--- product freeze boundary lines ---
+[2026-11-24 08:20:07][INFO][CORE] DCU freeze boundary=1796184000 align_delta_ms=0
+[2026-11-24 08:20:08][INFO][CORE] DCU freeze boundary=1796184001 align_delta_ms=0
+[2026-11-24 08:20:09][INFO][CORE] DCU freeze boundary=1796184002 align_delta_ms=0
+[2026-11-24 08:20:10][INFO][CORE] DCU freeze boundary=1796054400 align_delta_ms=0

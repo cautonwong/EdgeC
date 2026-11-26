@@ -1,0 +1,121 @@
+-- The C compiler identification is GNU 11.4.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- [Build-Opt] Enabled ccache for compilation speedup
+-- Found SQLite3: /tmp/iems-fix/arch-graph-wt/.local/linux-x86_64/lib/libsqlite3.a
+-- Found zlog: /tmp/iems-fix/arch-graph-wt/.local/linux-x86_64/lib/libzlog.so
+-- Found PahoMQTT: /tmp/iems-fix/arch-graph-wt/.local/linux-x86_64/lib/libpaho-mqtt3a.a
+-- Found CURL: /tmp/iems-fix/arch-graph-wt/.local/linux-x86_64/lib/libcurl.a
+-- Found QuickJS: /tmp/iems-fix/arch-graph-wt/.local/linux-x86_64/lib/libquickjs.a
+-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")
+-- Found Python3: /tmp/iems-fix/arch-graph-wt/.venv/bin/python3 (found version "3.10.12") found components: Interpreter
+Loaded configuration '/tmp/iems-fix/arch-graph-wt/cmd/iems/prj.conf'
+Configuration saved to '/tmp/iems-fix/arch-graph-wt/build/.config'
+-- Found Git: /usr/bin/git (found version "2.56.1")
+-- open62541 Version: v1.5.10
+-- The selected architecture is: posix
+-- Test CC flag -std=c99
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -pipe
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wall
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wextra
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wpedantic
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-unused-parameter
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-cast-function-type
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-overlength-strings
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wc++-compat
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-jump-misses-init
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat-security
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat-nonliteral
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wmissing-prototypes
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wstrict-prototypes
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wredundant-decls
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wuninitialized
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Winit-self
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wcast-qual
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wstrict-overflow
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wnested-externs
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wmultichar
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wundef
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fno-strict-aliasing
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fexceptions
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -ffunction-sections
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fdata-sections
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -pthread
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fno-unwind-tables
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fno-asynchronous-unwind-tables
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fno-math-errno
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Could NOT find Sphinx (missing: SPHINX_EXECUTABLE)
+-- Could NOT find LATEX (missing: LATEX_COMPILER)
+-- Configuring Web UI for smart_box from /tmp/iems-fix/arch-graph-wt/web/products/smart_box
+-- Configuring Web UI for iems from /tmp/iems-fix/arch-graph-wt/web/products/iems
+-- Configuring Web UI for dcu from /tmp/iems-fix/arch-graph-wt/web/products/dcu
+-- [Install] Registering component: DCU
+-- Configuring done (1.8s)
+-- Generating done (0.9s)
+-- Build files have been written to: /tmp/iems-fix/arch-graph-wt/build

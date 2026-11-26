@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "price",
+  "description": "P6-04a round 2. Covers price.json (monthly top/peak/flat/valley tariff). 结构冻结、语义未确认 (structure frozen, semantics unconfirmed): no business reader exists in iems_v3; ems_ua.c only writes and reads the document back (src/ems/ems_ua.c:517-529, :987-993). Required keys are the documented row shape, not a reader requirement.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "price"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "price": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "month",
+          "top",
+          "peak",
+          "flat",
+          "valley"
+        ],
+        "properties": {
+          "month": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "top": {
+            "type": "number"
+          },
+          "peak": {
+            "type": "number"
+          },
+          "flat": {
+            "type": "number"
+          },
+          "valley": {
+            "type": "number"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

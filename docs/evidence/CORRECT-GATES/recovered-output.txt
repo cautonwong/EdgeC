@@ -1,0 +1,7 @@
+$ cmake --build build -j4
+[309/310] Linking C executable tests/test_iems_cli_write
+[310/310] Linking C executable tests/test_iems_ydt1363_uart_pty
+build rc=0
+$ python3 ci/scripts/check_build_freshness.py --root . --build build
+✅ [BUILD_FRESHNESS] build is current for /tmp/iems-fix/correct-wt
+rc=0

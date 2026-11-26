@@ -1,0 +1,23 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  82 +++
+ cmd/dcu/dcu_698_appconn.c                   |   5 +
+ cmd/dcu/dcu_698_axdr.c                      | 528 +++++++++++++++
+ cmd/dcu/dcu_698_axdr.h                      |  13 +
+ cmd/dcu/dcu_698_class_acq.c                 |  19 +
+ cmd/dcu/dcu_698_object_internal.h           |   4 +
+ cmd/dcu/dcu_698_object_model.c              |  31 +
+ cmd/dcu/dcu_north_adapter.c                 |   3 +-
+ cmd/dcu/dcu_router.h                        |   6 +
+ cmd/dcu/dcu_scheme_store.c                  | 987 +++++++++++++++++++++++++++-
+ cmd/dcu/dcu_scheme_store.h                  | 139 ++++
+ docs/evidence/DCU-D2-05a/comments.md        |  32 +
+ docs/evidence/DCU-D2-05a/diffstat.txt       |  19 +
+ docs/evidence/DCU-D2-05a/runtime.log        |  39 ++
+ docs/evidence/DCU-D2-05a/summary.md         |  97 +++
+ docs/evidence/DCU-D2-05a/tests.log          | 161 +++++
+ foundation/include/edge_slave_plane.h       |   2 +-
+ tests/CMakeLists.txt                        |   4 +
+ tests/test_dcu_698_appconn.c                |   2 +-
+ tests/test_dcu_698_object_model.c           |   2 +-
+ tests/test_dcu_698_scheme_mgmt.c            | 526 +++++++++++++++
+ tests/test_driver_dlt698.c                  |  16 +-
+ 22 files changed, 2704 insertions(+), 13 deletions(-)

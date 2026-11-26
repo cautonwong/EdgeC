@@ -1,0 +1,39 @@
+[==========] tests: Running 4 test(s).
+[ RUN      ] test_dcu_node_lifecycle
+[2026-11-26 11:58:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:58:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-26 11:58:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:58:04][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:58:04][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_lifecycle
+[ RUN      ] test_dcu_node_domain_methods_and_events
+[2026-11-26 11:58:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:58:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:58:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:58:04][WARN][CORE] DCU Feed Reading: Meter '999999999999' not registered in inventory
+[2026-11-26 11:58:04][WARN][CORE] DCU Control: Unauthorized control OI 0x1234
+[       OK ] test_dcu_node_domain_methods_and_events
+[ RUN      ] test_dcu_node_set_source_ops_is_used
+[2026-11-26 11:58:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:58:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:58:04][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:58:04][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:58:04][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_set_source_ops_is_used
+[ RUN      ] test_dcu_node_record_reading_uses_slot_id
+[2026-11-26 11:58:04][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:58:04][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:58:05][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[  ERROR   ] --- 0 != 1
+[   LINE   ] --- /tmp/edgec-land/f5-device-identity/tests/test_dcu_node.c:266: error: Failure!
+[  FAILED  ] test_dcu_node_record_reading_uses_slot_id
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 3 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_dcu_node_record_reading_uses_slot_id
+
+ 1 FAILED TEST(S)

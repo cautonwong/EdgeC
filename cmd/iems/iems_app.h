@@ -16,6 +16,7 @@
 #include <uv.h>
 
 #include "iems_node.h"
+#include "iems_pcs_settings.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,10 @@ typedef struct {
     const char *north_sock;
     // UI 伴随通道的 UDS 路径;NULL = /tmp/iems_ui.sock
     const char *ui_sock;
+    // P6-04b: 转换产物配置根目录(device_config.json + port_config.json);
+    // NULL/空串 = 不加载,沿用既有契约/数据库种子。由组合根从 EDGE_CONFIG_DIR
+    // 读一次传进来。显式设置后加载失败会拒绝启动。
+    const char *config_dir;
 } iems_app_config_t;
 
 /**
@@ -110,6 +115,14 @@ void iems_app_destroy(iems_app_t *app);
  * @brief 获取 IEMS 聚合根
  */
 iems_node_t *iems_app_get_node(iems_app_t *app);
+
+/**
+ * @brief 启动期加载的 PCS/EMS 设置（只读）。
+ *
+ * 未配置 EDGE_CONFIG_DIR 或文件缺失时保持默认值；loaded 表示两份文件都成功加载。
+ * 只读：调用方不得修改；策略接线（SOC/功率）属 P2-03/P5-03。
+ */
+const iems_pcs_settings_t *iems_app_get_pcs_settings(iems_app_t *app);
 
 
 /* DataHub 影子布局：产品 tag 在 app_base 以下，应用点位在其上；容量必须覆盖

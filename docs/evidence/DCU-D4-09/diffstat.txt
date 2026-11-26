@@ -1,0 +1,32 @@
+== test commit d50e3395 ==
+d50e3395 test(DCU-D4-09): pin Class 23 group honest DAR and read-only ACL
+ tests/test_dcu_698_appconn.c      | 24 +++++++++++-
+ tests/test_dcu_698_axdr.c         | 39 +++++++++++++++++++
+ tests/test_dcu_698_object_model.c | 28 ++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c  |  2 +-
+ tests/test_driver_dlt698.c        | 82 +++++++++++++++++++++++++++++++++++++--
+ 5 files changed, 168 insertions(+), 7 deletions(-)
+
+== fix commit 009e8fa1 ==
+009e8fa1 feat(DCU-D4-09): register Class 23 groups with honest read-only DAR
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/dcu_698_appconn.c           | 14 ++++++++++++++
+ cmd/dcu/dcu_698_object_model.c      | 11 +++++++++++
+ cmd/dcu/dcu_router.h                |  3 +++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 12 ++++++------
+ 6 files changed, 36 insertions(+), 6 deletions(-)
+
+== branch vs base cd4adcd0 ==
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/dcu_698_appconn.c           | 14 +++++++
+ cmd/dcu/dcu_698_object_model.c      | 11 +++++
+ cmd/dcu/dcu_router.h                |  3 ++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 12 +++---
+ tests/test_dcu_698_appconn.c        | 24 ++++++++++-
+ tests/test_dcu_698_axdr.c           | 39 ++++++++++++++++++
+ tests/test_dcu_698_object_model.c   | 28 ++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c    |  2 +-
+ tests/test_driver_dlt698.c          | 82 +++++++++++++++++++++++++++++++++++--
+ 11 files changed, 204 insertions(+), 13 deletions(-)

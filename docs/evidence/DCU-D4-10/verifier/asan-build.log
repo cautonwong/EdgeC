@@ -1,0 +1,494 @@
+[0/1] Re-running CMake...
+-- [Build-Opt] Enabled ccache for compilation speedup
+-- [Kconfig] Bootstrapping Python environment and dependencies...
+/tmp/edgec-land/feat-dcu/.venv/bin/python3: No module named defconfig
+/tmp/edgec-land/feat-dcu/.venv/bin/python3: No module named genconfig
+-- open62541 Version: v1.5.10
+-- The selected architecture is: posix
+-- Test CC flag -std=c99
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -pipe
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wall
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wextra
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wpedantic
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-unused-parameter
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-cast-function-type
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-overlength-strings
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wc++-compat
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wno-jump-misses-init
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat-security
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wformat-nonliteral
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wmissing-prototypes
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wstrict-prototypes
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wredundant-decls
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wuninitialized
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Winit-self
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wcast-qual
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wstrict-overflow
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wnested-externs
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wmultichar
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -Wundef
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fno-strict-aliasing
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fexceptions
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -ffunction-sections
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -fdata-sections
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Test CC flag -pthread
+-- Performing Test flag_supported
+-- Performing Test flag_supported - Success
+-- Could NOT find Sphinx (missing: SPHINX_EXECUTABLE) 
+-- Could NOT find LATEX (missing: LATEX_COMPILER) 
+-- [Install] Registering component: DCU
+-- Configuring done (5.5s)
+-- Generating done (3.9s)
+-- Build files have been written to: /tmp/edgec-land/feat-dcu/build-asan
+[1/390] Building C object tests/CMakeFiles/test_dcu_storage.dir/test_dcu_storage.c.o
+[2/390] Building C object tests/CMakeFiles/test_dcu_698_var.dir/test_dcu_698_var.c.o
+[3/390] Building C object modules/edge_infra/CMakeFiles/edge_infra.dir/bus_dds/datahub_dds.c.o
+[4/390] Linking C static library modules/edge_infra/libedge_infra.a
+[5/390] Building C object tests/CMakeFiles/test_dcu_north_source.dir/test_dcu_north_source.c.o
+[6/390] Linking C executable tests/test_edge_eapp_build
+[7/390] Linking C executable tests/test_dicom_parser
+[8/390] Linking C executable tests/test_rest_uds
+[9/390] Linking C executable tests/test_federated_aggregator
+[10/390] Building C object tests/CMakeFiles/test_dcu_698_object_model.dir/test_dcu_698_object_model.c.o
+[11/390] Linking C executable products/smart_box/bin/smart_box
+[12/390] Building C object tests/CMakeFiles/test_dcu_698_axdr.dir/test_dcu_698_axdr.c.o
+[13/390] Linking C executable products/iems/bin/iems
+[14/390] Linking C executable products/iems/bin/iems-cli
+[15/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_bus_source.c.o
+[16/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_rules.c.o
+[17/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_object_model.c.o
+[18/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_comm_info.c.o
+/tmp/edgec-land/feat-dcu/cmd/dcu/dcu_comm_info.c: In function 'dcu_comm_info_scan':
+/tmp/edgec-land/feat-dcu/cmd/dcu/dcu_comm_info.c:112:43: warning: '%s' directive output may be truncated writing up to 255 bytes into a region of size 64 [-Wformat-truncation=]
+  112 |             snprintf(best, sizeof(best), "%s", entry->d_name);
+      |                                           ^~
+/tmp/edgec-land/feat-dcu/cmd/dcu/dcu_comm_info.c:112:13: note: 'snprintf' output between 1 and 256 bytes into a destination of size 64
+  112 |             snprintf(best, sizeof(best), "%s", entry->d_name);
+      |             ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[19/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_acq.c.o
+[20/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_event.c.o
+[21/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_control.c.o
+[22/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_class_security.c.o
+[23/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_axdr.c.o
+[24/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_scheme_axdr.c.o
+[25/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_appconn.c.o
+[26/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_param.c.o
+[27/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_record.c.o
+[28/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_var.c.o
+[29/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_freeze.c.o
+[30/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_freeze_cfg.c.o
+[31/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_698_report.c.o
+[32/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_router.c.o
+[33/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_source.c.o
+[34/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_event_monitor.c.o
+[35/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_twin_source.c.o
+[36/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_driver_adapter.c.o
+[37/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_node.c.o
+[38/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_north_adapter.c.o
+[39/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_pipeline_adapter.c.o
+[40/390] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_heartbeat.c.o
+[41/390] Linking C static library cmd/dcu/libdcu_app_lib.a
+[42/390] Linking C executable cmd/edge_mcp_server/edge-mcp-server
+[43/390] Building C object cmd/dcu/CMakeFiles/dcu.dir/main.c.o
+[44/390] Linking C executable cmd/nexus_lab/nexus_lab
+[45/390] Linking C executable products/dcu/bin/dcu
+[46/390] Linking C executable tools/edgeos-backup/edgeos-backup
+[47/390] Linking C executable tests/test_version
+[48/390] Linking C executable tests/test_is_enabled
+[49/390] Building C object tests/CMakeFiles/test_dcu_698_archive.dir/test_dcu_698_archive.c.o
+[50/390] Linking C executable tests/test_edge_log
+[51/390] Linking C executable tests/test_net_buf
+[52/390] Linking C executable tests/test_shmring
+[53/390] Linking C executable tests/test_edge_tlv
+[54/390] Linking C executable tests/test_arbiter
+[55/390] Linking C executable tests/test_edge_periodic_clock
+[56/390] Linking C executable tests/test_dlt698_axdr
+[57/390] Linking C executable tests/test_dlt698_action
+[58/390] Linking C executable tests/test_dlt698_get_list
+[59/390] Building C object tests/CMakeFiles/test_dcu_polling_loop.dir/test_dcu_polling_loop.c.o
+[60/390] Linking C executable tests/test_dlt645_control
+[61/390] Linking C executable tests/test_dcu_inventory
+[62/390] Linking C executable tests/test_dcu_polling_loop
+[63/390] Building C object tests/CMakeFiles/test_dcu_698_appconn.dir/test_dcu_698_appconn.c.o
+[64/390] Linking C executable tests/test_dcu_storage
+[65/390] Building C object tests/CMakeFiles/test_dcu_router.dir/test_dcu_router.c.o
+[66/390] Building C object tests/CMakeFiles/test_dcu_integration.dir/test_dcu_integration.c.o
+[67/390] Linking C executable tests/test_stream_batch_ownership
+[68/390] Linking C executable tests/test_dcu_integration
+[69/390] Linking C executable tests/test_rest_limits
+[70/390] Linking C executable tests/test_dcu_router
+[71/390] Linking C executable tests/test_dcu_north_source
+[72/390] Building C object tests/CMakeFiles/test_dcu_advanced_modules.dir/test_dcu_advanced_modules.c.o
+[73/390] Building C object tests/CMakeFiles/test_dcu_node.dir/test_dcu_node.c.o
+[74/390] Linking C executable tests/test_dcu_advanced_modules
+[75/390] Linking C executable tests/test_dcu_business_engines
+[76/390] Linking C executable tests/test_dcu_phase1_delivery
+[77/390] Building C object tests/CMakeFiles/test_dcu_runtime_health.dir/test_dcu_runtime_health.c.o
+[78/390] Linking C executable tests/test_dcu_node
+[79/390] Linking C executable tests/test_dcu_runtime_health
+[80/390] Building C object tests/CMakeFiles/test_dcu_698_report.dir/test_dcu_698_report.c.o
+[81/390] Linking C executable tests/test_dcu_698_object_model
+[82/390] Linking C executable tests/test_dcu_698_archive
+[83/390] Building C object tests/CMakeFiles/test_dcu_698_catalog.dir/test_dcu_698_catalog.c.o
+[84/390] Linking C executable tests/test_dcu_698_catalog
+[85/390] Linking C executable tests/test_stream_yaml_assembly
+[86/390] Linking C executable tests/test_dcu_698_var
+[87/390] Linking C executable tests/test_dcu_698_report
+[88/390] Linking C executable tests/test_dcu_698_axdr
+[89/390] Building C object tests/CMakeFiles/test_dcu_698_record.dir/test_dcu_698_record.c.o
+[90/390] Building C object tests/CMakeFiles/test_dcu_698_class22.dir/test_dcu_698_class22.c.o
+[91/390] Linking C executable tests/test_dcu_698_param
+[92/390] Linking C executable tests/test_dcu_698_record
+[93/390] Building C object tests/CMakeFiles/test_dcu_698_value_table.dir/test_dcu_698_value_table.c.o
+[94/390] Linking C executable tests/test_dcu_698_value_table
+[95/390] Building C object tests/CMakeFiles/test_dcu_698_tasks.dir/test_dcu_698_tasks.c.o
+[96/390] Building C object tests/CMakeFiles/test_dcu_heartbeat_stop.dir/test_dcu_heartbeat_stop.c.o
+[97/390] Building C object tests/CMakeFiles/test_dcu_698_rules.dir/test_dcu_698_rules.c.o
+[98/390] Linking C executable tests/test_dcu_698_class22
+[99/390] Building C object tests/CMakeFiles/test_dcu_698_schemes.dir/test_dcu_698_schemes.c.o
+[100/390] Linking C executable tests/test_dcu_698_tasks
+[101/390] Building C object tests/CMakeFiles/test_dcu_698_scheme_mgmt.dir/test_dcu_698_scheme_mgmt.c.o
+[102/390] Linking C executable tests/test_dcu_698_schemes
+[103/390] Linking C executable tests/test_dcu_runtime_self_exit
+[104/390] Linking C executable tests/test_dcu_698_scheme_mgmt
+[105/390] Building C object tests/CMakeFiles/test_dcu_698_freeze.dir/test_dcu_698_freeze.c.o
+[106/390] Linking C executable tests/test_dcu_698_rules
+[107/390] Linking C executable tests/test_dcu_698_freeze
+[108/390] Linking C executable tests/test_pid_antiwindup
+[109/390] Linking C executable tests/test_edge_launcher
+[110/390] Linking C executable tests/test_dcu_heartbeat_stop
+[111/390] Linking C executable tests/test_dlt698_conformance_suite
+[112/390] Linking C executable tests/test_datahub
+[113/390] Linking C executable tests/test_datahub_shadow
+[114/390] Linking C executable tests/test_datahub_attach
+[115/390] Linking C executable tests/test_datahub_shm_legacy
+[116/390] Linking C executable tests/test_datahub_multi_backend
+[117/390] Linking C executable tests/test_rest_apps
+[118/390] Linking C executable tests/test_datahub_walfd
+[119/390] Linking C executable tests/test_passthrough
+[120/390] Linking C executable tests/test_memfd_seals
+[121/390] Linking C executable tests/test_fuzz_datahub
+[122/390] Linking C executable tests/test_sqlite_service
+[123/390] Linking C executable tests/test_sqlite_app_registry
+[124/390] Linking C executable tests/test_sqlite_migration
+[125/390] Linking C executable tests/test_edge_app_mgr
+[126/390] Linking C executable tests/test_app_manifest
+[127/390] Linking C executable tests/test_app_settings
+[128/390] Linking C executable tests/test_app_pressure
+[129/390] Linking C executable tests/test_edge_authz
+[130/390] Linking C executable tests/test_edge_authz_sqlite
+[131/390] Linking C executable tests/test_app_secret
+[132/390] Linking C executable tests/test_app_task
+[133/390] Linking C executable tests/test_app_backfill
+[134/390] Linking C executable tests/test_dcu_power_quality
+[135/390] Linking C executable tests/test_edge_wasm_imports
+[136/390] Linking C executable tests/test_battery_algo
+[137/390] Linking C executable tests/test_edge_eapp
+[138/390] Linking C executable tests/test_edge_backup
+[139/390] Linking C executable tests/test_app_export
+[140/390] Linking C executable tests/test_alarm_history_archive
+[141/390] Linking C executable tests/test_alarm_history_migration
+[142/390] Linking C executable tests/test_time_trust
+[143/390] Linking C executable tests/test_snapshot_csv
+[144/390] Linking C executable tests/test_web_server_path
+[145/390] Linking C executable tests/test_web_server_limits
+[146/390] Linking C executable tests/test_app_points
+[147/390] Linking C executable tests/test_app_host_server
+[148/390] Linking C executable tests/test_oom_injection
+[149/390] Linking C executable tests/test_sdk_real_host_conformance
+[150/390] Linking C executable tests/test_iems_app_host_ports
+[151/390] Linking C executable tests/test_app_host_process
+[152/390] Linking C executable tests/test_ccsds_driver
+[153/390] Linking C executable tests/test_registry_snapshot
+[154/390] Linking C executable tests/test_iems_app_runtime
+[155/390] Linking C executable tests/test_standard_stages_math
+[156/390] Linking C executable tests/test_stream_engine_industrial
+[157/390] Linking C executable tests/test_no_exec_filter
+[158/390] Linking C executable tests/test_datahub_dynamic_chunk
+[159/390] Linking C executable tests/test_stream_dag
+[160/390] Linking C executable tests/test_edge_mesh
+[161/390] Linking C executable tests/test_fuzz_iec104
+[162/390] Linking C executable tests/test_fuzz_dlms_dlt698
+[163/390] Linking C executable tests/test_dlms_hdlc
+[164/390] Linking C executable tests/test_dlms_codec
+[165/390] Linking C executable tests/test_dlms_security_validation
+[166/390] Linking C executable tests/test_dlms_set
+[167/390] Linking C executable tests/test_driver_manager
+[168/390] Linking C executable tests/test_io_executor
+[169/390] Linking C executable tests/test_master_link_lifecycle
+[170/390] Linking C executable tests/test_arbiter_ownership
+[171/390] Building C object tests/CMakeFiles/test_driver_dlt698.dir/test_driver_dlt698.c.o
+[172/390] Linking C executable tests/test_driver_dlt645
+[173/390] Linking C executable tests/test_driver_dlt698
+[174/390] Linking C executable tests/test_dcu_698_appconn
+[175/390] Linking C executable tests/test_dlt698_appconn
+[176/390] Linking C executable tests/test_driver_iec104
+[177/390] Linking C executable tests/test_modbus_v3
+[178/390] Linking C executable tests/test_driver_v3
+[179/390] Linking C executable tests/test_modbus_write_guard
+[180/390] Linking C executable tests/test_modbus_write_desc
+[181/390] Building C object tests/CMakeFiles/test_driver_registry_dcu.dir/test_dcu_driver_adapter.c.o
+[182/390] Linking C executable tests/test_fuzz_modbus
+[183/390] Linking C executable tests/test_radar_fmcw
+[184/390] Linking C executable tests/test_io_http
+[185/390] Linking C executable tests/test_smartbox_node
+[186/390] Linking C executable tests/test_driver_registry_smart_box
+[187/390] Linking C executable tests/test_anti_corruption_engine
+[188/390] Linking C executable tests/test_rest_boundaries
+[189/390] Linking C executable tests/test_stream_engine
+[190/390] Linking C executable tests/test_stage_factory_extension
+[191/390] Linking C executable tests/test_stream_bus_port
+[192/390] Linking C executable tests/test_js_engine
+[193/390] Linking C executable tests/test_pipeline_loader
+[194/390] Linking C executable tests/test_pipeline_hot_reload
+[195/390] Linking C executable tests/test_cli_migrate
+[196/390] Linking C executable tests/test_wasm_stage
+[197/390] Linking C executable tests/test_datahub_subscription
+[198/390] Building C object tests/CMakeFiles/test_datahub_dds_mesh.dir/test_datahub_dds_mesh.c.o
+[199/390] Linking C executable tests/test_wasm_host_api
+[200/390] Linking C executable tests/test_wasm_scheduler
+[201/390] Linking C executable tests/test_wasm_sandbox
+[202/390] Linking C executable tests/test_sqlite_injection
+[203/390] Linking C executable tests/test_wasm_tensor_abi
+[204/390] Linking C executable tests/test_linalg
+[205/390] Linking C executable tests/test_algorithm_sum
+[206/390] Linking C executable tests/test_dds_discovery_liveliness
+[207/390] Linking C executable tests/test_iems_bess_aggregate
+[208/390] Linking C executable tests/test_iems_business_engines
+[209/390] Linking C executable tests/test_iems_advanced_delivery
+[210/390] Linking C executable tests/test_ekf_soc
+[211/390] Linking C executable tests/test_mpc_dispatcher
+[212/390] Linking C executable tests/test_cia402
+[213/390] Linking C executable tests/test_sparkplug_b
+[214/390] Linking C executable tests/test_foc_latency
+[215/390] Linking C executable tests/test_wavelet_anomaly
+[216/390] Linking C executable tests/test_kinematics
+[217/390] Building C object tests/CMakeFiles/test_dcu_poller.dir/test_dcu_poller.c.o
+[218/390] Linking C executable tests/test_dlt645_codec
+[219/390] Linking C executable tests/test_dcu_poller
+[220/390] Linking C executable tests/test_ipc_binary_flow_codec
+[221/390] Linking C executable tests/test_ydt1363_codec
+[222/390] Linking C executable tests/test_driver_iec101
+[223/390] Linking C executable tests/test_protocol_bridge
+[224/390] Linking C executable tests/test_dcu_scale_benchmark
+[225/390] Linking C executable tests/test_wasm_secure
+[226/390] Linking C executable tests/test_sensor_fusion
+[227/390] Linking C executable tests/test_notch_filter
+[228/390] Linking C executable tests/test_tinyml_overhead
+[229/390] Linking C executable tests/test_ecg_anomaly
+[230/390] Linking C executable tests/test_vibration_features
+[231/390] Linking C executable tests/test_radar_tracker
+[232/390] Linking C executable tests/test_vibra_sense_rul
+[233/390] Linking C executable tests/test_ahrs_quaternion
+[234/390] Linking C executable tests/test_os_port
+[235/390] Linking C executable tests/test_license_engine
+[236/390] Linking C executable tests/test_ws_binary
+[237/390] Linking C executable tests/test_edge_guard
+[238/390] Linking C executable tests/test_edge_params_store
+[239/390] Linking C executable tests/test_northbound_restart
+[240/390] Linking C executable tests/test_northbound_wall_ts
+[241/390] Linking C executable tests/test_northbound_snf_online
+[242/390] Linking C executable tests/test_snf_delivery_confirm
+[243/390] Linking C executable tests/test_snf_resilience
+[244/390] Linking C executable tests/test_snf_restart
+[245/390] Linking C executable tests/test_hl7_fhir
+[246/390] Linking C executable tests/test_stream_engine_timeguard
+[247/390] Linking C executable tests/test_proc_filter_pid
+[248/390] Linking C executable tests/test_smart_box_hw
+[249/390] Linking C executable tests/test_integration
+[250/390] Linking C executable tests/test_sdk_full_chain
+[251/390] Linking C executable tests/test_bus_orchestrator
+[252/390] Linking C executable tests/test_protocol_loopback
+[253/390] Linking C executable tests/test_omnis_integration
+[254/390] Linking C executable tests/test_dcu
+[255/390] Linking C executable tests/test_scheduler
+[256/390] Linking C executable tests/test_northbound_mqtt
+[257/390] Linking C executable tests/test_northbound_address
+[258/390] Linking C executable tests/test_driver_mqtt_json
+[259/390] Linking C executable tests/test_mqtt_subscribe
+[260/390] Linking C executable tests/test_northbound_downlink
+[261/390] Linking C executable tests/test_northbound_downlink_e2e
+[262/390] Linking C executable tests/test_northbound_ipc_topic
+[263/390] Linking C executable tests/test_northbound_ipc_dispatch
+[264/390] Linking C executable tests/test_northbound_event_driven
+[265/390] Linking C executable tests/test_northbound_lifecycle
+[266/390] Linking C executable tests/test_iems_full_stack
+[267/390] Linking C executable tests/test_iems_node
+[268/390] Linking C executable tests/test_iems_execution_port
+[269/390] Linking C executable tests/test_iems_noio_completion
+[270/390] Linking C executable tests/test_adc_dsp_local
+[271/390] Linking C executable tests/test_fall_detection
+[272/390] Linking C executable tests/test_sos_dscp
+[273/390] Linking C executable tests/test_wasm_watchdog
+[274/390] Linking C executable tests/test_emg_dsp
+[275/390] Linking C executable tests/test_timesync
+[276/390] Linking C executable tests/test_protocol_converter
+[277/390] Linking C executable tests/test_edge_acl
+[278/390] Linking C executable tests/test_rehab_kinematics
+[279/390] Linking C executable tests/test_motion_wavelet
+[280/390] Linking C executable tests/test_hrv_analyzer
+[281/390] Linking C executable tests/test_ppg_spo2
+[282/390] Linking C executable tests/test_bia_estimator
+[283/390] Linking C executable tests/test_ecg_arrhythmia
+[284/390] Linking C executable tests/test_tremor_analyzer
+[285/390] Linking C executable tests/test_gait_balance
+[286/390] Linking C executable tests/test_apnea_detector
+[287/390] Linking C executable tests/test_shm_waitset
+[288/390] Linking C executable tests/test_thermal_throttle
+[289/390] Linking C executable tests/test_device_twin
+[290/390] Linking C executable tests/test_impedance_control
+[291/390] Linking C executable tests/test_driver_hotplug
+[292/390] Linking C executable tests/test_gait_safety
+[293/390] Linking C executable tests/test_facility_coordinator
+[294/390] Linking C executable tests/test_multibus_bridge
+[295/390] Linking C executable tests/test_simd_cdd_codec
+[296/390] Linking C executable tests/test_stream_sql_dag
+[297/390] Linking C executable tests/test_wasm_host_bridge
+[298/390] Building C object tests/CMakeFiles/test_idl_generated_serialization.dir/test_idl_generated_serialization.c.o
+[299/390] Linking C executable tests/test_edge_cep_engine
+[300/390] Linking C executable tests/test_timeseries_compressor
+[301/390] Linking C executable tests/test_onnx_host_guard
+[302/390] Linking C executable tests/test_idl_generated_serialization
+[303/390] Linking C executable tests/test_infra_interfaces
+[304/390] Linking C executable tests/test_iems_control_route_e2e
+[305/390] Linking C executable tests/test_iems_task_loader
+[306/390] Linking C executable tests/test_iems_config_loader
+[307/390] Linking C executable tests/test_iems_vendor_semantics
+[308/390] Linking C executable tests/test_iems_tag_map
+[309/390] Linking C executable tests/test_iems_point_model
+[310/390] Linking C executable tests/test_driver_registry
+[311/390] Linking C executable tests/test_driver_registry_dcu
+[312/390] Linking C executable tests/test_dx_scaffolding
+[313/390] Linking C executable tests/test_tag_domains_and_aliases
+[314/390] Linking C executable tests/test_domain_scenarios
+[315/390] Linking C executable tests/test_tag_collision_checker
+[316/390] Linking C executable tests/test_sdk_public_headers
+[317/390] Linking C executable tests/test_developer_manuals
+[318/390] Linking C executable tests/test_examples_integration
+[319/390] Linking C executable tests/test_datahub_dds_mesh
+[320/390] Linking C executable tests/test_telemetry_store_crash
+[321/390] Linking C executable tests/test_dds_shm_zerocopy_perf
+[322/390] Linking C executable tests/test_dds_qos_matrix
+[323/390] Linking C executable tests/test_iems_energy_strategy
+[324/390] Linking C executable tests/test_smartbox_interlock_thermal
+[325/390] Linking C executable tests/test_mcp_dispatcher
+[326/390] Linking C executable tests/test_mcp_server_protocol
+[327/390] Linking C executable tests/test_mcp_uds
+[328/390] Linking C executable tests/test_mcp_industry_tools
+[329/390] Linking C executable tests/test_mcp_bus_security
+[330/390] Linking C executable tests/test_mcp_microservices_integration
+[331/390] Linking C executable tests/test_npu_ascend_acl
+[332/390] Linking C executable tests/test_npu_rockchip_rknn
+[333/390] Linking C executable tests/test_npu_nvidia_trt
+[334/390] Linking C executable tests/test_npu_horizon_bpu
+[335/390] Linking C executable tests/test_npu_ti_sitara
+[336/390] Linking C executable tests/test_dma_buf_pool
+[337/390] Linking C executable tests/test_npu_hal
+[338/390] Linking C executable tests/test_npu_self_healing
+[339/390] Linking C executable tests/test_npu_enclave
+[340/390] Linking C executable tests/test_npu_pmu
+[341/390] Linking C executable tests/test_npu_power_manager
+[342/390] Linking C executable tests/test_composition_root
+[343/390] Linking C executable tests/test_vsg_golden_trace
+[344/390] Linking C executable tests/test_caller_allocated_storage
+[345/390] Linking C executable tests/test_vsg_control
+[346/390] Linking C executable tests/test_pcp_mutex
+[347/390] Linking C executable tests/test_edge_sched_deadline
+[348/390] Linking C executable tests/test_rms_scheduler
+[349/390] Linking C executable tests/test_edf_scheduler
+[350/390] Linking C executable tests/test_cpu_affinity
+[351/390] Linking C executable tests/test_prio_booster
+[352/390] Linking C executable tests/test_mixed_criticality
+[353/390] Linking C executable tests/test_coop_guard
+[354/390] Linking C executable tests/test_ai_quant_calibrator
+[355/390] Linking C executable tests/test_ai_awq_gptq_gemm
+[356/390] Linking C executable tests/test_ai_dynamic_tensor_pool
+[357/390] Linking C executable tests/test_ai_temporal_fault_net
+[358/390] Linking C executable tests/test_ai_slm_kv_cache
+[359/390] Linking C executable tests/test_ai_graph_pruner
+[360/390] Linking C executable tests/test_ai_fast_gemm
+[361/390] Linking C executable tests/test_tmr_failover
+[362/390] Linking C executable tests/test_ebpf_telemetry
+[363/390] Linking C executable tests/test_thermal_scheduler
+[364/390] Linking C executable tests/test_uns_sparkplug_opcua
+[365/390] Linking C executable tests/test_tsn_engine
+[366/390] Linking C executable tests/test_amp_ipc_ring
+[367/390] Linking C executable tests/test_vsg_ffr
+[368/390] Linking C executable tests/test_swarm_ai_offloading
+[369/390] Linking C executable tests/test_operator_fusion
+[370/390] Linking C executable tests/test_battery_thermal_pinn
+[371/390] Linking C executable tests/test_wasm_nn_sandbox
+[372/390] Linking C executable tests/test_cdd_tensor_schema
+[373/390] Linking C executable tests/test_dcu_mutex_marathon
+[374/390] Linking C executable tests/test_ai_hetero_pipeline
+[375/390] Linking C executable tests/test_ai_pinn_evaluator
+[376/390] Linking C executable tests/test_dcu_topology_phase_id
+[377/390] Linking C executable tests/test_aggregate_roots_governance
+[378/390] Linking C executable tests/test_bus_resilience_recovery
+[379/390] Linking C executable tests/test_iec_cp56time
+[380/390] Linking C executable tests/test_iems_connectivity
+[381/390] Linking C executable tests/test_iems_north_iec104
+[382/390] Linking C executable tests/test_iems_southbound_transport
+[383/390] Linking C executable tests/test_iems_southbound_uart_pty
+[384/390] Linking C executable tests/test_iems_modbus_rtu_uart_pty
+[385/390] Linking C executable tests/test_iems_modbus_tcp_loopback
+[386/390] Linking C executable tests/test_iems_tcp_link
+[387/390] Linking C executable tests/test_iems_dlt645_uart_pty
+[388/390] Linking C executable tests/test_iems_ydt1363_uart_pty
+[389/390] Linking C executable tests/test_datahub_subscription_capacity
+[390/390] Linking C executable tests/test_iems_cli_write

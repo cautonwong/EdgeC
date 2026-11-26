@@ -1,0 +1,65 @@
+== D4-04 commits ==
+5688c365 test(DCU-D4-04): pin Class 19 device management honest DAR and ACL
+ tests/test_dcu_698_appconn.c      | 27 ++++++++++++-
+ tests/test_dcu_698_axdr.c         | 55 +++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c | 38 +++++++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c  |  2 +-
+ tests/test_driver_dlt698.c        | 84 ++++++++++++++++++++++++++++++++++++++-
+ 5 files changed, 202 insertions(+), 4 deletions(-)
+
+3788a76d feat(DCU-D4-04): register Class 19 device management with honest DAR
+ cmd/dcu/dcu_698_appconn.c           | 10 ++++++++++
+ cmd/dcu/dcu_698_object_model.c      | 13 +++++++++++--
+ cmd/dcu/dcu_router.h                |  5 +++++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 10 +++++-----
+ 5 files changed, 32 insertions(+), 7 deletions(-)
+
+24b49fd5 test(DCU-D4-04): pin slave response buffer sizing for the 106-item list
+ tests/test_driver_dlt698.c | 67 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 67 insertions(+)
+
+73e729fc fix(DCU-D4-04): fit 698 slave responses and guard the codec tailroom
+ adapters/io_drivers/src/driver_dlt698.c    | 11 +++++++++--
+ docs/design/DCU_698_OBJECT_MODEL.md        |  6 ++++++
+ foundation/src/protocol/dlt698_codec.c     | 29 +++++++++++++++++++++++++++++
+ modules/edge_io/include/bus_orchestrator.h |  6 ++++++
+ modules/edge_io/src/bus_orchestrator.c     | 14 +++++++++++++-
+ modules/edge_io/src/engines/slave_engine.c |  5 +++--
+ tests/test_driver_dlt698.c                 |  4 ++--
+ 7 files changed, 68 insertions(+), 7 deletions(-)
+
+f1b05ff7 test(DCU-D4-04): pin list trailer reservation and half-frame refusal
+ tests/test_driver_dlt698.c | 97 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 97 insertions(+)
+
+de424dad fix(DCU-D4-04): reserve the list frame trailer and drop unsealed frames
+ adapters/io_drivers/src/driver_dlt698.c    | 16 +++++++++++++---
+ ci/mutation_guards.tsv                     |  1 +
+ foundation/src/protocol/dlt698_codec.c     |  8 ++++++--
+ modules/edge_io/src/engines/slave_engine.c |  7 +++++--
+ 4 files changed, 25 insertions(+), 7 deletions(-)
+
+== branch vs base a926964b ==
+ adapters/io_drivers/src/driver_dlt698.c    |  27 +++-
+ ci/mutation_guards.tsv                     |   1 +
+ cmd/dcu/dcu_698_appconn.c                  |  10 ++
+ cmd/dcu/dcu_698_object_model.c             |  13 +-
+ cmd/dcu/dcu_router.h                       |   5 +
+ docs/design/DCU_698_DEVIATIONS.md          |   1 +
+ docs/design/DCU_698_OBJECT_MODEL.md        |  16 +-
+ docs/evidence/DCU-D4-04/comments.md        |  31 ++++
+ docs/evidence/DCU-D4-04/diffstat.txt       |  53 ++++++
+ docs/evidence/DCU-D4-04/runtime.log        |  41 +++++
+ docs/evidence/DCU-D4-04/summary.md         | 122 ++++++++++++++
+ docs/evidence/DCU-D4-04/tests.log          |  71 +++++++++
+ foundation/src/protocol/dlt698_codec.c     |  33 ++++
+ modules/edge_io/include/bus_orchestrator.h |   6 +
+ modules/edge_io/src/bus_orchestrator.c     |  14 +-
+ modules/edge_io/src/engines/slave_engine.c |  12 +-
+ tests/test_dcu_698_appconn.c               |  27 +++-
+ tests/test_dcu_698_axdr.c                  |  55 +++++++
+ tests/test_dcu_698_object_model.c          |  38 ++++-
+ tests/test_dcu_698_scheme_mgmt.c           |   2 +-
+ tests/test_driver_dlt698.c                 | 248 ++++++++++++++++++++++++++++-
+ 21 files changed, 805 insertions(+), 21 deletions(-)

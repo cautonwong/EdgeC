@@ -17,6 +17,7 @@ typedef struct {
     edge_bus_datahub_port_t bus;
     net_buf_pool_t *pool;
     io_handle_t *io;
+    bool io_missing_logged;
     uv_timer_t timer;
     cmd_msg_t *current_cmd;
 

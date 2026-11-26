@@ -20,6 +20,7 @@ add_library(edge_io_drivers STATIC
     src/driver_mqtt_json.c
     src/driver_radar_fmcw.c
     src/driver_sparkplug_b.c
+    src/driver_ydt1363.c
     src/modbus_rtu_driver.c
     src/modbus_tcp_driver.c
 )

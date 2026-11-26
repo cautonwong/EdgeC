@@ -1,0 +1,7 @@
+ acceptance/dcu/tests/test_dcu_northbound.py | 33 +++++++---
+ docs/evidence/DCU-D2-07/comments.md         |  4 ++
+ docs/evidence/DCU-D2-07/diffstat.txt        |  8 ---
+ docs/evidence/DCU-D2-07/runtime.log         | 55 +----------------
+ docs/evidence/DCU-D2-07/summary.md          |  2 +-
+ docs/evidence/DCU-D2-07/tests.log           | 95 +++++++++++++++++++++++++++++
+ 6 files changed, 128 insertions(+), 69 deletions(-)

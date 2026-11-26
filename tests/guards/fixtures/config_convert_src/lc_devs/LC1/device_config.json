@@ -1,0 +1,53 @@
+{
+  "dev_class": [
+    {
+      "type": "METER",
+      "devs": []
+    },
+    {
+      "type": "PCS",
+      "devs": [
+        {
+          "no": "PCS",
+          "name": "pcsA",
+          "channel": "10.0.1.101:8080",
+          "template": "PCS_1.0_MODBUS.json",
+          "protocol": "modbus_tcp",
+          "user_def": "",
+          "addr": "1"
+        }
+      ]
+    },
+    {
+      "type": "CELL",
+      "devs": []
+    },
+    {
+      "type": "BMS",
+      "devs": [
+        {
+          "no": "BMS",
+          "name": "bmsA",
+          "channel": "10.0.1.101:8080",
+          "template": "BMS_1.0_MODBUS.json",
+          "protocol": "modbus_tcp",
+          "user_def": "frame_interval=200;frame_wgap=400;",
+          "addr": "1",
+          "type": "BCU"
+        }
+      ]
+    },
+    {
+      "type": "AC",
+      "devs": []
+    },
+    {
+      "type": "TMS",
+      "devs": []
+    },
+    {
+      "type": "OTHERS",
+      "devs": []
+    }
+  ]
+}

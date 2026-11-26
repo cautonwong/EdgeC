@@ -1,0 +1,30 @@
+=== D3-08 TESTS (2026-11-24T04:51:20Z) ===
+--- unit: freeze (12) ---
+[ RUN      ] test_freeze_attr3_get_axdr_via_resolve
+[       OK ] test_freeze_attr3_get_axdr_via_resolve
+[ RUN      ] test_freeze_method_dar_shapes
+[       OK ] test_freeze_method_dar_shapes
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+--- unit: axdr (39) ---
+[NETBUF][INFO] NetBufPool 0x578dcc770310: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[==========] tests: 39 test(s) run.
+[  PASSED  ] 39 test(s).
+--- unit: param (9) ---
+[ RUN      ] test_persistence_reload_and_audit
+[       OK ] test_persistence_reload_and_audit
+[==========] tests: 9 test(s) run.
+[  PASSED  ] 9 test(s).
+--- ctest -R dcu ---
+100% tests passed, 0 tests failed out of 37
+
+Total Test time (real) =  56.56 sec
+--- ASAN detect_leaks=1 ---
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   0.58 sec
+--- gates ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 110/110 passed (100% sensitivity)

@@ -1,0 +1,46 @@
+=== D0-20 RUNTIME (2026-11-25T06:44:08Z) ===
+--- 状态机实现后的 coverage 验收（未绿，F6 阻塞） ---
+FAILED tests/test_dcu_northbound.py::test_task_monitor_matches_bench_failures
+2 failed, 33 passed in 52.85s
+
+--- F6 扇出证据（bus.json，含 chan/frame_hex） ---
+meter,di ('000000000001', '02010100') n 7 chans ['22', '26', '27', '28', '29', '30', '31'] unique_frames 1
+frame_hex 6801000000000068110433343435b616
+
+--- 熔断事件（状态机版） ---
+1
+
+=== F6 机制取证与修复后对照 (2026-11-25T16:05Z) ===
+--- 提交/编码/写三侧分离（插桩 build-cov，同一 acceptance run） ---
+API-SUBMIT 6438（15 tag × 40 表 × ~1 轮，无重复提交）
+ENG-TX 按 bus 只出现本通道表地址：bus22 01-04 / bus31 37-40（编码侧正确）
+ENG-TX.io → IO-WQ.fd 一对一：bus22-fd16 … bus31-fd25（连接所有权未交叉）
+IO-TXW 写前缓冲内容：每个 fd 都出现全部 40 个表地址（入队后被覆盖）
+IO-TXW ref=0 次数：2113 / 2796（排队 TX 缓冲已回到空闲池）
+
+--- net_buf 追踪（ALLOC/FREE + 调用栈，PIE offset） ---
+TX 分配栈: net_buf_alloc <- _master_run_command <- _engine_on_start_wrapper
+           <- _dispatch_next_locked <- arbiter_on_io_done <- _process_req_result
+           <- _on_uv_poll   （发生在 RX 回调的同步调用链里）
+同指针先被 RX 回调释放、再被 TX 分配取走、回调返回后又被 io 层收尾 unref 释放
+=> RX 载荷双重 unref（consumer unref + io 收尾 unref）
+
+--- 修复后 bus.json 判据（同一台架、同一用例集） ---
+修复前: reads 6329 / distinct_frames 576 / frames_on_multi_chan 475
+修复后: reads 2624 / distinct_frames 600 / frames_on_multi_chan 0
+（600 = 40 表 × 15 tag，恰一轮；无跨通道重复帧）
+
+--- 回归用例红→绿 ---
+修复前: [ FAILED ] test_rx_payload_outlives_engine_callback（连同 5 例既有用例）
+修复后: [ PASSED ] 6 test(s)
+
+--- 验收（修复后，修复前 000029/000031 反复失败） ---
+dcu_acceptance: 3 passed
+dcu_northbound: 35 passed（无 FAILED）
+
+--- 安静窗口验收 3 连绿（coverage build-cov，2026-11-25T08:29-08:31Z） ---
+attempt 1 start load=2.28
+run 1 exit=0  3 passed in 9.78s / 35 passed in 22.84s
+run 2 exit=0  3 passed in 8.68s / 35 passed in 16.84s
+run 3 exit=0  3 passed in 13.05s / 35 passed in 17.62s
+D0-20 F6 VERIFY SUCCESS attempt=1

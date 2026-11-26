@@ -1,0 +1,10 @@
+=== Mutation guards: 1 entries, build /tmp/edgec-land/feat-dcu/build ===
+
+[MUTATION] DCU-D4-09-group-attr16-advertised (cmd/dcu/dcu_698_appconn.c)
+  [mutate] cmd/dcu/dcu_698_appconn.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_appconn.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D4-09-group-attr16-advertised: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

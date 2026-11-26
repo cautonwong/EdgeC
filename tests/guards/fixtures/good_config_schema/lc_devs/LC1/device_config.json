@@ -1,0 +1,30 @@
+{
+  "dev_class": [
+    {
+      "type": "METER",
+      "devs": []
+    },
+    {
+      "type": "PCS",
+      "devs": [
+        {
+          "no": "PCS",
+          "name": "pcsA",
+          "channel": "10.0.1.101:8080",
+          "template": "PCS.json",
+          "protocol": "modbus_tcp",
+          "user_def": "",
+          "addr": "1"
+        }
+      ]
+    },
+    {
+      "type": "BMS",
+      "devs": []
+    },
+    {
+      "type": "OTHERS",
+      "devs": []
+    }
+  ]
+}

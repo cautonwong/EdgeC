@@ -29,6 +29,73 @@ extern "C" {
  * @brief Modbus 纯协议内核接口 (Zero-Dependency)
  */
 
+/* --- 写请求的点位描述 --- */
+
+/**
+ * @brief 写值的类型（点位模型的知识，由消费方填写，驱动不猜）。
+ *
+ * 同一个寄存器在不同设备上可能是 u16、i16、f32 或 u64；类型决定写入宽度
+ * （1/2/4 个寄存器）。读请求忽略本描述，与 DLMS 的约定一致。
+ */
+typedef enum {
+    MODBUS_WRITE_U16 = 0, /**< 1 寄存器，无符号 */
+    MODBUS_WRITE_I16,     /**< 1 寄存器，有符号（二进制补码） */
+    MODBUS_WRITE_U32,     /**< 2 寄存器，无符号 */
+    MODBUS_WRITE_I32,     /**< 2 寄存器，有符号 */
+    MODBUS_WRITE_F32,     /**< 2 寄存器，IEEE-754 单精度 */
+    MODBUS_WRITE_U64,     /**< 4 寄存器，无符号 */
+    MODBUS_WRITE_I64,     /**< 4 寄存器，有符号 */
+    MODBUS_WRITE_F64,     /**< 4 寄存器，IEEE-754 双精度 */
+} modbus_write_type_t;
+
+/**
+ * @brief 写入值的字序：名字就是值字节 A(MSB)..D(H) 在线上的顺序。
+ *
+ *   ABCD = 线上原序；CDAB = 16 位字序反转；BADC = 每个字内字节交换；
+ *   DCBA = 字序反转 + 每个字内字节交换。
+ * 注意：iems_v3 `port_transf.c` 的 ORDER_* 名字按寄存器值语义命名，实际
+ * wire 字节与名字交叉（v3 ORDER_ABCD 发出的字节是 EdgeC 的 BADC）。
+ * 模板映射必须按 v3 实际 wire 对照，不能按名字直连。
+ * 32 位示例（值 0x12345678）：ABCD [0x1234,0x5678]，
+ * CDAB [0x5678,0x1234]，BADC [0x3412,0x7856]，DCBA [0x7856,0x3412]。
+ */
+typedef enum {
+    MODBUS_WORD_ORDER_ABCD = 0, /**< 高字节先（标准） */
+    MODBUS_WORD_ORDER_CDAB,     /**< 16 位字序反转 */
+    MODBUS_WORD_ORDER_BADC,     /**< 每个 16 位字内字节交换 */
+    MODBUS_WORD_ORDER_DCBA,     /**< 字序反转 + 每个字内字节交换 */
+} modbus_word_order_t;
+
+/**
+ * @brief 写请求的点位描述（随 edge_api_write_tag_ex 的 point_desc 传入）。
+ *
+ * 缺描述时保持旧默认：1 个寄存器按 u16、2 个寄存器按 u32 ABCD；其他数量拒绝。
+ * 描述存在时 `point_desc_len` 必须等于 sizeof(modbus_write_desc_t)，类型宽度
+ * 必须等于 native_id 里的寄存器数量（quantity），否则拒绝。
+ *
+ * 放在公开头是因为构造它的是消费方（产品侧），驱动只按同一布局读取。
+ */
+typedef struct {
+    uint8_t type;  /**< modbus_write_type_t */
+    uint8_t order; /**< modbus_word_order_t */
+} modbus_write_desc_t;
+
+/**
+ * @brief 按写描述把 double 编码成寄存器序列。
+ *
+ * 整数类型先做 double 区间检查再向零截断（与既有默认和 v3 的隐式转换一致）；
+ * 非有限值、超出类型范围、未知类型/字序、类型宽度与 quantity 不符都返回 -1。
+ * `desc == NULL` 表示旧默认（quantity 1 → u16，2 → u32 ABCD，其余拒绝）。
+ *
+ * @param value    写入值（raw，未标定）
+ * @param desc     写描述；NULL 走旧默认
+ * @param quantity 本次写入的寄存器数量（native_id 的 quantity，0 已归一为 1）
+ * @param regs     输出寄存器序列，至少 `quantity` 个
+ * @return 0 成功；-1 参数或值非法
+ */
+int modbus_encode_write_regs(double value, const modbus_write_desc_t *desc, uint16_t quantity,
+                             uint16_t *regs);
+
 /* --- CRC16 Modbus --- */
 uint16_t modbus_calculate_crc(const uint8_t *buf, size_t len);
 

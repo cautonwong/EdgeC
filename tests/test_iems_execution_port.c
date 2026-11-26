@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "arbiter_types.h"
 #include "dlt645_codec.h"
 #include "iems_node.h"
 #include "iems_driver_adapter.h"
@@ -18,10 +19,12 @@ typedef struct {
     uint32_t slave_id;
     uint32_t tag_id;
     double value;
+    iems_write_done_fn on_done;
+    void *on_done_user;
 } fake_exec_t;
 
 static int fake_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
-                      const char *proto) {
+                      const char *proto, iems_write_done_fn on_done, void *on_done_user) {
     fake_exec_t *exec = ctx;
     (void)proto;
     exec->calls++;
@@ -29,6 +32,8 @@ static int fake_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id,
     exec->slave_id = slave_id;
     exec->tag_id = tag_id;
     exec->value = value;
+    exec->on_done = on_done;
+    exec->on_done_user = on_done_user;
     return 0;
 }
 
@@ -53,12 +58,13 @@ static void test_write_goes_through_injected_port(void **state) {
                          node, (iems_execution_port_t){.ctx = &exec, .write_tag = fake_write}),
                      0);
 
-    assert_int_equal(iems_node_write_tag(node, 3, 7, 0x1234u, 42.5, "ModbusRTU"), 0);
+    assert_int_equal(iems_node_write_tag(node, 3, 7, 0, 0x1234u, 42.5, "ModbusRTU", NULL, NULL), 0);
     assert_int_equal(exec.calls, 1);
     assert_int_equal(exec.bus_id, 3);
     assert_int_equal(exec.slave_id, 7);
     assert_int_equal(exec.tag_id, 0x1234u);
     assert_true(exec.value == 42.5);
+    assert_null(exec.on_done);
 
     iems_node_destroy(node);
     uv_run(&loop, UV_RUN_NOWAIT);
@@ -94,7 +100,8 @@ static void test_reject_and_trip_write_zero(void **state) {
     assert_true(exec.value == 0.0);
 
     exec.calls = 0;
-    int rc = iems_node_write_tag(node, 0, 1, IEMS_TAG_PCS_CONTROL, 100.0, "ModbusRTU");
+    int rc = iems_node_write_tag(node, 0, 1, 0, IEMS_TAG_PCS_CONTROL, 100.0, "ModbusRTU", NULL,
+                                 NULL);
     assert_int_equal(rc, -2); /* fire interlock */
     assert_int_equal(exec.calls, 1);
     assert_int_equal(exec.tag_id, IEMS_TAG_PCS_CONTROL);
@@ -166,11 +173,81 @@ static void test_write_translation_carries_reg_count(void **state) {
                      -1);
 }
 
+typedef struct {
+    int calls;
+    iems_write_done_status_t status;
+} done_probe_t;
+
+static void probe_done(void *user, iems_write_done_status_t status) {
+    done_probe_t *probe = user;
+    probe->calls++;
+    probe->status = status;
+}
+
+/* 域端口透传：iems_node_write_tag 的可选完成回调原样交给执行端口，
+ * 端口回调的结果回到调用方；不带回调时端口收到 NULL（旧行为不变）。 */
+static void test_node_passes_completion_callback_to_port(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    uv_loop_init(&loop);
+
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "IEMS_EXEC_DONE_%d", (int)getpid());
+    iems_node_config_t cfg = {
+        .product_name = "IEMS_TEST",
+        .shm_name = shm_name,
+        .datahub_capacity = 128,
+    };
+    iems_node_storage_t storage;
+    iems_node_t *node = iems_node_create_in(&storage, &loop, &cfg);
+    assert_non_null(node);
+
+    fake_exec_t exec = {0};
+    assert_int_equal(iems_node_set_execution_port(
+                         node, (iems_execution_port_t){.ctx = &exec, .write_tag = fake_write}),
+                     0);
+
+    done_probe_t probe = {0};
+    assert_int_equal(
+        iems_node_write_tag(node, 3, 7, 0, 0x1234u, 42.5, "ModbusRTU", probe_done, &probe), 0);
+    assert_int_equal(exec.calls, 1);
+    assert_non_null(exec.on_done);
+    assert_ptr_equal(exec.on_done_user, &probe);
+
+    /* 请求层回调触发时，状态与用户指针原样回到调用方 */
+    exec.on_done(exec.on_done_user, IEMS_WRITE_DONE_TIMEOUT);
+    assert_int_equal(probe.calls, 1);
+    assert_int_equal(probe.status, IEMS_WRITE_DONE_TIMEOUT);
+
+    /* 不带回调：端口拿到 NULL，不登记结果 */
+    assert_int_equal(iems_node_write_tag(node, 3, 7, 0, 0x1234u, 1.0, "ModbusRTU", NULL, NULL), 0);
+    assert_int_equal(exec.calls, 2);
+    assert_null(exec.on_done);
+    assert_null(exec.on_done_user);
+
+    iems_node_destroy(node);
+    uv_run(&loop, UV_RUN_NOWAIT);
+    uv_loop_close(&loop);
+}
+
+/* 总线状态 → 域三态：只有 TIMEOUT 单独区分，其余非零都按失败。 */
+static void test_bus_status_maps_to_domain_status(void **state) {
+    (void)state;
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_SUCCESS), IEMS_WRITE_DONE_OK);
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_TIMEOUT), IEMS_WRITE_DONE_TIMEOUT);
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_IO_ERROR), IEMS_WRITE_DONE_FAILED);
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_PROTO_ERROR), IEMS_WRITE_DONE_FAILED);
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_QUEUE_FULL), IEMS_WRITE_DONE_FAILED);
+    assert_int_equal(iems_exec_map_write_status(CMD_STATUS_RATE_LIMITED), IEMS_WRITE_DONE_FAILED);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_write_goes_through_injected_port),
         cmocka_unit_test(test_reject_and_trip_write_zero),
         cmocka_unit_test(test_write_translation_carries_reg_count),
+        cmocka_unit_test(test_node_passes_completion_callback_to_port),
+        cmocka_unit_test(test_bus_status_maps_to_domain_status),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

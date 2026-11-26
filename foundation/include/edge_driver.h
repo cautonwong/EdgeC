@@ -153,6 +153,14 @@ struct edge_driver_s {
                        bool is_write, double value);
 
     /**
+     * @brief 可选：把发送边界的记录墙钟 (epoch 微秒) 交给驱动。
+     *
+     * 北向生产者用：请求层在编码前调用，驱动把它存进 req scratch，req_encode
+     * 用 ts_us / 1000 作为公历毫秒。南向驱动不需要，保持 NULL 即可。
+     */
+    void (*req_set_ts_us)(void *priv, uint64_t ts_us);
+
+    /**
      * @brief 私有数据 → 请求字节
      * @param priv    本次请求的 scratch
      * @param session 设备级持久上下文（ctx_size 字节，可为 NULL）；有会话状态的协议

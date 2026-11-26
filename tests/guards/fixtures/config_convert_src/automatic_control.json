@@ -1,0 +1,62 @@
+[
+  {
+    "name": "EMS.IoProtect",
+    "reset": 1,
+    "resetValue": 0,
+    "conditionInfo": [
+      {
+        "actVal": 1,
+        "conditionList": [
+          {
+            "mode": 0,
+            "and_list": [
+              {
+                "name": "DIDO.DI3",
+                "condition": "=",
+                "value": 1,
+                "debounceTime": 0
+              },
+              {
+                "name": "EMS.EnIoProtect",
+                "condition": "=",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "mode": 0,
+            "and_list": [
+              {
+                "name": "DIDO.DI4",
+                "condition": ">=",
+                "value": "1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "DIDO.DO4",
+    "reset": 1,
+    "resetValue": 0,
+    "conditionInfo": [
+      {
+        "actVal": 1,
+        "conditionList": [
+          {
+            "mode": 0,
+            "and_list": [
+              {
+                "name": "EMS.DgCtrl",
+                "condition": "=",
+                "value": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+]

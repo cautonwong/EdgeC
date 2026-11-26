@@ -1,0 +1,19 @@
+ acceptance/dcu/dcu_product.py               |  28 ++-
+ acceptance/dcu/tests/test_dcu_northbound.py |  11 +-
+ cmd/dcu/dcu_698_class_acq.c                 |  12 +-
+ cmd/dcu/dcu_poller.c                        | 264 ++++++++++++++-------
+ cmd/dcu/dcu_poller.h                        |  40 +++-
+ docs/evidence/DCU-D0-18/summary.md          |  12 +-
+ docs/evidence/DCU-D0-19/diffstat.txt        |  19 ++
+ docs/evidence/DCU-D0-20/comments.md         |  11 +
+ docs/evidence/DCU-D0-20/diffstat.txt        |  12 +
+ docs/evidence/DCU-D0-20/summary.md          | 141 +++++++++++
+ docs/evidence/DCU-D0-20/tests.log           |  23 ++
+ modules/edge_io/include/io_executor.h       |   5 +
+ modules/edge_io/src/engines/master_engine.c |  10 +-
+ modules/edge_io/src/engines/slave_engine.c  |   6 +-
+ modules/edge_io/src/passthrough_mgr.c       |  11 +-
+ tests/test_dcu_poller.c                     | 354 ++++++++++++++++++++++++++++
+ tests/test_iems_full_stack.c                |   3 +
+ tests/test_master_link_lifecycle.c          |  58 +++++
+ 18 files changed, 895 insertions(+), 125 deletions(-)

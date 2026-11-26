@@ -1,0 +1,18 @@
+# dcu/F4-pending-capacity round 3
+
+## test commit ca3b5582
+ca3b5582 test(dcu): pin per-task reopen and per-visit breaker settlement
+ tests/test_dcu_poller.c | 76 +++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 73 insertions(+), 3 deletions(-)
+
+## fix commit edbb7a3f
+edbb7a3f fix(dcu): reopen only the upserted task and settle each meter visit once
+ cmd/dcu/dcu_poller.c | 24 +++++++++++++++---------
+ cmd/dcu/dcu_poller.h | 11 +++++------
+ 2 files changed, 20 insertions(+), 15 deletions(-)
+
+## total code vs ac322a1b (round-3 only)
+ cmd/dcu/dcu_poller.c    | 24 ++++++++++------
+ cmd/dcu/dcu_poller.h    | 11 ++++---
+ tests/test_dcu_poller.c | 76 +++++++++++++++++++++++++++++++++++++++++++++++--
+ 3 files changed, 93 insertions(+), 18 deletions(-)

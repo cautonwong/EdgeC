@@ -1,0 +1,255 @@
+
+{
+    "dev":[
+        {
+            "dev_id":"ems",
+            "module":"env" ,
+            "type":"emsctrl",
+            "blocks":
+            [
+                {
+                    "block_id":"0x8001",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"name":"系统运行状态",     "type":"U16","tag":"SysStatus", "scale":1},
+                        {"name":"关口总功率",       "type":"S32","tag":"GridPower", "scale":10},
+                        {"name":"变压器总功率",     "type":"S32","tag":"GridPower", "scale":10},
+                        {"name":"负载总功率",       "type":"S32","tag":"LoadPower", "scale":10},
+                        {"name":"过需量总功率",     "type":"S32","tag":"place0", "scale":10},
+                        {"name":"期望总有功功率",   "type":"S32","tag":"ExpectPower", "scale":10},
+                        {"name":"储能总有功功率",   "type":"S32","tag":"place0", "scale":10},
+                        {"name":"光伏总有功功率",   "type":"S32","tag":"place1", "scale":10}
+                    ]
+                },
+                {
+                    "block_id":"0x8011",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"name":"限功率运行告警",               "type":"U16","tag":"PowerLimited", "scale":1},
+                        {"name":"逆流运行告警",                 "type":"U16","tag":"PowerReflux", "scale":1},
+                        {"name":"电表故障汇总",                 "type":"U16","tag":"place2", "scale":1},
+                        {"name":"柜告警汇总(LC保护告警汇总)",   "type":"U16","tag":"place3", "scale":1},
+                        {"name":"禁充保护告警",                 "type":"U16","tag":"ProhibiteCha", "scale":1},
+                        {"name":"禁放保护告警",                 "type":"U16","tag":"ProhibiteDisc", "scale":1},
+                        {"name":"PCS告警汇总",                  "type":"U16","tag":"place4", "scale":1},
+                        {"name":"簇告警汇总",                   "type":"U16","tag":"place5", "scale":1},
+                        {"name":"急停告警汇总",                  "type":"U16","tag":"place6", "scale":1},
+                        {"name":"消防告警汇总",                  "type":"U16","tag":"place7", "scale":1},
+                        {"name":"PCS模块使能状态",               "type":"U16","tag":"place8", "scale":1},
+                        {"name":"DOD保护汇总",                  "type":"U16","tag":"place9", "scale":1},
+                        {"name":"BMS告警保护汇总 ",             "type":"U16","tag":"place10", "scale":1}
+                    ]
+                },
+                {
+                    "block_id":"0x8021",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"name":"使能变压器需量",   "type":"U16","tag":"EnProtectTransf", "scale":1},
+                        {"name":"使能动环保护",     "type":"U16","tag":"place10", "scale":1},
+                        {"name":"使能DOD保护",      "type":"U16","tag":"EnProtectDOD", "scale":1},
+                        {"name":"使能BMS告警保护",  "type":"U16","tag":"place10", "scale":1},
+                        {"name":"使能负荷跟踪",     "type":"U16","tag":"EnTraceLoad", "scale":1},
+                        {"name":"使能负荷跟踪限制", "type":"U16","tag":"loadTrackingLimit", "scale":1},
+                        {"name":"使能逆流防护",     "type":"U16","tag":"EnProtectReverse", "scale":1},
+                        {"name":"需量控制系数",     "type":"U16","tag":"K1", "scale":1},
+                        {"name":"负荷跟踪系数",     "type":"U16","tag":"K2", "scale":1},
+                        {"name":"多站点分配系数",     "type":"U16","tag":"K3", "scale":1},
+                        {"name":"防逆流余量",       "type":"S32","tag":"Pset", "scale":10},
+                        {"name":"变压器容量",       "type":"S32","tag":"Pmlmax", "scale":10},
+                        {"name":"开关机",           "type":"U16","tag":"OnOff", "scale":1},
+                        {"name":"最大充电SOC",      "type":"U16","tag":"SOCmax", "scale":10},
+                        {"name":"最小放电SOC",      "type":"U16","tag":"SOCmin", "scale":10},
+                        {"name":"最大充放功率",     "type":"S32","tag":"cab_power", "scale":10},
+                        {"name":"清除保护",         "type":"U16","tag":"ClrAlarm", "scale":1},
+                        {"name":"工作模式",         "type":"U16","tag":"WorkMode", "scale":1},
+                        {"name":"并离网模式",       "type":"U16","tag":"SetConnect", "scale":1},
+                        {"name":"无功功率",         "type":"S32","tag":"SetRePower", "scale":10},
+                        {"name":"有功功率",         "type":"S32","tag":"SetPower", "scale":10},
+                        {"name":"远程和本地模式",    "type":"U16","tag":"ControlMode", "scale":1},
+                        {"name":"调整间隔",         "type":"U16","tag":"Adjpreriod", "scale":1},
+                        {"name":"设置策略模式",      "type":"U16","tag":"StratagyType", "scale":1},
+                        {"name":"需量控制门限",      "type":"S32","tag":"demand_threshold", "scale":10},
+                        {"name":"第1段执行功率",    "type":"S16","tag":"S1Power", "scale":1},
+                        {"name":"第1段策略开始分钟","type":"U16","tag":"S1StMin", "scale":1},
+                        {"name":"第1段策略开始小时","type":"U16","tag":"S1StHour", "scale":1},
+                        {"name":"第1段策略结束分钟","type":"U16","tag":"S1EnMin", "scale":1},
+                        {"name":"第1段策略结束小时","type":"U16","tag":"S1EnHour", "scale":1},
+                        {"name":"第2段执行功率",    "type":"S16","tag":"S2Power", "scale":1},
+                        {"name":"第2段策略开始分钟","type":"U16","tag":"S2StMin", "scale":1},
+                        {"name":"第2段策略开始小时","type":"U16","tag":"S2StHour", "scale":1},
+                        {"name":"第2段策略结束分钟","type":"U16","tag":"S2EnMin", "scale":1},
+                        {"name":"第2段策略结束小时","type":"U16","tag":"S2EnHour", "scale":1},
+                        {"name":"第3段执行功率",    "type":"S16","tag":"S3Power", "scale":1},
+                        {"name":"第3段策略开始分钟","type":"U16","tag":"S3StMin", "scale":1},
+                        {"name":"第3段策略开始小时","type":"U16","tag":"S3StHour", "scale":1},
+                        {"name":"第3段策略结束分钟","type":"U16","tag":"S3EnMin", "scale":1},
+                        {"name":"第3段策略结束小时","type":"U16","tag":"S3EnHour", "scale":1},
+                        {"name":"第4段执行功率",    "type":"S16","tag":"S4Power", "scale":1},
+                        {"name":"第4段策略开始分钟","type":"U16","tag":"S4StMin", "scale":1},
+                        {"name":"第4段策略开始小时","type":"U16","tag":"S4StHour", "scale":1},
+                        {"name":"第4段策略结束分钟","type":"U16","tag":"S4EnMin", "scale":1},
+                        {"name":"第4段策略结束小时","type":"U16","tag":"S4EnHour", "scale":1},
+                        {"name":"第5段执行功率",    "type":"S16","tag":"S5Power", "scale":1},
+                        {"name":"第5段策略开始分钟","type":"U16","tag":"S5StMin", "scale":1},
+                        {"name":"第5段策略开始小时","type":"U16","tag":"S5StHour", "scale":1},
+                        {"name":"第5段策略结束分钟","type":"U16","tag":"S5EnMin", "scale":1},
+                        {"name":"第5段策略结束小时","type":"U16","tag":"S5EnHour", "scale":1},
+                        {"name":"第6段执行功率",    "type":"S16","tag":"S6Power", "scale":1},
+                        {"name":"第6段策略开始分钟","type":"U16","tag":"S6StMin", "scale":1},
+                        {"name":"第6段策略开始小时","type":"U16","tag":"S6StHour", "scale":1},
+                        {"name":"第6段策略结束分钟","type":"U16","tag":"S6EnMin", "scale":1},
+                        {"name":"第6段策略结束小时","type":"U16","tag":"S6EnHour", "scale":1},
+                        {"name":"需量偏差",        "type":"S32","tag":"demand_err", "scale":10},
+                        {"name":"增容充电开始分钟","type":"U16","tag":"demand_start_hour", "scale":1},
+                        {"name":"增容充电开始小时","type":"U16","tag":"demand_start_min", "scale":1},
+                        {"name":"增容充电结束分钟","type":"U16","tag":"demand_end_hour", "scale":1},
+                        {"name":"增容充电结束小时","type":"U16","tag":"demand_end_min", "scale":1},
+                        {"name":"1月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"2月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"3月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"4月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"5月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"6月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"7月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"8月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"9月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"10月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"11月需量值",    "type":"S32","tag":"place1", "scale":10},
+                        {"name":"单体过压保护阈值",     "type":"U32","tag":"singleMaxVoltage", "scale":1},
+                        {"name":"单体欠压保护阈值",     "type":"U32","tag":"singleMinVoltage", "scale":1},
+                        {"name":"使能单体电压保护",     "type":"U16","tag":"enSingleVoltage", "scale":1}
+                    ]
+                } 
+            ]
+        },
+        {
+            "dev_id":"pcs456",
+            "module":"ems" ,
+            "type":"pcsdata",
+            "blocks":
+            [
+                {
+                    "block_id":"0x8001",
+                    "cycle":0,
+                    "sub_id":
+                    [
+                        {"type":"U16","tag":"device_reset", "scale":1},
+                        {"type":"U16","tag":"device_start", "scale":1},
+                        {"type":"U16","tag":"device_shutdown", "scale":1},
+                        {"type":"U16","tag":"emergency_stop", "scale":1},
+                        {"type":"U16","tag":"reset_accumulated_charging", "scale":1},
+                        {"type":"U16","tag":"reset_accumulated_discharging", "scale":1},
+                        {"type":"U16","tag":"remote_mode", "scale":1},
+                        {"type":"U16","tag":"local_mode", "scale":1}
+                    ]
+                },
+                {
+                    "block_id":"0x8011",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"type":"U16","tag":"PCS_operate_status", "scale":1},
+                        {"type":"U16","tag":"overall_fault_status", "scale":1},
+                        {"type":"U16","tag":"overall_alarm_status_I", "scale":1},
+                        {"type":"U16","tag":"operation_mode", "scale":1},
+                        {"type":"U16","tag":"parallel_island_mode", "scale":1},
+                        {"type":"U16","tag":"other_mode", "scale":1}
+                    ]
+                },
+                {
+                    "block_id":"0x8012",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"type":"U32","tag":"ac_energy_statistics", "scale":1000},
+                        {"type":"U32","tag":"ac_charging_energy", "scale":1000},
+                        {"type":"U32","tag":"ac_discharging_energy", "scale":1000},
+                        {"type":"U32","tag":"dc_charging_energy", "scale":1000},
+                        {"type":"U32","tag":"dc_discharging_energy", "scale":1000}
+                    ]
+                }  ,
+                {
+                    "block_id":"0x8013",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"type":"S32","tag":"allowed_discharge_current", "scale":10},
+                        {"type":"S32","tag":"allowed_charge_current", "scale":10},
+                        {"type":"S32","tag":"allowed_discharge_power", "scale":10},
+                        {"type":"S32","tag":"allowed_charge_power", "scale":10},
+                        {"type":"U16","tag":"total_voltage", "scale":10},
+                        {"type":"S32","tag":"total_current", "scale":10},
+                        {"type":"U32","tag":"available_charge_capacity", "scale":10},
+                        {"type":"U32","tag":"available_discharge_capacity", "scale":10},
+                        {"type":"U32","tag":"highest_cell_voltage", "scale":1000},
+                        {"type":"U32","tag":"lowest_cell_voltage", "scale":1000}
+                    ]
+                }  ,
+                {
+                    "block_id":"0x8021",
+                    "cycle":1000,
+                    "sub_id":
+                    [
+                        {"type":"U16","tag":"dry_contact_input", "scale":1},
+                        {"type":"U16","tag":"emergency_stop_input_status", "scale":1},
+                        {"type":"U16","tag":"AphaseVoltage", "scale":10},
+                        {"type":"U16","tag":"BphaseVoltage", "scale":10},
+                        {"type":"U16","tag":"CphaseVoltage", "scale":10},
+                        {"type":"S32","tag":"AphaseCurrent", "scale":10},
+                        {"type":"S32","tag":"BphaseCurrent", "scale":10},
+                        {"type":"S32","tag":"CphaseCurrent", "scale":10},
+                        {"type":"S32","tag":"AphaseActPower", "scale":10},
+                        {"type":"S32","tag":"BphaseActPower", "scale":10},
+                        {"type":"S32","tag":"CphaseActPower", "scale":10},
+                        {"type":"S32","tag":"pcs_total_active_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_a_reactive_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_b_reactive_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_c_reactive_power", "scale":10},
+                        {"type":"S32","tag":"pcs_total_reactive_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_a_apparent_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_b_apparent_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_c_apparent_power", "scale":10},
+                        {"type":"S32","tag":"pcs_total_apparent_power", "scale":10},
+                        {"type":"S32","tag":"pcs_output_a_power_factor", "scale":10},
+                        {"type":"S32","tag":"pcs_output_b_power_factor", "scale":10},
+                        {"type":"S32","tag":"pcs_output_c_power_factor", "scale":10},
+                        {"type":"S32","tag":"pcs_total_power_factor", "scale":10},
+                        {"type":"S32","tag":"ac_current", "scale":10},
+                        {"type":"U16","tag":"ac_voltage", "scale":10},
+                        {"type":"S32","tag":"ac_power", "scale":10},
+                        {"type":"S32","tag":"dc_current", "scale":10},
+                        {"type":"U16","tag":"dc_total_voltage", "scale":10},
+                        {"type":"S32","tag":"dc_power", "scale":10},
+                        {"type":"S16","tag":"pcs_cabinet_temperature", "scale":10},
+                        {"type":"S16","tag":"pcs_radiator_temperature", "scale":10},
+                        {"type":"S16","tag":"pcs_transformer_temperature", "scale":10},
+                        {"type":"U16","tag":"grid_frequency", "scale":100}
+                    ]
+                }  ,
+                {
+                    "block_id":"0x8031",
+                    "cycle":0,
+                    "sub_id":
+                    [
+                        {"type":"U16","tag":"operation_mode", "scale":1},
+                        {"type":"U16","tag":"constant vol_chg_vol_setting", "scale":10},
+                        {"type":"S32","tag":"cross_flow_chg_cur_setting", "scale":10},
+                        {"type":"S32","tag":"ActPowSet", "scale":10},
+                        {"type":"U16","tag":"off_grid_operation", "scale":1},
+                        {"type":"U16","tag":"on_grid_operation", "scale":1},
+                        {"type":"U16","tag":"year", "scale":1},
+                        {"type":"U16","tag":"month", "scale":1},
+                        {"type":"U16","tag":"day", "scale":1},
+                        {"type":"U16","tag":"hour", "scale":1},
+                        {"type":"U16","tag":"minute", "scale":1},
+                        {"type":"U16","tag":"second", "scale":1}
+
+                    ]
+                }
+            ]
+        }
+    ]
+}

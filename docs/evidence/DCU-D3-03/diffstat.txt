@@ -1,0 +1,10 @@
+ cmd/dcu/dcu_698_freeze_cfg.c                     | 35 ++++++++++++-------
+ cmd/dcu/dcu_storage.c                            |  5 +++
+ cmd/dcu/dcu_storage.h                            |  1 +
+ docs/evidence/DCU-D3-03/diffstat.txt             | 15 --------
+ docs/evidence/DCU-D3-03/runtime.log              | 18 +++++-----
+ docs/evidence/DCU-D3-03/summary.md               | 11 +++---
+ docs/evidence/DCU-D3-03/tests.log                | 20 +++++------
+ docs/plans/2026-11-21-dcu-698-production-plan.md |  1 +
+ tests/test_dcu_698_freeze.c                      | 44 ++++++++++++++++++++++++
+ 9 files changed, 98 insertions(+), 52 deletions(-)

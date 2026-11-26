@@ -1,0 +1,15 @@
+ cmd/dcu/dcu_698_appconn.c            | 10 ++++++
+ cmd/dcu/dcu_698_object_model.c       | 20 +++++++++++-
+ cmd/dcu/dcu_router.h                 |  3 ++
+ docs/design/DCU_698_OBJECT_MODEL.md  | 14 ++++-----
+ docs/evidence/DCU-D5-05/comments.md  | 24 +++++++++++++++
+ docs/evidence/DCU-D5-05/diffstat.txt | 15 +++++++++
+ docs/evidence/DCU-D5-05/runtime.log  | 33 ++++++++++++++++++++
+ docs/evidence/DCU-D5-05/summary.md   | 60 ++++++++++++++++++++++++++++++++++++
+ docs/evidence/DCU-D5-05/tests.log    | 40 ++++++++++++++++++++++++
+ tests/test_dcu_698_appconn.c         | 38 +++++++++++++++++++++--
+ tests/test_dcu_698_axdr.c            | 34 ++++++++++++++++++++
+ tests/test_dcu_698_object_model.c    | 29 ++++++++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c     |  2 +-
+ tests/test_driver_dlt698.c           |  2 +-
+ 14 files changed, 310 insertions(+), 14 deletions(-)

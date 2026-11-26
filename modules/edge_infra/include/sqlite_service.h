@@ -82,8 +82,21 @@ sqlite_svc_t *sqlite_svc_create_in(sqlite_svc_storage_t *storage, uv_loop_t *loo
  */
 int sqlite_svc_init_from_contract(sqlite_svc_t *svc, const edge_contract_t *contract);
 
-// 插入数据 (内部根据策略自动路由)
+// 插入数据 (内部根据策略自动路由)。墙钟 = 调用时刻 (epoch µs)，严格递增钳制。
 int sqlite_svc_insert(sqlite_svc_t *svc, const PipeMsg *msg);
+
+/**
+ * @brief 用调用方在边界采样的墙钟插入一条记录。
+ *
+ * @param wall_ts_us 记录墙钟，epoch 微秒 (CLOCK_REALTIME)。telemetry 的主键是
+ *                   (wall_ts_us, tag_id)；同一微秒同一 tag_id 会覆盖，调用方
+ *                   负责按需钳制（SnF 的 buffer_data 会严格递增）。
+ *
+ * 仅 owning 构造器（sqlite_svc_create/_ex）可用；零分配 sqlite_svc_create_in 的
+ * SERIES/SHARDING 路径没有逐条墙钟存储，本函数返回 -1 并记日志。零分配路径请用
+ * sqlite_svc_insert()，其墙钟按 flush 时刻采样。
+ */
+int sqlite_svc_insert_at(sqlite_svc_t *svc, const PipeMsg *msg, uint64_t wall_ts_us);
 
 // 同步刷盘（将内存批处理缓冲区立即写入 SQLite 数据库）
 int sqlite_svc_flush_sync(sqlite_svc_t *svc);

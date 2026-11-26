@@ -1,0 +1,29 @@
+== test commit d99574b6 ==
+d99574b6 test(DCU-F5S): pin event A6 snapshot to the event slot_id
+ tests/test_dcu_advanced_modules.c | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+== fix commit 85cb3a04 ==
+85cb3a04 fix(DCU-F5S): read event A6 snapshots by the event's slot_id
+ cmd/dcu/dcu_698_var.c       | 26 ++++++++++++++++++++------
+ cmd/dcu/dcu_event_monitor.c | 15 ++++++++++-----
+ 2 files changed, 30 insertions(+), 11 deletions(-)
+
+== rework commit c8796002 ==
+c8796002 refactor(DCU-F5S): move the device snapshot prototype into dcu_698_var.h
+ cmd/dcu/dcu_698_var.c       | 5 -----
+ cmd/dcu/dcu_698_var.h       | 9 +++++++++
+ cmd/dcu/dcu_event_monitor.c | 4 ----
+ 3 files changed, 9 insertions(+), 9 deletions(-)
+
+== branch vs base b1907349 ==
+ cmd/dcu/dcu_698_var.c              | 21 +++++++---
+ cmd/dcu/dcu_698_var.h              |  9 +++++
+ cmd/dcu/dcu_event_monitor.c        | 11 ++---
+ docs/evidence/DCU-F5S/comments.md  | 27 +++++++++++++
+ docs/evidence/DCU-F5S/diffstat.txt | 16 ++++++++
+ docs/evidence/DCU-F5S/runtime.log  | 21 ++++++++++
+ docs/evidence/DCU-F5S/summary.md   | 82 ++++++++++++++++++++++++++++++++++++++
+ docs/evidence/DCU-F5S/tests.log    | 27 +++++++++++++
+ tests/test_dcu_advanced_modules.c  | 34 ++++++++++++++++
+ 9 files changed, 237 insertions(+), 11 deletions(-)

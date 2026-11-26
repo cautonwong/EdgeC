@@ -1,8 +1,11 @@
 #define _GNU_SOURCE
 
 #include <cmocka.h>
+#include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -415,12 +418,329 @@ static void test_io_write_hard_error_releases_pending_tx(void** state) {
     signal(SIGPIPE, prev_sigpipe);
 }
 
+static void test_io_tcp_keepalive_defaults(void** state) {
+    (void)state;
+
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(listen_fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    assert_int_equal(bind(listen_fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    assert_int_equal(listen(listen_fd, 1), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(listen_fd, (struct sockaddr*)&addr, &addr_len), 0);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(8, 256, 0);
+    assert_non_null(pool);
+
+    io_handle_t* h = io_executor_create_tcp(&loop, "127.0.0.1", ntohs(addr.sin_port), pool);
+    assert_non_null(h);
+    int fd = io_executor_linux_fd(h);
+    assert_true(fd >= 0);
+
+    int on = 0;
+    socklen_t len = sizeof(on);
+    assert_int_equal(getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, &len), 0);
+    assert_int_equal(on, 1);
+    int value = 0;
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &value, &len), 0);
+    assert_int_equal(value, 30);
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &value, &len), 0);
+    assert_int_equal(value, 10);
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &value, &len), 0);
+    assert_int_equal(value, 3);
+
+    h->ops->destroy(h);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    close(listen_fd);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+typedef struct {
+    uv_loop_t* loop;
+    net_buf_pool_t* pool;
+    int cb_count;
+    int cb_fd;
+    int cb_err;
+    io_handle_t* adopted;
+} tcp_connect_probe_t;
+
+static void on_tcp_connect(void* user_data, int fd, int err) {
+    tcp_connect_probe_t* p = (tcp_connect_probe_t*)user_data;
+    p->cb_count++;
+    p->cb_fd = fd;
+    p->cb_err = err;
+    uv_stop(p->loop);
+}
+
+/* adopt 必须在回调内发生：此时连接 poll 已 uv_close 但 close 回调未运行，
+ * 与 link 在完成回调里接管同一 fd 的产品顺序一致。 */
+static void on_tcp_connect_adopt(void* user_data, int fd, int err) {
+    tcp_connect_probe_t* p = (tcp_connect_probe_t*)user_data;
+    p->cb_count++;
+    p->cb_fd = fd;
+    p->cb_err = err;
+    if (err == 0) p->adopted = io_executor_create_from_fd(p->loop, fd, p->pool);
+    uv_stop(p->loop);
+}
+
+static int _listen_loopback(uint16_t* port) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    assert_int_equal(bind(fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    assert_int_equal(listen(fd, 4), 0);
+    socklen_t len = sizeof(addr);
+    assert_int_equal(getsockname(fd, (struct sockaddr*)&addr, &len), 0);
+    *port = ntohs(addr.sin_port);
+    return fd;
+}
+
+static uint16_t _dead_port(void) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    assert_int_equal(bind(fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    socklen_t len = sizeof(addr);
+    assert_int_equal(getsockname(fd, (struct sockaddr*)&addr, &len), 0);
+    close(fd);
+    return ntohs(addr.sin_port);
+}
+
+static int _count_open_fds(void) {
+    DIR* dir = opendir("/proc/self/fd");
+    assert_non_null(dir);
+    int count = 0;
+    struct dirent* ent;
+    while ((ent = readdir(dir)) != NULL) {
+        if (strcmp(ent->d_name, ".") != 0 && strcmp(ent->d_name, "..") != 0) count++;
+    }
+    closedir(dir);
+    return count;
+}
+
+static void _assert_keepalive(int fd, int idle, int intvl, int cnt) {
+    int on = 0;
+    socklen_t len = sizeof(on);
+    assert_int_equal(getsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, &len), 0);
+    assert_int_equal(on, 1);
+    int value = 0;
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &value, &len), 0);
+    assert_int_equal(value, idle);
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &value, &len), 0);
+    assert_int_equal(value, intvl);
+    len = sizeof(value);
+    assert_int_equal(getsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &value, &len), 0);
+    assert_int_equal(value, cnt);
+}
+
+/* 填满 accept 队列后非阻塞 connect 停在 SYN 重传，用来稳定复现取消。
+ * 返回的监听 fd 必须保持打开，否则排队中的连接会被重置。 */
+static int _fill_accept_queue(int* fds, int count, uint16_t* port) {
+    int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(listen_fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = 0;
+    assert_int_equal(bind(listen_fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    assert_int_equal(listen(listen_fd, 1), 0);
+    socklen_t len = sizeof(addr);
+    assert_int_equal(getsockname(listen_fd, (struct sockaddr*)&addr, &len), 0);
+    *port = ntohs(addr.sin_port);
+    int flags = fcntl(listen_fd, F_GETFL, 0);
+    assert_true(flags >= 0);
+    assert_int_equal(fcntl(listen_fd, F_SETFL, flags | O_NONBLOCK), 0);
+
+    for (int i = 0; i < count; i++) {
+        fds[i] = socket(AF_INET, SOCK_STREAM, 0);
+        assert_true(fds[i] >= 0);
+        int fflags = fcntl(fds[i], F_GETFL, 0);
+        assert_true(fflags >= 0);
+        assert_int_equal(fcntl(fds[i], F_SETFL, fflags | O_NONBLOCK), 0);
+        int rc = connect(fds[i], (struct sockaddr*)&addr, sizeof(addr));
+        assert_true(rc == 0 || errno == EINPROGRESS);
+    }
+    usleep(100000);
+    return listen_fd;
+}
+
+static void test_io_tcp_connect_async_success(void** state) {
+    (void)state;
+    uint16_t port;
+    int listen_fd = _listen_loopback(&port);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(8, 256, 0);
+    assert_non_null(pool);
+
+    tcp_connect_probe_t probe = {.loop = &loop, .pool = pool, .cb_fd = -1};
+    io_tcp_connect_opts_t opts = {.host = "127.0.0.1",
+                                  .port = port,
+                                  .keepalive_idle_s = 1,
+                                  .keepalive_intvl_s = 1,
+                                  .keepalive_cnt = 1};
+    io_tcp_connect_t* op =
+        io_executor_tcp_connect_async(&loop, &opts, on_tcp_connect_adopt, &probe);
+    assert_non_null(op);
+    assert_int_equal(probe.cb_count, 0);
+
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(probe.cb_count, 1);
+    assert_int_equal(probe.cb_err, 0);
+    assert_true(probe.cb_fd >= 0);
+    _assert_keepalive(probe.cb_fd, 1, 1, 1);
+    assert_non_null(probe.adopted);
+
+    io_test_ctx_t ctx = {.loop = &loop};
+    probe.adopted->cb = on_io_event;
+    probe.adopted->user_data = &ctx;
+    assert_int_equal(probe.adopted->ops->enable_read(probe.adopted, true), 0);
+    int peer = accept(listen_fd, NULL, NULL);
+    assert_true(peer >= 0);
+    const uint8_t rx_expect[] = {0x5a};
+    assert_int_equal(write(peer, rx_expect, sizeof(rx_expect)), (ssize_t)sizeof(rx_expect));
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(ctx.rx_count, 1);
+    assert_int_equal(ctx.rx_len, sizeof(rx_expect));
+    assert_memory_equal(ctx.rx, rx_expect, sizeof(rx_expect));
+
+    probe.adopted->ops->destroy(probe.adopted);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    close(peer);
+    close(listen_fd);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_io_tcp_connect_async_refused(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    int fds_before = _count_open_fds();
+
+    tcp_connect_probe_t probe = {.loop = &loop, .cb_fd = -1};
+    io_tcp_connect_opts_t opts = {.host = "127.0.0.1", .port = _dead_port()};
+    io_tcp_connect_t* op = io_executor_tcp_connect_async(&loop, &opts, on_tcp_connect, &probe);
+    assert_non_null(op);
+
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(probe.cb_count, 1);
+    assert_int_equal(probe.cb_fd, -1);
+    assert_true(probe.cb_err < 0);
+    assert_int_equal(_count_open_fds(), fds_before);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_io_tcp_connect_async_cancel(void** state) {
+    (void)state;
+    int fillers[8];
+    uint16_t port;
+    int listen_fd = _fill_accept_queue(fillers, 8, &port);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    int fds_before = _count_open_fds();
+
+    tcp_connect_probe_t probe = {.loop = &loop, .cb_fd = -1};
+    io_tcp_connect_opts_t opts = {.host = "127.0.0.1", .port = port};
+    io_tcp_connect_t* op = io_executor_tcp_connect_async(&loop, &opts, on_tcp_connect, &probe);
+    assert_non_null(op);
+    assert_int_equal(_count_open_fds(), fds_before + 1);
+
+    io_tcp_connect_cancel(op);
+    io_tcp_connect_cancel(op);
+    io_tcp_connect_cancel(NULL);
+    run_loop_bounded(&loop, 100);
+    assert_int_equal(probe.cb_count, 0);
+    assert_int_equal(_count_open_fds(), fds_before);
+
+    for (int i = 0; i < 8; i++) close(fillers[i]);
+    close(listen_fd);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+static void test_io_tcp_connect_async_keepalive_defaults(void** state) {
+    (void)state;
+    uint16_t port;
+    int listen_fd = _listen_loopback(&port);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    tcp_connect_probe_t probe = {.loop = &loop, .cb_fd = -1};
+    io_tcp_connect_opts_t opts = {.host = "127.0.0.1", .port = port};
+    io_tcp_connect_t* op = io_executor_tcp_connect_async(&loop, &opts, on_tcp_connect, &probe);
+    assert_non_null(op);
+
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(probe.cb_err, 0);
+    assert_true(probe.cb_fd >= 0);
+    _assert_keepalive(probe.cb_fd, IO_TCP_KEEPALIVE_IDLE_S, IO_TCP_KEEPALIVE_INTVL_S,
+                      IO_TCP_KEEPALIVE_CNT);
+
+    close(probe.cb_fd);
+    close(listen_fd);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+/* connect() 立即成功（回环）也不得在调用栈上同步回调：返回时计数为 0。 */
+static void test_io_tcp_connect_async_is_async(void** state) {
+    (void)state;
+    uint16_t port;
+    int listen_fd = _listen_loopback(&port);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    tcp_connect_probe_t probe = {.loop = &loop, .cb_fd = -1};
+    io_tcp_connect_opts_t opts = {.host = "127.0.0.1", .port = port};
+    io_tcp_connect_t* op = io_executor_tcp_connect_async(&loop, &opts, on_tcp_connect, &probe);
+    assert_non_null(op);
+    assert_int_equal(probe.cb_count, 0);
+    assert_int_equal(probe.cb_fd, -1);
+
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(probe.cb_count, 1);
+    assert_int_equal(probe.cb_err, 0);
+    close(probe.cb_fd);
+    close(listen_fd);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_io_create_uart),
         cmocka_unit_test(test_io_uart_pty),
         cmocka_unit_test(test_io_uart_unsupported_baud),
         cmocka_unit_test(test_io_tcp_loopback),
+        cmocka_unit_test(test_io_tcp_keepalive_defaults),
+        cmocka_unit_test(test_io_tcp_connect_async_success),
+        cmocka_unit_test(test_io_tcp_connect_async_refused),
+        cmocka_unit_test(test_io_tcp_connect_async_cancel),
+        cmocka_unit_test(test_io_tcp_connect_async_keepalive_defaults),
+        cmocka_unit_test(test_io_tcp_connect_async_is_async),
         cmocka_unit_test(test_io_tcp_link_cb_reports_error_after_data_cb),
         cmocka_unit_test(test_io_tcp_refused),
         cmocka_unit_test(test_io_write_hard_error_releases_pending_tx),

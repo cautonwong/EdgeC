@@ -1,0 +1,14 @@
+$ touch modules/edge_mgmt/src/app_manifest.c
+$ python3 ci/scripts/check_build_freshness.py --root . --build build
+❌ [BUILD_FRESHNESS] build artifacts are stale for the current tree: build has pending work:
+ninja: Entering directory `build'
+[1/310] Building C object modules/edge_mgmt/CMakeFiles/edge_mgmt.dir/src/app_manifest.c.o
+[2/310] Linking C static library modules/edge_mgmt/libedge_mgmt.a
+[3/310] Linking C executable tests/test_oom_injection
+[4/310] Linking C executable tests/test_wasm_host_bridge
+[5/310] Linking C executable tests/test_edge_cep_engine
+[6/310] Linking C executable products/smart_box/bin/smart_box
+[7/310] Linking C executable products/iems/bin/iems
+[8/310] Linking C executable products/iems/bin/iems-cli
+[9/310] Linking C executable products/dcu/bin/dcu
+rc=1

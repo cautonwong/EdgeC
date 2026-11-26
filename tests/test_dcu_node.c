@@ -5,6 +5,7 @@
 
 #include <cmocka.h>
 #include <setjmp.h>
+#include <sqlite3.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -13,8 +14,11 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "dcu_698_object_model.h"
 #include "dcu_inventory.h"
 #include "dcu_node.h"
+#include "dcu_relay_map.h"
+#include "edge_slave_plane.h"
 
 static const char *unique_db_path(char *buf, size_t cap, const char *tag) {
     snprintf(buf, cap, "/tmp/%s_%ld.db", tag, (long)getpid());
@@ -168,11 +172,12 @@ static void test_dcu_node_domain_methods_and_events(void **state) {
 }
 
 static int g_stub_calls = 0;
-static int _stub_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id,
+static int _stub_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, uint32_t task_mask,
                         poller_read_done_cb cb, void *ud) {
     (void)ctx;
     (void)meter_idx;
     (void)tag_id;
+    (void)task_mask;
     g_stub_calls++;
     if (cb) cb(ud, 0, 231.7);   /* 同步回调：pump 的 pumping 守卫防重入 */
     return 0;
@@ -211,11 +216,125 @@ static void test_dcu_node_set_source_ops_is_used(void **state) {
     unlink(db_path);
 }
 
+/* dcu_telemetry_latest 按 (meter_address, oad) 主键落最近值；这里只数地址下的行。 */
+static int latest_count(dcu_storage_t *storage, const char *addr) {
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(storage->db,
+                           "SELECT COUNT(*) FROM dcu_telemetry_latest WHERE meter_address = ?;",
+                           -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, addr, -1, SQLITE_TRANSIENT);
+    int count = (sqlite3_step(stmt) == SQLITE_ROW) ? sqlite3_column_int(stmt, 0) : -1;
+    sqlite3_finalize(stmt);
+    return count;
+}
+
+/* 档案删除用末元素覆盖删除位：删 B 后 D 落到下标 1，再新增的 E 占下标 3（slot 4）。
+ * record_reading 的 device_id 是 slot_id，落库地址必须归 slot 对应的表。 */
+static void test_dcu_node_record_reading_uses_slot_id(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_node_slot_reading");
+    unlink(db_path);
+
+    dcu_node_config_t cfg = {.product_name = "DCU_Slot_Test",
+                             .db_path = db_path,
+                             .datahub_capacity = 1024,
+                             .poll_interval_ms = 100};
+    size_t node_storage_size = dcu_node_storage_size(&cfg);
+    void *node_mem = malloc(node_storage_size);
+    dcu_node_t *node = dcu_node_create_in(node_mem, node_storage_size, loop, &cfg);
+    assert_non_null(node);
+
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+    assert_int_equal(dcu_inventory_add(inv, "10000001", "DLT645", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(inv, "10000002", "DLT645", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(inv, "10000003", "DLT645", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(inv, "10000004", "DLT645", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_remove(inv, "10000002"), 0);
+    assert_int_equal(dcu_inventory_add(inv, "10000005", "DLT645", 9600, 1), 0);
+    assert_int_equal(inv->count, 4);
+    assert_string_equal(inv->meters[1].address, "10000004");
+    assert_int_equal(inv->meters[1].slot_id, 3);
+    assert_string_equal(inv->meters[3].address, "10000005");
+    assert_int_equal(inv->meters[3].slot_id, 4);
+
+    dcu_storage_t *storage = dcu_node_get_storage(node);
+    double value = 231.7;
+    /* D 的 slot=3 落在下标 1：按下标取会记到下标 3 的 E 名下。 */
+    assert_int_equal(
+        dcu_node_record_reading(node, 3, 0x02010100, (const uint8_t *)&value, sizeof(value)), 0);
+    assert_int_equal(dcu_storage_flush(storage), 0);
+    assert_int_equal(latest_count(storage, "10000004"), 1);
+    assert_int_equal(latest_count(storage, "10000005"), 0);
+
+    /* E 的 slot=4 已超出 count=4：按 slot 当下标会被直接拒收。 */
+    assert_int_equal(
+        dcu_node_record_reading(node, 4, 0x02010100, (const uint8_t *)&value, sizeof(value)), 0);
+    assert_int_equal(dcu_storage_flush(storage), 0);
+    assert_int_equal(latest_count(storage, "10000005"), 1);
+
+    dcu_node_destroy(node);
+    free(node_mem);
+    unlink(db_path);
+}
+
+/* 8000 方法 129/130/131：空映射诚实回 DAR 2；聚合根填表后可解析到表地址/DO，
+ * 真实 DO 执行未接线，仍按 DAR 5 拒绝，不返回成功。 */
+static void test_relay_map_resolution_keeps_execution_rejected(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_node_relay");
+    unlink(db_path);
+
+    dcu_node_config_t cfg = {.product_name = "DCU_Test",
+                             .db_path = db_path,
+                             .datahub_capacity = 1024,
+                             .poll_interval_ms = 100};
+    size_t node_storage_size = dcu_node_storage_size(&cfg);
+    void *node_mem = malloc(node_storage_size);
+    dcu_node_t *node = dcu_node_create_in(node_mem, node_storage_size, loop, &cfg);
+    assert_non_null(node);
+
+    dcu_action_param_t param = {.count = 1, .relay_oad = 0x20000400u};
+    const uint32_t methods[] = {129, 130, 131};
+    for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        assert_int_equal(dcu_698_call(((uint32_t)OI_REMOTE_CONTROL << 16) | (methods[i] << 8),
+                                      &param, NULL),
+                         EDGE_SLAVE_SRC_TEMPORARY);
+    }
+
+    assert_int_equal(dcu_node_set_relay(node, 0x20000400u, "202610180001", 5), 0);
+    const dcu_relay_entry_t *target = dcu_node_find_relay(node, 0x20000400u);
+    assert_non_null(target);
+    assert_string_equal(target->meter_addr, "202610180001");
+    assert_int_equal(target->do_channel, 5);
+    for (size_t i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
+        assert_int_equal(dcu_698_call(((uint32_t)OI_REMOTE_CONTROL << 16) | (methods[i] << 8),
+                                      &param, NULL),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+
+    /* 未映射的继电器 OAD 不按表地址猜，仍回 DAR 2。 */
+    param.relay_oad = 0x20000499u;
+    assert_int_equal(
+        dcu_698_call(((uint32_t)OI_REMOTE_CONTROL << 16) | (129u << 8), &param, NULL),
+        EDGE_SLAVE_SRC_TEMPORARY);
+
+    dcu_node_destroy(node);
+    free(node_mem);
+    unlink(db_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_dcu_node_lifecycle, setup, teardown),
         cmocka_unit_test_setup_teardown(test_dcu_node_domain_methods_and_events, setup, teardown),
         cmocka_unit_test_setup_teardown(test_dcu_node_set_source_ops_is_used, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_dcu_node_record_reading_uses_slot_id, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_relay_map_resolution_keeps_execution_rejected, setup,
+                                        teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

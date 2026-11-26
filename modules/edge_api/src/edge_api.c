@@ -56,10 +56,10 @@ static const edge_api_meta_entry_t *_meta_of(const char *protocol) {
     return NULL;
 }
 
-int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, uint32_t native_id,
-                         uint32_t result_tag_id, double scale, const void *point_desc,
-                         size_t point_desc_len, int priority, legacy_on_complete_cb cb,
-                         void *user_data) {
+int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id,
+                         uint32_t result_device_id, uint32_t native_id, uint32_t result_tag_id,
+                         double scale, const void *point_desc, size_t point_desc_len, int priority,
+                         legacy_on_complete_cb cb, void *user_data) {
     if (!g_orch) {
         static uint64_t last_no_orch = 0;
         if (uv_now(uv_default_loop()) - last_no_orch > 1000) {
@@ -74,8 +74,8 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
-        protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, scale, 0.0,
-        meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
+        protocol, slave_id, CMD_ACTION_READ, native_id, result_tag_id, result_device_id, scale,
+        0.0, meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
         user_data);
     if (!req) {
         static uint64_t last_no_req = 0;
@@ -107,11 +107,12 @@ int edge_api_read_tag_ex(int bus_id, const char *protocol, uint32_t slave_id, ui
     return rc;
 }
 
-/* 兼容入口：老调用方只有一个标识，视作"原生标识 == 结果 tag"，量纲为 1。 */
+/* 兼容入口：老调用方只有一个标识，视作"原生标识 == 结果 tag"，量纲为 1。
+ * result_device_id 显式传 slave_id，保持这些调用方原有的回调设备身份。 */
 int edge_api_read_tag(int bus_id, const char *protocol, uint32_t slave_id, uint32_t physical_tag_id,
                       int priority, legacy_on_complete_cb cb, void *user_data) {
-    return edge_api_read_tag_ex(bus_id, protocol, slave_id, physical_tag_id, physical_tag_id, 1.0,
-                                NULL, 0, priority, cb, user_data);
+    return edge_api_read_tag_ex(bus_id, protocol, slave_id, slave_id, physical_tag_id,
+                                physical_tag_id, 1.0, NULL, 0, priority, cb, user_data);
 }
 
 int edge_api_write_tag_ex(int bus_id, const char *protocol, uint32_t slave_id,
@@ -122,8 +123,8 @@ int edge_api_write_tag_ex(int bus_id, const char *protocol, uint32_t slave_id,
     const edge_api_meta_entry_t *meta = _meta_of(protocol);
 
     edge_req_t *req = req_legacy_driver_create(
-        protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, 1.0, value,
-        meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
+        protocol, slave_id, CMD_ACTION_WRITE, physical_tag_id, physical_tag_id, slave_id, 1.0,
+        value, meta ? meta->meta : NULL, meta ? meta->count : 0, point_desc, point_desc_len, cb,
         user_data);
     if (!req) return -1;
 

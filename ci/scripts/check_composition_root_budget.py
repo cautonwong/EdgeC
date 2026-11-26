@@ -2,15 +2,35 @@
 """Keep composition roots from growing. Existing roots are a shrink-only baseline."""
 
 import argparse
+import json
 import os
 import sys
 
 DEFAULT_BUDGET = 500
 LISTING = os.path.join("ci", "composition_roots.txt")
+MATRIX = os.path.join("ci", "baseline", "architecture_graph.json")
 BASELINE = os.path.join("ci", "baseline", "composition_root_budget.txt")
 
 
 def roots(root):
+    matrix = os.path.join(root, MATRIX)
+    if os.path.exists(matrix):
+        try:
+            with open(matrix, encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError) as error:
+            raise SystemExit(f"[COMPOSITION_ROOT_BUDGET] cannot read {matrix}: {error}")
+        if not isinstance(data, dict) or not isinstance(
+            data.get("composition_roots"), list
+        ):
+            raise SystemExit(
+                f"[COMPOSITION_ROOT_BUDGET] {matrix} has no composition_roots list; "
+                "fix the matrix instead of reporting an empty budget"
+            )
+        return [
+            entry["path"] if isinstance(entry, dict) else entry
+            for entry in data["composition_roots"]
+        ]
     path = os.path.join(root, LISTING)
     if not os.path.exists(path):
         return []

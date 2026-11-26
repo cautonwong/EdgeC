@@ -1,0 +1,16 @@
+{
+  "devID": "SN1",
+  "clientID": "SN1",
+  "protocol": "MQTT_Send",
+  "desc": "Mqtt",
+  "mainIP": "broker.example",
+  "portnum": 8096,
+  "username": "",
+  "password": "$secret:mqtt-password",
+  "certEnable": 1,
+  "cafilePath": "/cert/serverca.pem",
+  "certfilePath": "/cert/client.pem",
+  "keyfilePath": "/cert/client.key",
+  "httpsCa": "/cert/httpsca.pem",
+  "keepAlive": 30
+}

@@ -1,0 +1,20 @@
+{
+  "id": "000001",
+  "cnt_id": "def",
+  "name": "cabinetA",
+  "capacity": 200,
+  "power": 100,
+  "total_capacity": 800,
+  "total_power": 100,
+  "en_lc": 0,
+  "en_lc_ctrl": 1,
+  "mode": 1,
+  "mode_microgrid": 2,
+  "en_diesel_generator": 1,
+  "en_photovoltaic": 1,
+  "en_mains": 1,
+  "en_esc": 1,
+  "en_swb": 1,
+  "is_slave": 0,
+  "en_mcb": 0
+}

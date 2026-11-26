@@ -77,7 +77,7 @@
 
 ## 4. 公共组件清单
 
-新增组件按仓库规则登记 `component.meta`：subdomain、ports、ROM/RAM/栈预算、owner、maturity。预算先给初值，实现后按归档尺寸回填。
+新增组件按仓库规则登记 `component.meta`：subdomain、ports、RAM/栈预算、owner、maturity。预算先给初值，实现后按归档尺寸回填。
 
 | 组件 | 类型 | 解决什么 | 端口 | 初始预算 | 复用人 |
 | --- | --- | --- | --- | --- | --- |

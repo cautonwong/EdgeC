@@ -1,0 +1,31 @@
+mutation B: empty relay map returns DAR 5 (ignores lookup miss)
+perl: unmapped return EDGE_SLAVE_SRC_TEMPORARY -> EDGE_SLAVE_SRC_CLASS_MISMATCH
+
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_698_axdr.c:1481: error: Failure!
+[  FAILED  ] test_action_129_trip_param
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_698_axdr.c:1481: error: Failure!
+[  FAILED  ] test_action_130_close_param
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_698_axdr.c:1481: error: Failure!
+[  FAILED  ] test_action_131_password_close_param
+[ RUN      ] test_action_129_131_empty_relay_map_dar2
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_698_axdr.c:1481: error: Failure!
+[  FAILED  ] test_action_129_131_empty_relay_map_dar2
+[ RUN      ] test_action_129_131_relay_map_resolves_target
+[       OK ] test_action_129_131_relay_map_resolves_target
+[ RUN      ] test_relay_map_set_find_and_limits
+[       OK ] test_relay_map_set_find_and_limits
+[  PASSED  ] 42 test(s).
+[  FAILED  ] tests: 4 test(s), listed below:
+[  FAILED  ] test_action_129_trip_param
+[  FAILED  ] test_action_130_close_param
+[  FAILED  ] test_action_131_password_close_param
+[  FAILED  ] test_action_129_131_empty_relay_map_dar2
+ 4 FAILED TEST(S)
+
+[ RUN      ] test_relay_map_resolution_keeps_execution_rejected
+[   LINE   ] --- /tmp/edgec-land/p4-relay-map/tests/test_dcu_node.c:303: error: Failure!
+[  FAILED  ] test_relay_map_resolution_keeps_execution_rejected
+[  PASSED  ] 4 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_relay_map_resolution_keeps_execution_rejected
+ 1 FAILED TEST(S)

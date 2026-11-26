@@ -312,9 +312,11 @@ iems 轮询 → datahub 影子 → 北向 Modbus 从站镜像 → 平台主站�
 Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样的帧 —— 只看应答，
 "产品把写吞了"和"产品写下去了"完全一样。
 
-**仍未闭合的部分（E4b）**：写的是**镜像寄存器本身**，不是业务设定值。
-真正的下行政控要产品给出「名字 → 聚合根方法」的映射（`_iems_nb_on_downlink` 现在
-解析成功但明确返回 -1）。DCU 侧 698 从站已接（GET 通、ACTION 回 DAR=2）。
+**仍未闭合的部分（E4b）**：镜像写的是**寄存器本身**，不是业务设定值。
+MQTT `{p,v}` 下行已接执行链路（`_on_downlink` → `iems_control_submit` →
+`iems_node_write_tag`，见下节 P4-03c/P4-03c1），回执分 accepted（`<name>.ack`）与
+执行结果（`<name>.result`）两类。
+DCU 侧 698 从站已接（GET 通、ACTION 回 DAR=2）。
 
 #### 这次顺手发现的一个真缺陷
 
@@ -468,10 +470,12 @@ Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样�
 3. **未知占位符原样保留**：`{ponit}` 拼错时输出 `{ponit}` 而不是空串——
    让主站看到一个显眼的错，好过静默拼出一个"看起来正常"的错误主题。
 
-**已知缺口（A-P2-3，本轮未修）**：`_push_to_transport_direct` 收到 `ts` 但用不上——
-`req_prepare` 签名里没有时间戳，驱动编 payload 时自己取当前时间。
-实时路径影响不大，但 **SnF 回放会打上"现在"的时间戳，历史曲线就假了**。
-修法是把 `ts` 加进 `req_prepare`（13 个驱动各多一个形参），属跨模块签名变更，单独一次做。
+**已修复（A-P2-3，P4-03b1 C'）**：记录时间改为墙钟，在边界采样一次。
+`snf_publish_cb` 与 `north_driver_port.encode_value` 都携带 epoch 微秒的
+`wall_ts_us`；SnF 回放用库里的值，实时直发在发送边界采样。驱动经可选
+`req_set_ts_us` 钩子把它交给编码器，Sparkplug 用 `ts_us / 1000` 作为根与
+metric 时间戳；周期帧/NBIRTH 仍用当前 epoch 毫秒。`PipeMsg.ts` 保持单调
+纳秒，只用于排障日志。
 
 ### N5 OPC UA Server
 
@@ -488,7 +492,7 @@ Modbus 0x06 的应答就是回显，设备什么都没做也会回一模一样�
 |---|---|---|---|
 | N6-1 | MQTT `subscribe` + 重连后重订阅 | 真 broker 集成测试通过 | ✅ |
 | N6-2 | 驱动 `req_decode` → `accept()` → 聚合根 | 非法命令被聚合根拒绝 | ⬜ 待定方案（见下） |
-| N6-3 | 回执上行（命令 ID + 结果，失败也回） | 云端收到成功与失败两种回执 | ⬜ |
+| N6-3 | 回执上行（命令 ID + 结果，失败也回） | 云端收到成功与失败两种回执 | 🟡 accepted/结果回执已有（`<name>.ack` / `<name>.result`）；命令 ID 未接 |
 | N6-4 | 防重放：命令 ID 去重窗口 | 同一命令重复投递只执行一次 | ⬜ |
 | N6-5 | SmartBox 接北向 | `cmd/smart_box/main.c` 有 `northbound_mgr_init_ex` + 源端口 | ✅ |
 | N6-6 | 配置从 profile 读 | 去掉 `MQTT_URL`/`MQTT_GROUP_ID` 环境变量 | ⬜ |
@@ -544,11 +548,50 @@ transport.subscribe ──► northbound_mgr（不解析，原样转交）
 | 产品 | `resolve_name` | `accept` | `on_downlink` |
 |---|---|---|---|
 | DCU | ✅ 16 个实时 OAD 反查 | ⬜ 待 698 ACTION 语义 | ✅ 解析 + 明确拒绝（不假装执行） |
-| IEMS | ✅ 走 `g_tag_metadata` | ⬜ 待 SOC 包络映射 | ✅ 解析 + 明确拒绝 |
+| IEMS | ✅ 走 `g_tag_metadata` | N/A（走 `on_downlink` 自行路由/提交） | ✅ 解析 + 执行 + accepted/结果回执 |
 
-> **DCU/IEMS 的 `on_downlink` 现在返回 -1 是刻意的**：解析通了但**不执行**。
-> 拉合闸要动物理继电器、IEMS 要过 SOC 包络，在语义没确认前"猜一个执行路径"
-> 比"明确拒绝"危险得多。日志里写清了缺哪张映射表。
+> **DCU 的 `on_downlink` 现在返回 -1 是刻意的**：解析通了但**不执行**。
+> 拉合闸要动物理继电器，在语义没确认前"猜一个执行路径"比"明确拒绝"危险得多。
+> 日志里写清了缺哪张映射表。IEMS 已接执行，回执语义见下节。
+
+**P4-03c/P4-03c1 下行执行与回执语义（P4-03c 钉住 accepted；P4-03c1 接上结果回传，复检后两类回执同队列）**
+
+IEMS 的 `{p,v}` 下行生产链路：传输订阅 → `_on_transport_msg` →
+`iems_north_source_ops()->on_downlink`（`_on_downlink`）→ `mqtt_json_decode_downlink`
+→ `g_tag_metadata` 反查 → `iems_poll_task_route`（唯一轮询路由）→
+`iems_node_write_tag`（携带域完成回调）→ 执行端口 → `edge_api_write_tag_ex` →
+总线仲裁 → `legacy_on_complete_cb`（总线/IO 线程）→ 执行适配器映射为
+`iems_write_done_status_t` → `_on_result_done` → `north_result_queue_post_result`
+（定长队列 + `uv_async`）→ 北向 loop 线程编码/发布。accepted 回执同样走
+`north_result_queue_post_accepted`，两条路径共用同一个队列与同一条编码线程。
+
+| 事项 | 现状 | 证据 |
+|---|---|---|
+| accepted 回执 | `<name>.ack`：提交到执行端口后经回执队列异步发，1=已接受 / 0=被拒；只表示“已交给总线”，不是设备执行结果 | `cmd/iems/iems_north_adapter.c` 的 `_on_downlink`；`test_valid_frame_submits_once_and_acks_accepted` |
+| 结果回执 | `<name>.result`（同 NDATA 主题；名字为空回落 `result.<tag>`）：1=成功、0=失败、2=超时。`CMD_STATUS_SUCCESS→1`、`CMD_STATUS_TIMEOUT→2`、其余非零→0 | `north_result_queue.c` 的 `_format`；`iems_exec_map_write_status`；`test_result_ack_success/failure/timeout` |
+| 编码线程纪律 | accepted 与 result 都只入队 + `uv_async_send`；编码/发布只在北向 loop 线程。fake transport 记录发布线程并断言不是注入线程；把 accepted 改回回调线程直发时用例变红（Sparkplug seq 的跨线程丢失更新因此不可达） | `north_result_queue.c` 的 `_on_async`；`rig_snapshot_off_thread`；e2e 用例 |
+| 生命周期 | 所有 async handle 初始化完才发布 `loop_ready`；start 后立刻 stop 由线程自己看到 `stop_requested` 收尾；并发 stop 只有认领者 join 一次；驱动建不起来时 stop 仍能返回 | `northbound_mgr.c` 的 `northbound_mgr_start/stop`；`test_northbound_lifecycle` |
+| 回执队列 | `north_result_queue.c` 独立模块：定长 16 + mutex + uv_async；detach 丢弃未 drain 条目（restart 不重放）；队列满丢弃并告警（accepted/result 同语义） | `modules/edge_north/src/north_result_queue.c`；`test_northbound_lifecycle` 的 restart 用例 |
+| 结果上下文池 | 文件级定长 16 槽（进程级，单 IEMS 实例假设），独立互斥锁；回调锁内拷贝 (tag, name, mgr)、归还槽后才投递；池满时该命令仍发 accepted，只丢结果回执并记 WARN | `iems_north_adapter.c` 的 `g_result_slots`；`test_result_pool_full_drops_result_only` |
+| reset 与在途回调 | reset 与回调共用槽锁：reset 返回后迟到的回调只看到失效槽，不再解引用 ctx；重叠用例在回调停于队列锁时 reset + mprotect ctx，必须干净退出 | `test_reset_races_inflight_callback_safely` |
+| destroy 顺序 | 组合根在 `northbound_mgr_stop` 之前调用 `iems_north_results_reset()`：清空在途槽并把 `ctx->north` 置 NULL；停后迟到的完成回调安全丢弃 | `iems_app_destroy`；`test_late_completion_after_reset_is_safe` |
+| 早退完成语义 | 提交返回 0（已接受）的命令，完成回调必须恰好一次：master engine 的 io/req NULL、ops missing、setup/encode 失败、tx 分配失败都先 `on_finish(status)` 再结算；请求层 `legacy_finish` 幂等兜底 | `modules/edge_io/src/engines/master_engine.c` 的 `_master_run_command`；`test_iems_noio_completion` |
+| PCS_CONTROL 残余 | 结果回执只覆盖最终这一路 `execution.write_tag`；`iems_node_dispatch_power` 内部的多路 PCS 分摊未聚合，accepted 语义仍有效 | `iems_node_write_tag` 注释；残余任务 1 |
+| 失败回执 | 坏帧 `ack.0=0`；未知点名/无唯一路由/提交失败带原点位名与 tag，`ok=0`（这些路径没有完成上下文，不产生结果回执） | `tests/test_northbound_downlink_e2e.c` |
+| 重复命令 | `{p,v}` 没有命令 ID，同一帧每收到一次执行一次写并各回一次 accepted/结果；幂等由主站负责 | `test_duplicate_frame_writes_and_acks_each_time` |
+| 业务校验 | 除 PCS_CONTROL（走 `iems_node_dispatch_power` 的安全/功率分配）外，`{p,v}` 下行按路由直接写点位，未过 `accept()`/聚合根方法，也无 SOC 包络等业务校验；N6-2 的“字段 → 聚合根方法”映射仍待组合根补齐 | 残余任务 4；N6-2 待定 |
+| 写权限 | 下行无写权限检查，任何能发布到该主题的客户端都能控点 | 残余任务 3；当前依赖 broker/网络 ACL |
+
+残余任务（按依赖顺序）：
+1. PCS_CONTROL 多路结果聚合：`iems_node_dispatch_power` 目前只产生最终一路执行写，
+   结果回执不聚合内部多路分摊（未来按“命令序号 + 聚合”另立任务）；accepted 语义仍有效。
+2. 命令 ID 去重窗口（N6-4）。
+3. 下行鉴权矩阵（X-03a）。
+4. 聚合根/SOC 包络与业务校验（N6-2 的“字段 → 聚合根方法”映射）：当前 `{p,v}` 下行
+   除 PCS_CONTROL 外直接写点位，绕过 `accept()`、聚合根方法与 SOC/功率包络。按本文
+   N6-2 小节的裁决（下行解析放组合根、映射在组合根逐步补齐），该映射尚未落地。闭合前
+   此路径按“受信主站”使用：任何能发到下行主题的客户端都可控点，且与写权限残余叠加
+   放大风险。
 
 **顺带修掉的隐藏耦合**：`on_data_notify_timer` 原来第一句就 `if (!mgr->user_data) return;`，
 而 `user_data` 由 `service_new` 设置。结果"服务还没接上"会连带把**下行订阅**也停掉——

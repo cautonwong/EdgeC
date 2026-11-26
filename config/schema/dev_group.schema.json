@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dev_group_cfg",
+  "description": "P6-04a round 1. Covers dev_group_cfg.json. Array-root converted output uses the {schema_version, config} envelope enforced by config_schema.py.",
+  "x-schema-version": "1.0.0",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "group",
+      "devices"
+    ],
+    "properties": {
+      "group": {
+        "type": "string",
+        "pattern": "^.+$"
+      },
+      "devices": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "mp",
+            "type",
+            "no"
+          ],
+          "properties": {
+            "mp": {
+              "type": "string",
+              "pattern": "^.+$"
+            },
+            "mpd": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "pattern": "^.+$"
+            },
+            "no": {
+              "type": "string",
+              "pattern": "^.+$"
+            },
+            "name": {
+              "type": "string"
+            },
+            "subtype": {
+              "type": "string",
+              "enum": [
+                "BAU",
+                "BCU"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

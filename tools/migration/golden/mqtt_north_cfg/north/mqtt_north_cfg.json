@@ -1,0 +1,35 @@
+{
+  "heart_beat": 60,
+  "interval": {
+    "AIRCOND": 60,
+    "BMS": 60,
+    "CELL": 60,
+    "DIDO": 60,
+    "EMS": 60,
+    "GRID_METER": 60,
+    "OTHERS": 60,
+    "PCS": 60,
+    "PCS_METER": 60
+  },
+  "login": 5,
+  "north_control": -1,
+  "schema_version": "1.0.0",
+  "standard": [
+    {
+      "enable": 0,
+      "index": 0,
+      "name": "iec104"
+    },
+    {
+      "client_id": "northA",
+      "enable": 0,
+      "host": "10.0.0.12",
+      "index": 1,
+      "lz4": 0,
+      "name": "modbus",
+      "pass": "$secret:mqtt_north_cfg.north.mqtt_north_cfg.standard.1.pass",
+      "port": 502,
+      "user": "northuser"
+    }
+  ]
+}

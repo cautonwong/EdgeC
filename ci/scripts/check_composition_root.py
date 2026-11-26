@@ -11,7 +11,7 @@ Two rule families:
 2. ASSEMBLY. Object assembly must happen in one place. The guard knows which module
    *defines* each assembly entry point and fails any call site that is neither the
    defining module, `modules/edge_bootstrap/`, nor a sanctioned product composition
-   root listed in `ci/composition_roots.txt`.
+   root listed in `ci/baseline/architecture_graph.json`.
 
    The previous version only looked for the literal string `edge_composition_root_init`,
    so `datahub_init()`, `stream_engine_create()` and friends could be called from
@@ -22,6 +22,7 @@ import sys
 import os
 import re
 import glob
+import json
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -53,6 +54,8 @@ ASSEMBLY_FUNCS = [
     "edge_app_mgr_create_with_repo_in",
 ]
 
+from c_source_scan import SHARED_PRUNE_DIRS, skip_subtree
+
 PRUNE_DIRS = {
     ".git",
     ".local",
@@ -65,12 +68,25 @@ PRUNE_DIRS = {
     "docs",
     "web",
     "docker",
-}
+} | SHARED_PRUNE_DIRS
 
 CALL_RE = re.compile(r"\b(" + "|".join(ASSEMBLY_FUNCS) + r")\s*\(")
 
 
 def _load_sanctioned_roots(repo_root):
+    matrix = os.path.join(repo_root, "ci", "baseline", "architecture_graph.json")
+    if os.path.exists(matrix):
+        try:
+            with open(matrix, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError) as error:
+            raise SystemExit(
+                f"[COMPOSITION_ROOT_GUARD] cannot read {matrix}: {error}"
+            )
+        return {
+            entry["path"] if isinstance(entry, dict) else entry
+            for entry in data.get("composition_roots", [])
+        }
     path = os.path.join(repo_root, "ci", "composition_roots.txt")
     roots = set()
     if not os.path.exists(path):
@@ -185,10 +201,7 @@ def check_directory(target_dir):
     violations = []
     for root, dirs, files in os.walk(target_dir):
         dirs[:] = [d for d in dirs if not d.startswith(".") and d not in PRUNE_DIRS]
-        is_fixture = "/fixtures" in target_dir.replace("\\", "/")
-        if "fixtures" in root and not is_fixture:
-            continue
-        if "tests" in root and "fixtures" not in root and "guards" not in root:
+        if skip_subtree(root, target_dir):
             continue
         for name in files:
             if name.endswith((".c", ".h")):
@@ -208,13 +221,12 @@ def main():
     root_dir = os.path.abspath(args.root)
     violations = check_directory(root_dir)
     baseline_path = args.baseline or guard_baseline.baseline_path_for(__file__)
-    is_fixture = "/fixtures" in root_dir.replace("\\", "/")
     return guard_baseline.apply(
         violations,
         baseline_path,
         args.update_baseline,
         "COMPOSITION_ROOT_GUARD",
-        allow_missing_baseline=is_fixture,
+        allow_missing_baseline=guard_baseline.is_selftest_fixture(root_dir),
     )
 
 

@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "port_config",
+  "description": "P6-04a round 1. Covers port_config.json. Root ver and LAN type are accepted but ignored (x-ignored).",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "dev_cfg"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "dev_cfg": {
+      "type": "object",
+      "required": [
+        "lan"
+      ],
+      "properties": {
+        "uart": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "baud",
+                  "data_bit",
+                  "stop_bit",
+                  "parity"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^.+$"
+                  },
+                  "baud": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "data_bit": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "stop_bit": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "parity": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z]$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "lan": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "ip"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "ip": {
+                    "type": "string",
+                    "pattern": "^.+$"
+                  },
+                  "mask": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false,
+                "x-ignored": [
+                  "type"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "wan": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "static",
+                      "dhcp"
+                    ]
+                  },
+                  "ip": {
+                    "type": "string"
+                  },
+                  "gateway": {
+                    "type": "string"
+                  },
+                  "mask": {
+                    "type": "string"
+                  },
+                  "metric": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "can": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "baud",
+                  "filter"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^.+$"
+                  },
+                  "baud": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "filter": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "mask"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^0[xX][0-9A-Fa-f]+$"
+                        },
+                        "mask": {
+                          "type": "string",
+                          "pattern": "^0[xX][0-9A-Fa-f]+$"
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "di": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "disp_name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^.+$"
+                  },
+                  "disp_name": {
+                    "type": "string"
+                  },
+                  "ncno": {
+                    "type": "integer"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "do": {
+          "type": "object",
+          "required": [
+            "attr"
+          ],
+          "properties": {
+            "attr": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "disp_name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "pattern": "^.+$"
+                  },
+                  "disp_name": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ver": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "x-ignored": [
+    "ver"
+  ]
+}

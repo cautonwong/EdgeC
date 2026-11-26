@@ -44,17 +44,17 @@ static bool _slave_is_write_allowed(uint32_t tag_id) {
 static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *user_data) {
     (void)h;
     slave_priv_t *priv = (slave_priv_t *)user_data;
+    /* IO_EVENT_RX 载荷是借用:所有权留在 io 句柄,回调返回后才释放;这里不 unref。 */
+    if (!priv) return;
     if (evt == IO_EVENT_RX) {
         net_buf_t *rx = (net_buf_t *)payload;
         if (priv->rx_acc) {
             if (net_buf_simple_tailroom(&priv->rx_acc->b) < rx->b.len) {
                 LOG_WARN(LOG_CAT_BUS, "SlaveEngine: RX chunk larger than accumulator, dropping %zu bytes",
                          (size_t)rx->b.len);
-                net_buf_unref(rx);
                 return;
             }
             net_buf_simple_add_mem(&priv->rx_acc->b, rx->b.data, rx->b.len);
-            net_buf_unref(rx);
             
             net_buf_t *resp = net_buf_alloc(priv->pool, 0);
             if (resp) {
@@ -66,12 +66,16 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                 if (rc >= 0 && consumed > 0) {
                     net_buf_simple_pull(&priv->rx_acc->b, consumed);
                 }
-                
-                if (resp->b.len > 0) {
+
+                /* 契约：write_async 只接收已封口帧。rc<0 时驱动已清长度，这里再兜底，
+                 * 半帧（没有 L/HCS/FCS/END）绝不发上线。 */
+                if (rc < 0) resp->b.len = 0;
+                if (rc >= 0 && resp->b.len > 0) {
                     priv->io->ops->write_async(priv->io, resp);
-                } else {
-                    net_buf_unref(resp);
                 }
+                /* write_async 自己持有 tx 的引用并在发完/失败后释放；
+                 * 这里必须归还本次分配的引用，否则每次请求漏一个缓冲。 */
+                net_buf_unref(resp);
                 
                 for (int i=0; i<async_count; i++) {
                     if (!_slave_is_write_allowed(async_msgs[i].tag_id)) {
@@ -93,8 +97,6 @@ static void _slave_io_cb(io_handle_t *h, io_event_t evt, void *payload, void *us
                     priv->bus.publish(priv->bus.ctx, &async_msgs[i]);
                 }
             }
-        } else {
-            net_buf_unref(rx);
         }
     }
 }

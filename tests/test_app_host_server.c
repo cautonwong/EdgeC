@@ -460,7 +460,7 @@ static void child_grant_revoked_event(int fd, int sync_fd) {
 static void child_subscribe_quota(int fd) {
     edge_app_sdk_t *sdk = edge_app_sdk_create(fd);
     if (!sdk) _exit(10);
-    for (uint32_t i = 0; i < 64; i++) {
+    for (uint32_t i = 0; i < 32; i++) {
         uint32_t sub = 0;
         const char *err = edge_app_point_subscribe(sdk, 100 + i, 0.0, 0, 0, &sub);
         if (err || sub != i + 1) _exit(11);
@@ -863,8 +863,8 @@ static void test_host_subscribe_quota(void **state) {
     assert_int_equal(WEXITSTATUS(status), 0);
 
     drain_loop(&loop);
-    assert_int_equal(fake.subscribe_calls, 64);
-    assert_int_equal(fake.unsubscribe_calls, 64);
+    assert_int_equal(fake.subscribe_calls, 32);
+    assert_int_equal(fake.unsubscribe_calls, 32);
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 

@@ -1,0 +1,42 @@
+ARCH-GRAPH exception-ledger migration (baseline 6ad00780 -> matrix)
+
+[1] check_plane_isolation.MODULE_ALLOWED
+before: edge_api->edge_io, edge_bootstrap->edge_core, edge_bootstrap->edge_infra, edge_bootstrap->edge_infra_security, edge_bootstrap->edge_io, edge_bootstrap->edge_mcp, edge_bootstrap->edge_mgmt, edge_bootstrap->edge_north, edge_bootstrap->edge_stream, edge_infra->edge_core, edge_infra_security->edge_core, edge_io->edge_core, edge_io->edge_infra, edge_io->edge_mgmt, edge_io->edge_session, edge_io->edge_stream, edge_north->edge_io, edge_session->edge_io
+after:  edge_api->edge_io, edge_bootstrap->edge_core, edge_bootstrap->edge_infra, edge_bootstrap->edge_infra_security, edge_bootstrap->edge_io, edge_bootstrap->edge_mcp, edge_bootstrap->edge_mgmt, edge_bootstrap->edge_north, edge_bootstrap->edge_stream, edge_infra->edge_core, edge_infra_security->edge_core, edge_io->edge_core, edge_io->edge_infra, edge_io->edge_mgmt, edge_io->edge_session, edge_io->edge_stream, edge_north->edge_io, edge_session->edge_io
+equal:  True
+      Component entries now carry kinds: every migrated plane_isolation pair keeps kinds ["include"], and the pairs with live CMake links add "link". A link-only entry can never grant an include edge because allowed_edge() checks the kind. The fallback check_plane_isolation.MODULE_ALLOWED is compared with these entries live by run_guard_selftest.py.
+
+[2] ci/composition_roots.txt
+before: cmd/iems/main.c, cmd/iems/iems_app.c, cmd/iems/iems_southbound_adapter.c, cmd/iems/iems_north_listener.c, cmd/iems/iems_north_iec104.c, cmd/dcu/main.c, cmd/smart_box/main.c, cmd/edge_mcp_server/main.c, cmd/nexus_lab/main.c, cmd/dcu/dcu_north_adapter.c, cmd/dcu/dcu_bus_adapter.c, cmd/iems/iems_app_manager_adapter.c, modules/edge_north/src/northbound_mgr.c, adapters/datahub_bridges/src/stream_bus_datahub_adapter.c, modules/edge_session/src/session_manager.c, adapters/datahub_bridges/src/bus_datahub_adapter.c
+after:  cmd/iems/main.c, cmd/iems/iems_app.c, cmd/iems/iems_southbound_adapter.c, cmd/iems/iems_north_listener.c, cmd/iems/iems_north_iec104.c, cmd/dcu/main.c, cmd/smart_box/main.c, cmd/edge_mcp_server/main.c, cmd/nexus_lab/main.c, cmd/dcu/dcu_north_adapter.c, cmd/dcu/dcu_bus_adapter.c, cmd/iems/iems_app_manager_adapter.c, modules/edge_north/src/northbound_mgr.c, adapters/datahub_bridges/src/stream_bus_datahub_adapter.c, modules/edge_session/src/session_manager.c, adapters/datahub_bridges/src/bus_datahub_adapter.c
+equal:  True
+
+[3] check_component_boundary COMPONENTS / FILE_FORBIDDEN
+before: component:edge_mcp:datahub.h, component:edge_mcp:datahub_router.h, component:edge_mgmt:datahub.h, component:edge_mgmt:datahub_router.h, component:edge_stream:datahub.h, component:edge_stream:datahub_router.h, file:modules/edge_io/include/adc_driver.h:datahub.h, file:modules/edge_io/include/driver_radar_fmcw.h:datahub.h, file:modules/edge_io/include/protocol_bridge.h:datahub.h, file:modules/edge_io/src/adc_driver.c:datahub.h, file:modules/edge_io/src/driver_radar_fmcw.c:datahub.h, file:modules/edge_io/src/protocol_bridge.c:datahub.h, file:modules/edge_mcp/include/edgeos/edge_mcp_dispatcher.h:datahub.h, file:modules/edge_mcp/src/edge_mcp_dispatcher.c:datahub.h
+after:  component:edge_mcp:datahub.h, component:edge_mcp:datahub_router.h, component:edge_mgmt:datahub.h, component:edge_mgmt:datahub_router.h, component:edge_stream:datahub.h, component:edge_stream:datahub_router.h, file:modules/edge_io/include/protocol_bridge.h:datahub.h, file:modules/edge_io/src/protocol_bridge.c:datahub.h, file:modules/edge_mcp/include/edgeos/edge_mcp_dispatcher.h:datahub.h, file:modules/edge_mcp/src/edge_mcp_dispatcher.c:datahub.h
+equal:  False (intentional shrink)
+      Removed driver_radar_fmcw.c/.h and adc_driver.c/.h: those four paths no longer exist, and the matrix schema now fails on a forbidden_headers file that is missing. The component-boundary fallback constant is compared with the matrix live by run_guard_selftest.py.
+
+New live exceptions recorded in the matrix (not in the old code allow-lists):
+  modules/edge_api -> modules/edge_core: Existing CMake link: edge_api links edge_core for arbiter/datahub symbols. Recorded baseline; not granted to plane isolation. kinds ["link"].
+  modules/edge_bootstrap -> adapters/edge_io: Composition root assembles the io_drivers adapter (link) and includes driver_manager.h from adapters/io_drivers/include (include). kinds ["include", "link"].
+  modules/edge_bootstrap -> adapters/datahub_bridges: Composition root assembles the datahub bridges. kinds ["link"].
+  modules/edge_bootstrap -> adapters/edge_ports: Composition root assembles the port adapters. kinds ["link"].
+  modules/edge_bootstrap -> adapters/sqlite_adapters: Composition root assembles the sqlite adapters. kinds ["link"].
+  modules/edge_io -> adapters/edge_io: modules/edge_io links edge_linux_platform, its platform executor. Same component name, different layer; recorded layer inversion. kinds ["link"].
+
+Corrected / deleted dead entries:
+  modules/edge_io -> modules/edge_north (origin live) was dead. The real include site is adapters/io_drivers/include/north_driver_adapter.h, which is layer adapters/component edge_io, and it is allowed by the adapters -> modules layer edge. The matrix entry was deleted rather than kept as an ever-green include permission.
+
+Dormant plane permissions consumed by live link edges (reason states the link):
+  modules/edge_io -> modules/edge_infra, modules/edge_bootstrap -> modules/edge_stream, modules/edge_bootstrap -> modules/edge_north. Their include side has no live site; their link side is live in the CMake graph.
+
+Known parse gaps registered in the matrix (4):
+  cmake-macro tests/CMakeLists.txt add_edge_test: The add_edge_test macro is not expanded; its generated test targets are folded (about 272 test targets and 6174 test edges). Test targets are covered by the include graph and the direct test target definitions.
+  include-ambiguous modules/edge_bootstrap/src/edge_composition_root.c datahub_ops.h: edge_core/edge_infra: datahub_ops.h exists in both edge_core and edge_infra; edge_bootstrap's PUBLIC include order lists edge_core before edge_infra, but the parser does not model transitive include order.
+  include-ambiguous tests/test_infra_interfaces.c datahub_ops.h: edge_core/edge_infra: datahub_ops.h exists in both edge_core and edge_infra; tests include both modules, so either resolution is the tests->modules edge the tests layer already allows.
+  cmake-macro-target tests/CMakeLists.txt add_edge_test: target_link_libraries names a test target generated by the unexpanded add_edge_test macro; the macro's own edges are the registered cmake-macro gap.
+
+Parse gaps recovered by the stricter parser (no longer registered):
+  The four cmd/dcu and examples/vpp_demo ${PROD_NAME} target/link gaps are gone: set() variables are expanded in the same file, so the dcu executable and its link edges are now visible.
+  The two modules/edge_infra ${INFRA_PUBLIC_LIBS} / ${INFRA_PRIVATE_LIBS} genex gaps are gone: set()/list(APPEND) variables are expanded, so edge_infra -> edge_core and the external libraries are judged individually.

@@ -1,0 +1,5 @@
+{
+  "family": "device",
+  "mode": "dry-run",
+  "description": "device channel that is not a port name"
+}

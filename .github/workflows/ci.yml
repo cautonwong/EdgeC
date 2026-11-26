@@ -71,7 +71,7 @@ jobs:
           # pipefail keeps a failed compile from being masked by tee.
           set -o pipefail
           mkdir build && cd build
-          cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release ${{ matrix.config.cmake_args }}
+          cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ${{ matrix.config.cmake_args }}
           cmake --build . -j$(nproc) 2>&1 | tee build.log
 
       - name: Check Build Warnings (x86_64 only)
@@ -183,7 +183,12 @@ jobs:
           # run_guard_selftest exercises every guard twice: on its refutation fixture
           # (must reject) and on the live tree (must pass). Live failures compare
           # against the shrink-only ledgers in ci/baseline/ (#411).
+          python3 ci/scripts/check_build_freshness.py --root . --build build
+          python3 ci/scripts/check_plaintext_secrets.py --root .
           python3 ci/scripts/run_guard_selftest.py
+          python3 ci/scripts/run_mutation_guards.py --build build
+          python3 ci/scripts/check_architecture_graph.py --root . --compile-commands build/compile_commands.json
+          python3 ci/scripts/check_ci_gate_parity.py --root .
           python3 ci/scripts/check_dcu_698_catalog.py --root .
           python3 ci/scripts/check_sbom.py --out build/sbom
           python3 ci/scripts/check_component_budgets.py --root . --build build
@@ -194,6 +199,12 @@ jobs:
           STRICT_CORE_GATE=1 ./scripts/check_core_symbols.sh
           STRICT_CORE_GATE=1 ./scripts/check_core_readonly.sh "${{ github.event.pull_request.base.sha || github.event.before }}"
           ./scripts/check_binary_sizes.sh | tee build/size_report.txt
+          # Formal runs here non-strict so a runner without CBMC still executes
+          # the metadata guards; the dedicated formal job is strict.
+          ./ci/scripts/check_formal.sh ${FORMAL_STRICT:+--strict}
+          ./ci/scripts/check_formal_negative.sh ${FORMAL_STRICT:+--strict}
+          python3 ci/scripts/check_formal_sync.py --root .
+          python3 ci/scripts/check_formal_isolation.py --root .
 
       - name: CI Log Diagnostics & Summary Analysis (Fast-DDS style)
         if: always()
@@ -219,6 +230,54 @@ jobs:
             build/*.deb
             build/size_report.txt
             build/sbom/
+
+  # ==========================================
+  # Job: Formal Verification (CBMC 5.12 + TLC, PR only)
+  # ==========================================
+  formal:
+    name: Formal Verification (CBMC 5.12 + TLC 2026.11.15.002146)
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install pinned CBMC 5.12
+        run: |
+          # The .deb hash pins the download; the gate re-hashes the installed
+          # binary so an env/PATH cbmc cannot substitute for it.
+          curl -fsSL -o "$RUNNER_TEMP/cbmc_5.12-5_amd64.deb" http://archive.ubuntu.com/ubuntu/pool/universe/c/cbmc/cbmc_5.12-5_amd64.deb
+          echo "be7e049151cacb7511ebff2003ebc5e2d0f761cf705b6773eee0837ead94155a  $RUNNER_TEMP/cbmc_5.12-5_amd64.deb" | sha256sum -c -
+          sudo apt-get update
+          sudo apt-get install -y "$RUNNER_TEMP/cbmc_5.12-5_amd64.deb" libuv1-dev
+
+      - name: Install pinned Java 17 for TLC
+        run: |
+          # The gate re-checks the Java major and the vendored jar hash, so a
+          # different JRE or jar on the runner cannot pass for the pin.
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jre-headless
+          java -version 2>&1 | tee "$RUNNER_TEMP/java-version.txt"
+          grep -Eq 'version "17\.' "$RUNNER_TEMP/java-version.txt"
+
+      - name: Run formal gates
+        run: |
+          ./ci/scripts/check_formal.sh --strict
+          ./ci/scripts/check_formal_negative.sh --strict
+          python3 ci/scripts/check_formal_sync.py --root .
+          python3 ci/scripts/check_formal_isolation.py --root .
+
+      - name: Upload formal logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formal-logs
+          path: build/formal
+          if-no-files-found: warn
 
   # ==========================================
   # Job 2: Multi-Product Frontend E2E Matrix (Playwright)

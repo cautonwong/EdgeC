@@ -1,0 +1,50 @@
+== RED: test commit 49dc087a, implementation stashed ==
+command: ctest --test-dir build -R 'test_dcu_698_object_model|test_dcu_698_axdr|test_dcu_698_scheme_mgmt|test_driver_dlt698|test_dcu_698_appconn' --output-on-failure
+exit: 8
+  [  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+  [  FAILED  ] test_class17_acl_is_read_only
+  [  FAILED  ] test_class17_display_rows_are_empty
+  [  FAILED  ] test_object_list_advertises_new_ois
+  [  FAILED  ] test_object_list_shape_and_capacity
+  [  FAILED  ] test_product_class17_has_no_value_yet
+  [  FAILED  ] test_slave_accepts_product_object_list_42
+  [  FAILED  ] test_slave_class17_display_dar
+  [  FAILED  ] tests: 1 test(s), listed below:
+  [  FAILED  ] tests: 2 test(s), listed below:
+  0% tests passed, 5 tests failed out of 5
+
+== GREEN: full targeted suite, fix in working tree ==
+command: ctest --test-dir build -R 'dcu|dlt698' --output-on-failure
+exit: 0
+100% tests passed, 0 tests failed out of 45
+Total Test time (real) =  42.79 sec
+
+== new and updated cases (individual binaries) ==
+== test_dcu_698_object_model ==
+[ RUN      ] test_class17_display_rows_are_empty
+[       OK ] test_class17_display_rows_are_empty
+[  PASSED  ] 18 test(s).
+== test_dcu_698_axdr ==
+[ RUN      ] test_product_class17_has_no_value_yet
+[       OK ] test_product_class17_has_no_value_yet
+[  PASSED  ] 42 test(s).
+== test_dcu_698_appconn ==
+[ RUN      ] test_object_list_shape_and_capacity
+[       OK ] test_object_list_shape_and_capacity
+[ RUN      ] test_class17_acl_is_read_only
+[       OK ] test_class17_acl_is_read_only
+[  PASSED  ] 7 test(s).
+== test_driver_dlt698 ==
+[ RUN      ] test_slave_accepts_product_object_list_42
+[       OK ] test_slave_accepts_product_object_list_42
+[ RUN      ] test_slave_class17_display_dar
+[       OK ] test_slave_class17_display_dar
+[  PASSED  ] 20 test(s).
+== test_dcu_698_scheme_mgmt ==
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[  PASSED  ] 21 test(s).
+
+== final HEAD rerun (fix commit tree) ==
+100% tests passed, 0 tests failed out of 45
+Total Test time (real) =  59.56 sec

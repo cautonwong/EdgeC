@@ -46,6 +46,8 @@ static void _on_client_close(uv_handle_t *handle) {
 
 static void _on_write_done(uv_write_t *req, int status) {
     (void)status;
+    net_buf_t *buf = (net_buf_t *)req->data;
+    if (buf) net_buf_unref(buf);
     free(req);
 }
 
@@ -53,12 +55,17 @@ static void _on_io_event(io_handle_t *h, io_event_t evt, void *payload, void *us
     (void)h;
     passthrough_server_t *srv = (passthrough_server_t *)user_data;
     if (evt == IO_EVENT_RX && srv->session_active) {
-        net_buf_t *buf = (net_buf_t *)payload;
+        /* RX 载荷是借用:uv_write 异步使用,必须先自持一份引用 */
+        net_buf_t *buf = net_buf_ref((net_buf_t *)payload);
         uv_write_t *req = malloc(sizeof(uv_write_t));
-        if (!req) return;
+        if (!req) {
+            net_buf_unref(buf);
+            return;
+        }
         uv_buf_t uvb = uv_buf_init((char *)buf->b.data, buf->b.len);
         req->data = buf;
         if (uv_write(req, (uv_stream_t *)&srv->client, &uvb, 1, _on_write_done) != 0) {
+            net_buf_unref(buf);
             free(req);
         }
     }

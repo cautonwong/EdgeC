@@ -1,0 +1,3 @@
+$ python3 ci/scripts/check_build_freshness.py --root . --build build
+✅ [BUILD_FRESHNESS] build is current for /tmp/iems-fix/correct-wt
+rc=0

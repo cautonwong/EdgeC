@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "north_map",
+  "description": "P6-04a round 2. Covers tag_addr_map.json, the legacy Modbus sample with no active reader, and the shapes written by automatic_north to north/modbustcp_north_map.json and north/iec104_north_map.json per P4-04. Those two generated files are not in the 32-file snapshot, so --check validates only tag_addr_map.json. ver=2 selects the pts[] shape; the ver=1 flat root is out of scope and rejected.",
+  "x-schema-version": "1.0.0",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "Modbus map: legacy tag_addr_map.json and generated modbustcp_north_map.json. Point rows are 6-tuples [tag, function code, address, type, byte order, coefficient] (P4-04 section 1.2).",
+      "required": [
+        "ver",
+        "server_port",
+        "pts"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "ver": {
+          "type": "integer",
+          "const": 2
+        },
+        "server_port": {
+          "type": "integer"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "addr",
+              "start_bits",
+              "nb_bits",
+              "start_input_bits",
+              "nb_input_bits",
+              "start_registers",
+              "nb_registers",
+              "start_input_registers",
+              "nb_input_registers",
+              "pointInfo"
+            ],
+            "properties": {
+              "addr": {
+                "type": "integer"
+              },
+              "start_bits": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "nb_bits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "start_input_bits": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "nb_input_bits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "start_registers": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "nb_registers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "start_input_registers": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "nb_input_registers": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pointInfo": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6,
+                  "prefixItems": [
+                    {
+                      "type": "string",
+                      "pattern": "^.+$"
+                    },
+                    {
+                      "type": "integer",
+                      "enum": [
+                        1,
+                        2,
+                        3,
+                        4
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[0-9]+$"
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "bool",
+                        "int",
+                        "uint",
+                        "float",
+                        "bits",
+                        "short",
+                        "ushort",
+                        "str"
+                      ]
+                    },
+                    {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "AB",
+                        "BA",
+                        "ABCD",
+                        "DCBA",
+                        "BADC",
+                        "CDAB",
+                        "ABCDEFGH",
+                        "GHEFCDAB",
+                        "BADCFEHG",
+                        "HGFEDCBA"
+                      ]
+                    },
+                    {
+                      "type": "number"
+                    }
+                  ]
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "IEC104 map written by automatic_north. pointInfo holds exactly four typed point groups; each points row is a 5-tuple [device.tag, IOA, type, change report, coefficient] (P4-04 section 1.1). Type uniqueness and group order are content rules and are not checked.",
+      "required": [
+        "ver",
+        "server_port",
+        "periodReportEnable",
+        "reportInterval",
+        "pts"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "ver": {
+          "type": "integer",
+          "const": 2
+        },
+        "server_port": {
+          "type": "integer"
+        },
+        "periodReportEnable": {
+          "type": "integer"
+        },
+        "reportInterval": {
+          "type": "integer"
+        },
+        "pts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "commonAddr",
+              "pointInfo"
+            ],
+            "properties": {
+              "commonAddr": {
+                "type": "integer"
+              },
+              "pointInfo": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "points"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "RemotePoint",
+                        "RemoteMeas",
+                        "RemoteCtrl",
+                        "RemoteRegu"
+                      ]
+                    },
+                    "points": {
+                      "type": "array",
+                      "items": {
+                        "type": "array",
+                        "minItems": 5,
+                        "maxItems": 5,
+                        "prefixItems": [
+                          {
+                            "type": "string",
+                            "pattern": "^.+$"
+                          },
+                          {
+                            "type": "string",
+                            "pattern": "^[0-9]+$"
+                          },
+                          {
+                            "type": "string",
+                            "enum": [
+                              "bool",
+                              "short",
+                              "float"
+                            ]
+                          },
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

@@ -72,6 +72,12 @@ int dcu_storage_write_freeze(dcu_storage_t* storage, const char* addr, uint32_t 
                              uint64_t freeze_time, uint32_t src_oad, double value);
 
 /**
+ * @brief 按 (meter, freeze_oad, src_oad) 只保留最新 keep 条；须在写入事务内调用
+ */
+int dcu_storage_trim_freeze(dcu_storage_t* storage, const char* addr, uint32_t freeze_oad,
+                            uint32_t src_oad, uint32_t keep);
+
+/**
  * @brief 写入 3xxx 异常事件记录 (Class 7)
  */
 int dcu_storage_write_event(dcu_storage_t* storage, const char* addr, uint16_t oi,
@@ -114,6 +120,7 @@ int dcu_storage_param_load(dcu_storage_t* storage, uint16_t oi, uint8_t attr, ui
  */
 int dcu_storage_begin_trans(dcu_storage_t* storage);
 int dcu_storage_commit_trans(dcu_storage_t* storage);
+int dcu_storage_rollback_trans(dcu_storage_t* storage);
 
 /**
  * @brief 销毁存储服务，干净释放互斥锁并关闭 SQLite 指针

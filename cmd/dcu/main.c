@@ -16,6 +16,7 @@
 #include "datahub.h"
 #include "dcu_bus_source.h"
 #include "dcu_heartbeat.h"
+#include "dcu_runtime_self_exit.h"
 #include "dcu_inventory.h"
 #include "dcu_node.h"
 #include "dcu_north_adapter.h"
@@ -53,9 +54,9 @@ static void on_sig_async(uv_signal_t* handle, int sig) {
     if (g_running_svc) service_stop(g_running_svc);
 }
 
-static void on_safety_timeout(uv_timer_t* handle) {
+static void on_self_exit_timeout(uv_timer_t* handle) {
     (void)handle;
-    LOG_INFO(LOG_CAT_SCHED, "🏁 [SAFETY] Timeout reached, initiating clean shutdown...");
+    LOG_INFO(LOG_CAT_SCHED, "🏁 [SELF_EXIT] DCU_SELF_EXIT_SECONDS reached, initiating clean shutdown...");
     if (g_dcu_node) {
         dcu_storage_flush(dcu_node_get_storage(g_dcu_node));
     }
@@ -200,9 +201,7 @@ int main(int argc, char** argv) {
     dcu_heartbeat_t heartbeat;
     dcu_heartbeat_start(&heartbeat, loop, g_dcu_node, se, svc);
 
-    static uv_timer_t safety_timer;
-    uv_timer_init(loop, &safety_timer);
-    uv_timer_start(&safety_timer, on_safety_timeout, 60000, 0);
+    dcu_self_exit_start(loop, on_self_exit_timeout);
 
     bus_orchestrator_run(io_orch);
     {
@@ -214,6 +213,7 @@ int main(int argc, char** argv) {
     dcu_north_stop();
     dcu_bus_source_stop(bus_source); // 先停源再拆聚合根：源持有 hub/inv 指针
     bus_source = NULL;
+    dcu_heartbeat_stop(&heartbeat); // 心跳会刷 storage：必须在销毁 storage 前停
     dcu_node_destroy(g_dcu_node);
 
     free(g_dcu_node_mem);

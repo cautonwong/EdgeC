@@ -1,0 +1,6 @@
+✅ [FORMAL-NEGATIVE] 1 mutation script(s) rejected, 2 TLA+ invariant(s) violated with counterexamples, 0 skipped, 4s
+
+real	0m3.697s
+user	0m4.478s
+sys	0m0.424s
+RC=0

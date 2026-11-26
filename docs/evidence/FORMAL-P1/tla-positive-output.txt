@@ -1,0 +1,16 @@
+# FORMAL-P1 TLC positive output
+# Command (run in this directory, copies of formal/tla/Arbiter.tla and Arbiter.cfg):
+# java -XX:+UseParallelGC -cp /opt/formal/tla2tools.jar tlc2.TLC -cleanup -workers auto -config Arbiter.cfg Arbiter.tla
+
+TLC2 Version 2026.11.15.002146 (rev: bc1b506)
+Running breadth-first search Model-Checking with fp 115 and seed 181813611969160764 with 4 workers on 4 cores with 1317MB heap and 64MB offheap memory [pid: 13724] (Linux 6.6.114.1-microsoft-standard-WSL2 amd64, Ubuntu 17.0.21.0.3 64bit, MSBDiskFPSet, DiskStateQueue).
+Computing initial states...
+Finished computing initial states: 1 distinct state generated at 2026-11-24 15:11:39.
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 8.9E-11
+84083 states generated, 30538 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 15.
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 7 and the 95th percentile is 3).
+Finished in 02s at (2026-11-24 15:11:40)

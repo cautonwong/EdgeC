@@ -237,6 +237,90 @@ static void test_remove_clears_schema_and_values(void **state) {
     unlink("/tmp/edgeos_settings_d.db");
 }
 
+static void test_upgrade_compatibility_guard(void **state) {
+    (void)state;
+    char reason[160];
+    const char *old_schema =
+        "{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"number\",\"default\":240},"
+        "\"mode\":{\"type\":\"string\",\"default\":\"warn\"}}}";
+
+    assert_int_equal(
+        edge_app_settings_check_upgrade(old_schema, old_schema, reason, sizeof(reason)), 0);
+    assert_int_equal(edge_app_settings_check_upgrade(NULL, old_schema, reason, sizeof(reason)), 0);
+
+    const char *removed =
+        "{\"schemaVersion\":1,\"fields\":{\"threshold\":{\"type\":\"number\",\"default\":240}}}";
+    assert_int_equal(edge_app_settings_check_upgrade(old_schema, removed, reason, sizeof(reason)),
+                     -1);
+    assert_non_null(strstr(reason, "mode"));
+    assert_non_null(strstr(reason, "removed"));
+
+    const char *retyped =
+        "{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"string\",\"default\":\"240\"},"
+        "\"mode\":{\"type\":\"string\",\"default\":\"warn\"}}}";
+    assert_int_equal(edge_app_settings_check_upgrade(old_schema, retyped, reason, sizeof(reason)),
+                     -1);
+    assert_non_null(strstr(reason, "threshold"));
+    assert_non_null(strstr(reason, "type changed"));
+
+    const char *new_required =
+        "{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"number\",\"default\":240},"
+        "\"mode\":{\"type\":\"string\",\"default\":\"warn\"},"
+        "\"limit\":{\"type\":\"integer\"}}}";
+    assert_int_equal(
+        edge_app_settings_check_upgrade(old_schema, new_required, reason, sizeof(reason)), -1);
+    assert_non_null(strstr(reason, "limit"));
+    assert_non_null(strstr(reason, "no default"));
+
+    const char *new_defaulted =
+        "{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"number\",\"default\":240},"
+        "\"mode\":{\"type\":\"string\",\"default\":\"warn\"},"
+        "\"limit\":{\"type\":\"integer\",\"default\":0}}}";
+    assert_int_equal(
+        edge_app_settings_check_upgrade(old_schema, new_defaulted, reason, sizeof(reason)), 0);
+}
+
+static void test_upgrade_check_keeps_stored_schema(void **state) {
+    (void)state;
+    sqlite_svc_t *db = make_db("/tmp/edgeos_settings_e.db");
+    assert_non_null(db);
+    char reason[APP_SETTING_REASON_SIZE];
+    const char *old_schema =
+        "{\"schemaVersion\":1,\"fields\":{\"threshold\":{\"type\":\"number\",\"default\":1}}}";
+    assert_int_equal(app_settings_schema_save(db, "demo", old_schema), 0);
+    assert_int_equal(app_settings_value_set(db, "demo", "threshold", "5", reason, sizeof(reason)),
+                     0);
+
+    const char *incompatible =
+        "{\"schemaVersion\":1,\"fields\":{\"mode\":{\"type\":\"string\",\"default\":\"warn\"}}}";
+    assert_int_equal(app_settings_upgrade_check(db, "demo", incompatible, reason, sizeof(reason)),
+                     -1);
+    assert_non_null(strstr(reason, "threshold"));
+    assert_non_null(strstr(reason, "removed"));
+
+    char value[64];
+    assert_int_equal(app_settings_value_get(db, "demo", "threshold", value, sizeof(value), reason,
+                                            sizeof(reason)),
+                     1);
+    assert_string_equal(value, "5");
+
+    const char *compatible =
+        "{\"schemaVersion\":1,\"fields\":{"
+        "\"threshold\":{\"type\":\"number\",\"default\":2},"
+        "\"interval\":{\"type\":\"integer\",\"default\":60}}}";
+    assert_int_equal(app_settings_upgrade_check(db, "demo", compatible, reason, sizeof(reason)), 0);
+    assert_int_equal(app_settings_upgrade_check(db, "demo", NULL, reason, sizeof(reason)), -1);
+    assert_non_null(strstr(reason, "threshold"));
+    assert_int_equal(app_settings_upgrade_check(db, "other", NULL, reason, sizeof(reason)), 0);
+
+    sqlite_svc_destroy(db);
+    unlink("/tmp/edgeos_settings_e.db");
+}
+
 static int setup(void **state) {
     (void)state;
     return 0;
@@ -257,6 +341,8 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_not_set_unknown_and_no_schema, setup, teardown),
         cmocka_unit_test_setup_teardown(test_write_rejections, setup, teardown),
         cmocka_unit_test_setup_teardown(test_remove_clears_schema_and_values, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_upgrade_compatibility_guard, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_upgrade_check_keeps_stored_schema, setup, teardown),
     };
     int rc = cmocka_run_group_tests(tests, NULL, NULL);
     uv_run(&g_fixture.loop, UV_RUN_DEFAULT);

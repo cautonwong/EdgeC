@@ -4,17 +4,18 @@
  *
  * 设计见 /home/edge/migration/tcp-reconnect-design.md §2。链路按
  * DISCONNECTED / CONNECTING / CONNECTED / BACKOFF 四态迁移，至多持有一个
- * io_handle_t；重连 = 新建句柄，先 attach 新句柄、再销毁旧句柄。
- * 不透明指针 + caller-allocated storage，放置构造不分配堆内存。
+ * io_handle_t；连接经 io 端口 io_executor_tcp_connect_async 异步完成，
+ * 重连 = 新建句柄，先 attach 新句柄、再销毁旧句柄。不透明指针 +
+ * caller-allocated storage。
  */
 
 #ifndef IEMS_TCP_LINK_H
 #define IEMS_TCP_LINK_H
 
 #include <stdalign.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <uv.h>
 
 #include "io_executor.h"
@@ -46,28 +47,41 @@ typedef enum {
 typedef void (*iems_tcp_link_state_cb_t)(iems_tcp_link_state_t state, void *user_data);
 
 /**
- * @brief 打开一条新的 TCP 连接句柄（由消费方/组合根提供）。
+ * @brief 打开一条新的 TCP 连接句柄（旧的一次性连接入口用）。
  *
- * 链路只负责状态机与句柄替换，不自己装配 edge_io；返回 NULL 表示本次
- * 连接失败，链路按退避重试。签名与 io_executor_create_tcp 一致。
+ * 签名与 io_executor_create_tcp 一致。
  */
 typedef io_handle_t *(*iems_tcp_link_open_fn)(uv_loop_t *loop, const char *host, uint16_t port,
                                               net_buf_pool_t *pool);
 
+/**
+ * @brief 接管一条已连通的 fd，构造 io 句柄（组合根/测试提供）。
+ *
+ * 签名与 io_executor_create_from_fd 一致。返回 NULL 表示接管失败，链路关闭
+ * 该 fd 并按退避重试。
+ */
+typedef io_handle_t *(*iems_tcp_link_adopt_fn)(uv_loop_t *loop, int fd, net_buf_pool_t *pool);
+
 typedef struct {
-    uint32_t backoff_base_ms; /**< 0 用默认 1000ms */
-    uint32_t backoff_cap_ms;  /**< 0 用默认 30000ms */
+    uint32_t backoff_base_ms;          /**< 0 用默认 1000ms */
+    uint32_t backoff_cap_ms;           /**< 0 用默认 30000ms */
+    uint32_t connect_timeout_ms;       /**< 0 用默认 3000ms */
+    uint32_t keepalive_idle_s;         /**< 0 用 IO_TCP_KEEPALIVE_IDLE_S */
+    uint32_t keepalive_intvl_s;        /**< 0 用 IO_TCP_KEEPALIVE_INTVL_S */
+    uint32_t keepalive_cnt;            /**< 0 用 IO_TCP_KEEPALIVE_CNT */
     iems_tcp_link_state_cb_t on_state; /**< 每次状态迁移回调，可为 NULL */
     void *user_data;
-    iems_tcp_link_open_fn open_io; /**< 必填：每次重连都经它新建句柄 */
+    iems_tcp_link_adopt_fn adopt_fd; /**< 必填：接管异步连通的 fd */
     net_buf_pool_t *io_pool;
 } iems_tcp_link_config_t;
 
 /**
- * @brief 在调用方存储上构造并启动链路（首次同步连接）。
+ * @brief 在调用方存储上构造并启动链路（首次连接异步进行）。
  *
  * 首次尝试失败不会返回 NULL：链路进入 BACKOFF 并按退避继续重试。
- * cfg->open_io 必填；参数非法或定时器初始化失败返回 NULL。
+ * 构造时状态为 CONNECTING；连接成功后状态回调才报 CONNECTED。
+ * cfg->adopt_fd 必填；host 必须是数字 IPv4（异步 connect 不解析主机名）；
+ * 参数非法或定时器初始化失败返回 NULL。
  */
 iems_tcp_link_t *iems_tcp_link_create_in(iems_tcp_link_storage_t *storage, uv_loop_t *loop,
                                          bus_orchestrator_t *orch, int bus_id, const char *host,

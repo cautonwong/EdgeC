@@ -41,6 +41,18 @@ def baseline_path_for(script_file: str) -> str:
     return os.path.join(repo_root, "ci", "baseline", name + ".txt")
 
 
+def is_selftest_fixture(target_dir: str) -> bool:
+    """True when target_dir lives under tests/guards in this repository.
+
+    Keyed off the path relative to the repo root so a checkout directory whose
+    absolute path happens to contain "fixtures" or "guards" does not change a
+    guard's mode.
+    """
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    rel = os.path.relpath(os.path.abspath(target_dir), repo_root).replace("\\", "/")
+    return rel.startswith("tests/guards/")
+
+
 def load_baseline(path: str) -> dict[str, str]:
     """Return {fingerprint: issue_tag}. Missing file -> empty ledger."""
     entries: dict[str, str] = {}

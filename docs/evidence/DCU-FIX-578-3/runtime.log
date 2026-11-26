@@ -1,0 +1,20 @@
+=== BEFORE FIX: harness_scheme_delete_dar (adv-4 @ f13db8ea) ===
+add scheme 7 rc=0
+add task 5 -> scheme 7 rc=0 referenced=1
+GET 6014 sees scheme 7: yes (scheme_count=1)
+6014 method 128 delete referenced scheme 7: rc=-20 (NOT_FOUND -> DAR 6)
+[2026-11-23 09:45:47][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝改记录列选择
+6014 method 127 change CSD of referenced scheme 7: rc=-25 (DENIED -> DAR 3)
+[2026-11-23 09:45:47][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Clear
+6014 method 129 clear while scheme 7 referenced: rc=-25 (DENIED -> DAR 3)
+
+=== AFTER FIX: same harness rebuilt @ 067684be ===
+add scheme 7 rc=0
+add task 5 -> scheme 7 rc=0 referenced=1
+GET 6014 sees scheme 7: yes (scheme_count=1)
+[2026-11-23 09:45:47][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝删除
+6014 method 128 delete referenced scheme 7: rc=-25 (DENIED -> DAR 3)
+[2026-11-23 09:45:47][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝改记录列选择
+6014 method 127 change CSD of referenced scheme 7: rc=-25 (DENIED -> DAR 3)
+[2026-11-23 09:45:47][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Clear
+6014 method 129 clear while scheme 7 referenced: rc=-25 (DENIED -> DAR 3)

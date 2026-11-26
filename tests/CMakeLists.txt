@@ -124,7 +124,9 @@ if(ENABLE_TSAN)
 endif()
 
 add_edge_test(test_dcu_698_object_model test_dcu_698_object_model.c)
-target_include_directories(test_dcu_698_object_model PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_include_directories(test_dcu_698_object_model PRIVATE
+    "${CMAKE_SOURCE_DIR}/cmd/dcu"
+    "${CMAKE_SOURCE_DIR}/tests/fixtures")
 target_link_libraries(test_dcu_698_object_model PRIVATE dcu_app_lib)
 
 add_edge_test(test_dcu_698_archive test_dcu_698_archive.c)
@@ -161,6 +163,10 @@ add_edge_test(test_dcu_698_value_table test_dcu_698_value_table.c)
 target_include_directories(test_dcu_698_value_table PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_value_table PRIVATE dcu_app_lib)
 
+add_edge_test(test_dcu_698_class22 test_dcu_698_class22.c)
+target_include_directories(test_dcu_698_class22 PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_class22 PRIVATE dcu_app_lib)
+
 add_edge_test(test_dcu_698_tasks test_dcu_698_tasks.c)
 target_include_directories(test_dcu_698_tasks PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_tasks PRIVATE dcu_app_lib)
@@ -168,6 +174,24 @@ target_link_libraries(test_dcu_698_tasks PRIVATE dcu_app_lib)
 add_edge_test(test_dcu_698_schemes test_dcu_698_schemes.c)
 target_include_directories(test_dcu_698_schemes PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_schemes PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_scheme_mgmt test_dcu_698_scheme_mgmt.c)
+target_include_directories(test_dcu_698_scheme_mgmt PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_scheme_mgmt PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_rules test_dcu_698_rules.c)
+target_include_directories(test_dcu_698_rules PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_rules PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_freeze test_dcu_698_freeze.c)
+target_include_directories(test_dcu_698_freeze PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_freeze PRIVATE dcu_app_lib)
+add_edge_test(test_dcu_runtime_self_exit test_dcu_runtime_self_exit.c)
+target_include_directories(test_dcu_runtime_self_exit PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_runtime_self_exit PRIVATE dcu_app_lib)
+add_edge_test(test_dcu_heartbeat_stop test_dcu_heartbeat_stop.c)
+target_include_directories(test_dcu_heartbeat_stop PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_heartbeat_stop PRIVATE dcu_app_lib)
 
 add_edge_test(test_dlt698_conformance_suite test_dlt698_conformance_suite.c)
 
@@ -181,6 +205,7 @@ add_edge_test(test_datahub_shadow test_datahub_shadow.c)
 add_edge_test(test_datahub_attach test_datahub_attach.c)
 add_edge_test(test_datahub_multi_backend test_datahub_multi_backend.c)
 add_edge_test(test_datahub_shm_legacy test_datahub_shm_legacy.c)
+add_edge_test(test_datahub_walfd test_datahub_walfd.c)
 add_edge_test(test_passthrough test_passthrough.c)
 add_edge_test(test_memfd_seals test_memfd_seals.c)
 add_edge_test(test_fuzz_datahub test_fuzz_datahub.c)
@@ -204,9 +229,15 @@ add_edge_test(test_edge_wasm_imports test_edge_wasm_imports.c)
 add_edge_test(test_edge_eapp test_edge_eapp.c)
 add_edge_test(test_edge_backup test_edge_backup.c)
 add_edge_test(test_app_export test_app_export.c)
+add_edge_test(test_alarm_history_archive test_alarm_history_archive.c)
+add_edge_test(test_alarm_history_migration test_alarm_history_migration.c)
+add_edge_test(test_snapshot_csv test_snapshot_csv.c)
+target_link_libraries(test_snapshot_csv PRIVATE edge_sqlite_adapters)
 add_edge_test(test_time_trust test_time_trust.c)
 target_link_libraries(test_edge_backup PRIVATE edge_sqlite_adapters)
 target_link_libraries(test_app_export PRIVATE edge_sqlite_adapters)
+target_link_libraries(test_alarm_history_archive PRIVATE edge_sqlite_adapters cjson)
+target_link_libraries(test_alarm_history_migration PRIVATE edge_sqlite_adapters)
 target_link_libraries(test_edge_eapp PRIVATE OpenSSL::Crypto)
 add_edge_test(test_edge_eapp_build test_edge_eapp_build.c)
 target_link_libraries(test_edge_eapp_build PRIVATE OpenSSL::Crypto)
@@ -290,6 +321,7 @@ add_edge_test(test_driver_iec104 test_driver_iec104.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
 add_edge_test(test_modbus_write_guard test_modbus_write_guard.c)
+add_edge_test(test_modbus_write_desc test_modbus_write_desc.c)
 add_edge_test(test_fuzz_modbus test_fuzz_modbus.c)
 add_edge_test(test_radar_fmcw test_radar_fmcw.c)
 add_edge_test(test_io_http test_io_http.c)
@@ -330,6 +362,14 @@ add_edge_test(test_iems_advanced_delivery test_iems_advanced_delivery.c)
 target_include_directories(test_iems_advanced_delivery PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
 target_link_libraries(test_iems_advanced_delivery PRIVATE iems_app_lib)
 
+add_edge_test(test_iems_bess_aggregate test_iems_bess_aggregate.c)
+target_include_directories(test_iems_bess_aggregate PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_bess_aggregate PRIVATE iems_app_lib)
+
+add_edge_test(test_iems_tou_demand test_iems_tou_demand.c)
+target_include_directories(test_iems_tou_demand PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_tou_demand PRIVATE iems_app_lib)
+
 add_edge_test(test_ekf_soc test_ekf_soc.c)
 add_edge_test(test_mpc_dispatcher test_mpc_dispatcher.c)
 add_edge_test(test_sparkplug_b test_sparkplug_b.c)
@@ -339,6 +379,7 @@ add_edge_test(test_wavelet_anomaly test_wavelet_anomaly.c)
 add_edge_test(test_kinematics test_kinematics.c)
 add_edge_test(test_dcu_poller test_dcu_poller.c)
 add_edge_test(test_dlt645_codec test_dlt645_codec.c)
+add_edge_test(test_ipc_binary_flow_codec test_ipc_binary_flow_codec.c)
 add_edge_test(test_ydt1363_codec test_ydt1363_codec.c)
 add_edge_test(test_driver_iec101 test_driver_iec101.c)
 add_edge_test(test_dcu_scale_benchmark test_dcu_scale_benchmark.c)
@@ -359,8 +400,10 @@ add_edge_test(test_edge_guard test_edge_guard.c)
 add_edge_test(test_edge_params_store test_edge_params_store.c)
 add_edge_test(test_northbound_restart test_northbound_restart.c)
 add_edge_test(test_northbound_snf_online test_northbound_snf_online.c)
+add_edge_test(test_northbound_wall_ts test_northbound_wall_ts.c)
 add_edge_test(test_snf_resilience test_snf_resilience.c)
 add_edge_test(test_snf_delivery_confirm test_snf_delivery_confirm.c)
+add_edge_test(test_snf_restart test_snf_restart.c)
 add_edge_test(test_ccsds_driver test_ccsds_driver.c)
 add_edge_test(test_hl7_fhir test_hl7_fhir.c)
 add_edge_test(test_pid_antiwindup test_pid_antiwindup.c)
@@ -432,11 +475,19 @@ add_edge_test(test_northbound_address test_northbound_address.c)
 add_edge_test(test_driver_mqtt_json test_driver_mqtt_json.c)
 add_edge_test(test_mqtt_subscribe test_mqtt_subscribe.c)
 add_edge_test(test_northbound_downlink test_northbound_downlink.c)
+# P4-03c 下行端到端：传输回调 → IEMS 适配器 → 控制写/ack（含失败与重复帧）
+add_edge_test(test_northbound_downlink_e2e test_northbound_downlink_e2e.c)
+add_edge_test(test_northbound_ipc_topic test_northbound_ipc_topic.c)
+add_edge_test(test_northbound_ipc_dispatch test_northbound_ipc_dispatch.c)
 add_edge_test(test_northbound_event_driven test_northbound_event_driven.c)
+# P4-03c1 回执队列生命周期：start→立即 stop、并发 double-stop、驱动失败、restart
+add_edge_test(test_northbound_lifecycle test_northbound_lifecycle.c)
 
 add_edge_test(test_iems_full_stack test_iems_full_stack.c)
 add_edge_test(test_iems_node test_iems_node.c)
 add_edge_test(test_iems_execution_port test_iems_execution_port.c)
+# P4-03c1 B5 回归：无 IO 总线必须恰好一次完成，池不泄漏
+add_edge_test(test_iems_noio_completion test_iems_noio_completion.c)
 
 # 编译选项加固
 target_link_options(test_integration PRIVATE -Wl,--wrap=io_submit)
@@ -451,6 +502,9 @@ target_link_libraries(test_dcu_router PRIVATE dcu_app_lib)
 target_include_directories(test_dcu_north_source PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_north_source PRIVATE dcu_app_lib)
 target_link_libraries(test_dcu_poller PRIVATE dcu_app_lib)
+# 迟到回调用例直接捕获总线提交与备用 DI 决策：真实实现需要组合根/规则库。
+target_link_options(test_dcu_poller PRIVATE -Wl,--wrap=edge_api_read_tag
+                                             -Wl,--wrap=dcu_698_rules_retry_with_spare)
 # IEC101 request-native 契约测试：只依赖 edge_io + edge_codec
 target_link_libraries(test_driver_iec101 PRIVATE edge_io edge_codec)
 
@@ -566,6 +620,45 @@ add_edge_test(test_iems_task_loader test_iems_task_loader.c)
 target_include_directories(test_iems_task_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems ${CMAKE_SOURCE_DIR}/modules/edge_stream/include)
 target_link_libraries(test_iems_task_loader PRIVATE iems_app_lib edge_stream edge_infra edge_infra_security edge_security_policy SQLite::SQLite3)
 
+# P6-04b 转换产物加载：golden 正例、负例、SQLite 路由与转换器联动
+add_edge_test(test_iems_config_loader test_iems_config_loader.c)
+target_include_directories(test_iems_config_loader PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_compile_definitions(test_iems_config_loader PRIVATE
+    IEMS_CONFIG_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tools/migration/golden"
+    IEMS_CONFIG_PYTHON="${Python3_EXECUTABLE}"
+    IEMS_CONFIG_SCHEMA_TOOL="${CMAKE_SOURCE_DIR}/tools/migration/config_schema.py")
+target_link_libraries(test_iems_config_loader PRIVATE iems_app_lib SQLite::SQLite3)
+
+# P2-02a 转换后的 ems/lc 设置：golden 字段、三值 source、无半加载、app getter
+add_edge_test(test_iems_pcs_settings test_iems_pcs_settings.c)
+target_include_directories(test_iems_pcs_settings PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_compile_definitions(test_iems_pcs_settings PRIVATE
+    IEMS_CONFIG_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tools/migration/golden")
+target_link_libraries(test_iems_pcs_settings PRIVATE iems_app_lib SQLite::SQLite3)
+
+# P3-01b BMSER-BIN IPC 契约：真实文件计数、字段语义、边界拒绝
+add_edge_test(test_iems_bmser_ipc test_iems_bmser_ipc.c)
+target_include_directories(test_iems_bmser_ipc PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_compile_definitions(test_iems_bmser_ipc PRIVATE
+    IEMS_BMSER_IPC_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures")
+
+add_test(NAME test_iems_config_loader_linked
+         COMMAND ${CMAKE_COMMAND}
+                 -DTEST_BIN=$<TARGET_FILE:test_iems_config_loader>
+                 -DPYTHON=${Python3_EXECUTABLE}
+                 -DCONVERTER=${CMAKE_SOURCE_DIR}/tools/migration/convert_config.py
+                 -DSOURCE=${CMAKE_SOURCE_DIR}/tests/guards/fixtures/config_convert_src
+                 -DOUT=${CMAKE_BINARY_DIR}/config_loader_linked
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_config_loader_linked.cmake)
+set_tests_properties(test_iems_config_loader_linked PROPERTIES TIMEOUT 180)
+
+add_test(NAME test_iems_config_loader_assembly
+         COMMAND ${CMAKE_COMMAND}
+                 -DIEMS_BIN=$<TARGET_FILE:iems>
+                 -DWORK=${CMAKE_BINARY_DIR}/config_loader_assembly
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/run_config_loader_assembly.cmake)
+set_tests_properties(test_iems_config_loader_assembly PROPERTIES TIMEOUT 60)
+
 # P3-00 厂商语义 vtable 框架：注册表、六类策略与 tag 端口行为
 add_edge_test(test_iems_vendor_semantics test_iems_vendor_semantics.c)
 target_link_libraries(test_iems_vendor_semantics PRIVATE iems_vendor)
@@ -573,6 +666,25 @@ target_link_libraries(test_iems_vendor_semantics PRIVATE iems_vendor)
 # P1-02 点位模型骨架：名称往返、槽位边界与旧名依赖登记
 add_edge_test(test_iems_point_model test_iems_point_model.c)
 target_link_libraries(test_iems_point_model PRIVATE iems_points)
+
+# P5-04a 告警定义仓库：真实 alarm_def 计数、严格 JSON 边界、重复键查询顺序与容量
+# 默认用仓库内逐字节夹具，CI 不依赖 v3 checkout；文件缺失时测试失败而非跳过。
+# 可用 -DIEMS_ALARM_REAL_DIR=<dir> 覆盖，覆盖路径缺失同样失败。
+set(IEMS_ALARM_REAL_DIR "${CMAKE_SOURCE_DIR}/tests/fixtures"
+    CACHE PATH "alarm_def.json directory for the P5-04a real-file test (default: in-repo fixture)")
+add_edge_test(test_iems_alarm_registry test_iems_alarm_registry.c)
+target_include_directories(test_iems_alarm_registry PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_compile_definitions(test_iems_alarm_registry PRIVATE
+    IEMS_ALARM_REAL_DIR="${IEMS_ALARM_REAL_DIR}")
+
+# P5-04a 实时告警表：raise/ack/recover/suppress 迁移、no-op、容量与映射端口
+add_edge_test(test_iems_alarm_state test_iems_alarm_state.c)
+target_include_directories(test_iems_alarm_state PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+
+# P6-02b 硬件健康阈值门控：门控表/纯求值/源端口 + 真 DataHub 点位
+add_edge_test(test_iems_health_monitor test_iems_health_monitor.c)
+
+add_edge_test(test_iems_tag_map test_iems_tag_map.c)
 
 # AEP-301 / AEP-302 契约生成式驱动注册表测试 (IEMS, DCU, SmartBox 参数化覆盖)
 add_edge_test(test_driver_registry test_driver_registry.c)
@@ -966,6 +1078,16 @@ target_link_libraries(test_dds_qos_matrix PRIVATE
     pthread dl rt m
 )
 add_test(NAME test_dds_qos_matrix COMMAND test_dds_qos_matrix)
+
+# These targets include the generated IDL headers. Without the dependency,
+# ninja can compile them before generate_idls rewrites the headers, and the
+# next `ninja -n` then reports stale objects on a fresh build.
+if(EXISTS "${IDLC_BIN}")
+    add_dependencies(edge_infra generate_idls)
+    add_dependencies(test_datahub_dds_mesh generate_idls)
+    add_dependencies(test_dds_idl_codec generate_idls)
+    add_dependencies(test_dds_qos_matrix generate_idls)
+endif()
 
 # AEP-453: DDS 零拷贝共享内存 (Iceoryx/SHM) 加速与跨网络透明双轨路由测试 (Issue #145)
 add_executable(test_dds_shm_zerocopy_perf test_dds_shm_zerocopy_perf.c)
@@ -1693,6 +1815,12 @@ add_test(NAME test_ci_architecture_guards
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/ci/scripts/run_guard_selftest.py
 )
 
+# P1-03b device/port config converter: golden bytes, determinism, fixture cases.
+add_test(NAME test_config_convert
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_config_convert.py
+)
+set_tests_properties(test_config_convert PROPERTIES TIMEOUT 120)
+
 # AEP-752 调用方提供内存 (Caller-Allocated Storage) 与不透明指针物理封装架构单测 (Issue #340)
 add_executable(test_caller_allocated_storage test_caller_allocated_storage.c)
 target_include_directories(test_caller_allocated_storage PRIVATE
@@ -1917,6 +2045,7 @@ add_edge_test(test_iems_modbus_rtu_uart_pty test_iems_modbus_rtu_uart_pty.c)
 add_edge_test(test_iems_modbus_tcp_loopback test_iems_modbus_tcp_loopback.c)
 add_edge_test(test_iems_tcp_link test_iems_tcp_link.c)
 add_edge_test(test_iems_dlt645_uart_pty test_iems_dlt645_uart_pty.c)
+add_edge_test(test_iems_ydt1363_uart_pty test_iems_ydt1363_uart_pty.c)
 add_edge_test(test_datahub_subscription_capacity test_datahub_subscription_capacity.c)
 
 # Plain add_test() targets must get the same sanitizer policy as add_edge_test().

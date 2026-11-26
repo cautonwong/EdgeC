@@ -1,0 +1,83 @@
+== build (incremental, implementation) ==
+[85/92] Building C object tests/CMakeFiles/test_driver_dlt698.dir/test_driver_dlt698.c.o
+[86/92] Linking C executable tests/test_dcu_mutex_marathon
+[87/92] Building C object tests/CMakeFiles/test_driver_registry_dcu.dir/test_dcu_driver_adapter.c.o
+[88/92] Linking C executable tests/test_dcu_topology_phase_id
+[89/92] Linking C executable tests/test_driver_registry_dcu
+[90/92] Linking C executable tests/test_driver_dlt698
+[91/92] Building C object tests/CMakeFiles/test_dcu_poller.dir/test_dcu_poller.c.o
+[92/92] Linking C executable tests/test_dcu_poller
+first-party warnings in incremental build: 0
+
+== catalog guard ==
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+exit: 0
+
+== doc references guard ==
+exit: 0
+
+== ACL session budget ==
+ACL objects 91 <= EDGE_SLAVE_ACL_MAX_OBJECTS 224
+dlt698_acl_object_t 16 B * 91 = 1456 B + header <= DRIVER_PRIV_SIZE 4096
+object list encoding 3211 B (91 items, measured) <= EDGE_SLAVE_AXDR_MAX 10240
+
+== new cases ==
+== test_dcu_698_object_model
+[ RUN      ] test_class11_collection_rows_are_empty
+[       OK ] test_class11_collection_rows_are_empty
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr
+[ RUN      ] test_product_class11_collection_sets_have_no_value_yet
+[       OK ] test_product_class11_collection_sets_have_no_value_yet
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn
+[ RUN      ] test_class11_acl_is_read_only
+[       OK ] test_class11_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698
+[ RUN      ] test_slave_class11_collection_dar
+[       OK ] test_slave_class11_collection_dar
+[  PASSED  ] 1 test(s).
+== test_dcu_698_scheme_mgmt
+[ RUN      ] test_object_list_advertises_new_ois
+[       OK ] test_object_list_advertises_new_ois
+[  PASSED  ] 1 test(s).
+
+== object list length measurement (reproducible) ==
+$ cat /tmp/d5-03-measure/measure.c
+#include <stdio.h>
+#include <stdint.h>
+#include "dcu_698_appconn.h"
+int main(void) {
+    static uint8_t buf[20000];
+    size_t len = 0;
+    int rc = dcu_698_appconn_object_list(buf, sizeof(buf), &len);
+    printf("rc=%d len=%zu count_byte=%u\n", rc, len, (unsigned)buf[1]);
+    return 0;
+}
+$ gcc -I cmd/dcu -I foundation/include -I include /tmp/d5-03-measure/measure.c cmd/dcu/dcu_698_appconn.c -o /tmp/d5-03-measure/measure
+$ /tmp/d5-03-measure/measure
+rc=0 len=3211 count_byte=91
+
+== final targeted suite (HEAD) ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  26.74 sec
+
+== build warnings guard ==
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+exit: 0
+
+== post-audit rerun (comment deletions, no behavior change) ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  28.01 sec
+
+== post-audit guards ==
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+catalog exit: 0
+docrefs exit: 0
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+build-warnings exit: 0

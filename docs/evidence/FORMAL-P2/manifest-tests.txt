@@ -1,0 +1,12 @@
+  ✅ [FORMAL-MANIFESTS] two shards are enumerated and executed
+  ✅ [FORMAL-MANIFESTS] unknown owner is rejected
+  ✅ [FORMAL-MANIFESTS] missing manifest is rejected
+  ✅ [FORMAL-MANIFESTS] header missing a column is rejected
+  ✅ [FORMAL-MANIFESTS] row field count mismatch is rejected
+  ✅ [FORMAL-MANIFESTS] non-integer property_count is rejected
+  ✅ [FORMAL-MANIFESTS] duplicate (artifact, mode) is rejected
+  ✅ [FORMAL-MANIFESTS] unknown negative form is rejected
+  ✅ [FORMAL-MANIFESTS] cfg negative without its invariant is rejected
+  ✅ [FORMAL-MANIFESTS] unregistered formal file is rejected
+✅ [FORMAL-MANIFESTS] 10 case(s) passed
+RC=0

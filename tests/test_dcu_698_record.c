@@ -1,6 +1,7 @@
 #include <cmocka.h>
 #include <fcntl.h>
 #include <setjmp.h>
+#include <stdalign.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -15,6 +16,12 @@
 #include "dcu_inventory.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "dlt698_codec.h"
+#include "edge_driver.h"
+#include "edge_slave_plane.h"
+#include "net_buf.h"
+
+extern const edge_driver_t dlt698_driver;
 
 #define T1 1795305600ULL /* 2026-11-22T00:00:00Z */
 #define T2 1795392000ULL /* 2026-11-23T00:00:00Z */
@@ -259,6 +266,212 @@ static void test_record_missing_column_fails_row(void **state) {
     dcu_698_record_end(&g_ctx, OAD_DAILY_FREEZE);
 }
 
+#define OVERFLOW_CAP 4096
+#define OVERFLOW_CANARY 2048
+static uint8_t g_slave_backing[OVERFLOW_CAP + OVERFLOW_CANARY];
+static size_t mk_acl_read(uint8_t *buf, uint16_t oi) {
+    size_t o = 0;
+    buf[o++] = 0x01;
+    buf[o++] = 1;
+    buf[o++] = 0x02;
+    buf[o++] = 2;
+    buf[o++] = 0x50;
+    buf[o++] = (uint8_t)(oi >> 8);
+    buf[o++] = (uint8_t)oi;
+    buf[o++] = 0x02;
+    buf[o++] = 2;
+    buf[o++] = 0x01;
+    buf[o++] = 1;
+    buf[o++] = 0x02;
+    buf[o++] = 2;
+    buf[o++] = 0x11;
+    buf[o++] = 2;
+    buf[o++] = 0x16;
+    buf[o++] = 1;
+    buf[o++] = 0x01;
+    buf[o++] = 0;
+    return o;
+}
+static int fake_object_list(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    (void)ctx;
+    if (oad != 0x44000200u) return EDGE_SLAVE_SRC_NOT_FOUND;
+    uint8_t acl[32];
+    size_t n = mk_acl_read(acl, 0x5004);
+    if (n > cap) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(buf, acl, n);
+    *len = n;
+    return 0;
+}
+static size_t mk_get_record_frame(uint8_t *out, const uint8_t *apdu, size_t apdu_len) {
+    size_t n = 0;
+    out[n++] = DLT698_HEAD;
+    size_t len_off = n;
+    n += 2;
+    out[n++] = 0x43;
+    out[n++] = 0x00;
+    out[n++] = 0x01;
+    out[n++] = 0x10;
+    uint16_t l = (uint16_t)(9 + apdu_len + 3 - 2);
+    out[len_off] = (uint8_t)(l & 0xFF);
+    out[len_off + 1] = (uint8_t)(l >> 8);
+    uint16_t hcs = dlt698_calculate_fcs(out + 1, n - 1);
+    out[n++] = (uint8_t)(hcs & 0xFF);
+    out[n++] = (uint8_t)(hcs >> 8);
+    memcpy(out + n, apdu, apdu_len);
+    n += apdu_len;
+    uint16_t fcs = dlt698_calculate_fcs(out + 1, n - 1);
+    out[n++] = (uint8_t)(fcs & 0xFF);
+    out[n++] = (uint8_t)(fcs >> 8);
+    out[n++] = DLT698_END;
+    return n;
+}
+static void test_record_page_overflow_returns_dar2(void **state) {
+    (void)state;
+    for (size_t i = 0; i < DCU_RECORD_MAX_ROWS; i++) {
+        uint64_t t = T1 + (uint64_t)i * 86400ULL;
+        assert_int_equal(dcu_storage_write_freeze(&g_storage, "000000000001", OAD_DAILY_FREEZE, t,
+                                                  OAD_ACTIVE_ENERGY, 1000.0 + (double)i),
+                         0);
+        assert_int_equal(
+            dcu_storage_write_freeze(&g_storage, "000000000001", OAD_DAILY_FREEZE, t, OAD_VOLTAGE,
+                                     220.0),
+            0);
+        assert_int_equal(
+            dcu_storage_write_freeze(&g_storage, "000000000001", OAD_DAILY_FREEZE, t, OAD_CURRENT,
+                                     5.0),
+            0);
+    }
+    const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00};
+    uint8_t apdu[3 + sizeof(req)];
+    apdu[0] = DLT698_SVC_GET_REQ;
+    apdu[1] = DLT698_CHOICE_GET_RECORD;
+    apdu[2] = 0x05;
+    memcpy(apdu + 3, req, sizeof(req));
+    uint8_t frame[64];
+    size_t flen = mk_get_record_frame(frame, apdu, sizeof(apdu));
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+    src.record.begin = dcu_698_record_begin;
+    src.record.row = dcu_698_record_row;
+    src.record.end = dcu_698_record_end;
+
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    static uint8_t session[4096];
+    memset(session, 0, sizeof(session));
+    memset(g_slave_backing, 0xAA, sizeof(g_slave_backing));
+    net_buf_t out;
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, g_slave_backing, OVERFLOW_CAP);
+    size_t consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, &g_ctx,
+                                                      &out, &consumed),
+                     0);
+    assert_true(out.b.len <= OVERFLOW_CAP);
+
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, out.b.data, out.b.len);
+    nb.len = out.b.len;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
+                                            &payload_len),
+                     0);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(choice, DLT698_CHOICE_GET_RECORD);
+    /* payload = OAD | RCSD | 结果选择 | DAR | FollowReport | 时间标签（PIID 已取出） */
+    assert_int_equal(payload_len, 9);
+    assert_int_equal(payload[5], DLT698_RECORD_RESULT_DAR);
+    assert_int_equal(payload[6], DLT698_DAR_TEMPORARY_FAILURE);
+
+    for (size_t i = OVERFLOW_CAP; i < sizeof(g_slave_backing); i++) {
+        assert_int_equal(g_slave_backing[i], 0xAA);
+    }
+}
+static size_t g_fake_record_total;
+static size_t g_fake_record_row_len;
+static int fake_record_begin(void *ctx, uint32_t oad, const uint8_t *sel, size_t sel_len,
+                             size_t *total) {
+    (void)ctx;
+    (void)oad;
+    (void)sel;
+    (void)sel_len;
+    *total = g_fake_record_total;
+    return 0;
+}
+static int fake_record_row(void *ctx, uint32_t oad, size_t index, uint8_t *row, size_t cap,
+                           size_t *row_len) {
+    (void)ctx;
+    (void)oad;
+    (void)index;
+    if (g_fake_record_row_len > cap) return EDGE_SLAVE_SRC_TEMPORARY;
+    memset(row, 0x41, g_fake_record_row_len);
+    *row_len = g_fake_record_row_len;
+    return 0;
+}
+static int fake_record_end(void *ctx, uint32_t oad) {
+    (void)ctx;
+    (void)oad;
+    return 0;
+}
+static void assert_trailer_boundary_dar2(size_t total, size_t row_len) {
+    const uint8_t req[] = {0x50, 0x04, 0x02, 0x00, 0x00, 0x00, 0x00};
+    uint8_t apdu[3 + sizeof(req)];
+    apdu[0] = DLT698_SVC_GET_REQ;
+    apdu[1] = DLT698_CHOICE_GET_RECORD;
+    apdu[2] = 0x05;
+    memcpy(apdu + 3, req, sizeof(req));
+    uint8_t frame[64];
+    size_t flen = mk_get_record_frame(frame, apdu, sizeof(apdu));
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+    src.record.begin = fake_record_begin;
+    src.record.row = fake_record_row;
+    src.record.end = fake_record_end;
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+    memset(priv, 0, sizeof(priv));
+    static uint8_t session[4096];
+    memset(session, 0, sizeof(session));
+    g_fake_record_total = total;
+    g_fake_record_row_len = row_len;
+    memset(g_slave_backing, 0xAA, sizeof(g_slave_backing));
+    net_buf_t out;
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, g_slave_backing, OVERFLOW_CAP);
+    size_t consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, NULL, &out,
+                                                      &consumed),
+                     0);
+    assert_true(out.b.len <= OVERFLOW_CAP);
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t payload_len = 0;
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, out.b.data, out.b.len);
+    nb.len = out.b.len;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload,
+                                            &payload_len),
+                     0);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload_len, 9);
+    assert_int_equal(payload[5], DLT698_RECORD_RESULT_DAR);
+    assert_int_equal(payload[6], DLT698_DAR_TEMPORARY_FAILURE);
+    for (size_t i = OVERFLOW_CAP; i < sizeof(g_slave_backing); i++) {
+        assert_int_equal(g_slave_backing[i], 0xAA);
+    }
+}
+static void test_record_page_trailer_boundary_returns_dar2(void **state) {
+    (void)state;
+    assert_trailer_boundary_dar2(194, 21);
+    assert_trailer_boundary_dar2(163, 25);
+    assert_trailer_boundary_dar2(151, 27);
+}
 /* date_time_s 是设备本地民用时间：固定东八区，冻结记录字节与区间窗口才可确定。 */
 static char g_saved_tz[128];
 static int g_had_tz;
@@ -293,6 +506,9 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_record_selector1_date_time_layout, setup, teardown),
         cmocka_unit_test_setup_teardown(test_record_rcsd_zero_means_all_columns, setup, teardown),
         cmocka_unit_test_setup_teardown(test_record_missing_column_fails_row, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_record_page_overflow_returns_dar2, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_record_page_trailer_boundary_returns_dar2, setup,
+                                        teardown),
     };
     return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

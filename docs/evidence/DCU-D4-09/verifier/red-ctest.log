@@ -1,0 +1,971 @@
+Test project /tmp/edgec-land/d4-09-group/build
+      Start   9: test_dlt698_axdr
+ 1/45 Test   #9: test_dlt698_axdr .....................   Passed    0.00 sec
+      Start  10: test_dlt698_action
+ 2/45 Test  #10: test_dlt698_action ...................   Passed    0.00 sec
+      Start  11: test_dlt698_get_list
+ 3/45 Test  #11: test_dlt698_get_list .................   Passed    0.01 sec
+      Start  13: test_dcu_inventory
+ 4/45 Test  #13: test_dcu_inventory ...................   Passed    0.11 sec
+      Start  14: test_dcu_polling_loop
+ 5/45 Test  #14: test_dcu_polling_loop ................   Passed    0.00 sec
+      Start  15: test_dcu_storage
+ 6/45 Test  #15: test_dcu_storage .....................   Passed    0.00 sec
+      Start  16: test_dcu_integration
+ 7/45 Test  #16: test_dcu_integration .................   Passed   10.01 sec
+      Start  17: test_dcu_router
+ 8/45 Test  #17: test_dcu_router ......................   Passed    0.01 sec
+      Start  18: test_dcu_north_source
+ 9/45 Test  #18: test_dcu_north_source ................   Passed    0.00 sec
+      Start  19: test_dcu_advanced_modules
+10/45 Test  #19: test_dcu_advanced_modules ............   Passed    0.01 sec
+      Start  20: test_dcu_business_engines
+11/45 Test  #20: test_dcu_business_engines ............   Passed    0.01 sec
+      Start  21: test_dcu_phase1_delivery
+12/45 Test  #21: test_dcu_phase1_delivery .............   Passed    0.00 sec
+      Start  22: test_dcu_node
+13/45 Test  #22: test_dcu_node ........................   Passed    0.25 sec
+      Start  23: test_dcu_runtime_health
+14/45 Test  #23: test_dcu_runtime_health ..............   Passed    1.67 sec
+      Start  24: test_dcu_runtime_health_concurrent
+15/45 Test  #24: test_dcu_runtime_health_concurrent ...   Passed    8.34 sec
+      Start  25: test_dcu_698_object_model
+16/45 Test  #25: test_dcu_698_object_model ............***Failed    0.00 sec
+[==========] tests: Running 23 test(s).
+[ RUN      ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- 120 != 128
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[ RUN      ] test_catalog_instance_attr_limits_are_defined
+[       OK ] test_catalog_instance_attr_limits_are_defined
+[ RUN      ] test_mask_bitmap_supports_wide_ids
+[       OK ] test_mask_bitmap_supports_wide_ids
+[ RUN      ] test_mask_rejects_missing_attr_and_method
+[       OK ] test_mask_rejects_missing_attr_and_method
+[ RUN      ] test_discovery_oi_attributes_beyond_class_table
+[       OK ] test_discovery_oi_attributes_beyond_class_table
+[ RUN      ] test_task_scheduler_reset_and_add
+[       OK ] test_task_scheduler_reset_and_add
+[ RUN      ] test_discovery_exposes_results_count_and_status
+[       OK ] test_discovery_exposes_results_count_and_status
+[ RUN      ] test_dar_classification_by_class_definition
+[2026-11-26 16:21:18][WARN][CORE] OI 8000 method 127: 产品没有告警输出，拒绝执行
+[2026-11-26 16:21:18][WARN][CORE] OI 8000 method 128: 产品没有告警输出，拒绝执行
+[       OK ] test_dar_classification_by_class_definition
+[ RUN      ] test_dispatch_read_write_call
+[       OK ] test_dispatch_read_write_call
+[ RUN      ] test_event_class24_attr_reads
+[       OK ] test_event_class24_attr_reads
+[ RUN      ] test_event_class24_attr_writes
+[       OK ] test_event_class24_attr_writes
+[ RUN      ] test_event_class7_attr_numbers_are_not_served
+[       OK ] test_event_class7_attr_numbers_are_not_served
+[ RUN      ] test_event_method1_resets_records
+🧹 [EVENT] ACTION: 成功复位事件 3000 的历史事件记录表。
+[       OK ] test_event_method1_resets_records
+[ RUN      ] test_facade_and_table_api_agree
+[       OK ] test_facade_and_table_api_agree
+[ RUN      ] test_discovery_snapshot_and_clear
+[       OK ] test_discovery_snapshot_and_clear
+[ RUN      ] test_class14_15_16_stats_rows_are_empty
+[       OK ] test_class14_15_16_stats_rows_are_empty
+[ RUN      ] test_class17_display_rows_are_empty
+[       OK ] test_class17_display_rows_are_empty
+[ RUN      ] test_class11_collection_rows_are_empty
+[       OK ] test_class11_collection_rows_are_empty
+[ RUN      ] test_class12_pulse_row_is_empty
+[       OK ] test_class12_pulse_row_is_empty
+[ RUN      ] test_class25_26_comm_rows
+[       OK ] test_class25_26_comm_rows
+[ RUN      ] test_class19_devmgr_rows_are_empty
+[       OK ] test_class19_devmgr_rows_are_empty
+[ RUN      ] test_class23_group_rows_are_empty
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_object_model.c:703: error: Failure!
+[  FAILED  ] test_class23_group_rows_are_empty
+[ RUN      ] test_reset_returns_to_uninitialized
+[       OK ] test_reset_returns_to_uninitialized
+[==========] tests: 23 test(s) run.
+[  PASSED  ] 21 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class23_group_rows_are_empty
+
+ 2 FAILED TEST(S)
+
+      Start  26: test_dcu_698_archive
+17/45 Test  #26: test_dcu_698_archive .................   Passed    0.67 sec
+      Start  27: test_dcu_698_catalog
+18/45 Test  #27: test_dcu_698_catalog .................   Passed    0.01 sec
+      Start  28: test_dcu_698_var
+19/45 Test  #28: test_dcu_698_var .....................   Passed    0.01 sec
+      Start  29: test_dcu_698_report
+20/45 Test  #29: test_dcu_698_report ..................   Passed    0.00 sec
+      Start  30: test_dcu_698_axdr
+21/45 Test  #30: test_dcu_698_axdr ....................***Failed    0.03 sec
+[==========] tests: Running 59 test(s).
+[ RUN      ] test_product_variable_axdr_types
+[       OK ] test_product_variable_axdr_types
+[ RUN      ] test_discovery_standard_attribute_shapes
+[       OK ] test_discovery_standard_attribute_shapes
+[ RUN      ] test_discovery_action_start_duplicate_and_clear
+[       OK ] test_discovery_action_start_duplicate_and_clear
+[ RUN      ] test_event_class24_attrs_on_the_wire
+[NETBUF][INFO] NetBufPool 0x643c5a44d270: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d270: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d270: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d270: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d310: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d310: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d310: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d310: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d3b0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d3b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d3b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d3b0: Unref (1 -> 0)
+[       OK ] test_event_class24_attrs_on_the_wire
+[ RUN      ] test_event_class24_complex_attrs
+[       OK ] test_event_class24_complex_attrs
+[ RUN      ] test_event_class24_record_and_status_times
+[       OK ] test_event_class24_record_and_status_times
+[ RUN      ] test_product_axdr_rejects_small_buffer_and_complex
+[       OK ] test_product_axdr_rejects_small_buffer_and_complex
+[ RUN      ] test_driver_scalar_fallback_still_works
+[NETBUF][INFO] NetBufPool 0x643c5a44d450: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d450: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d450: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d450: Unref (1 -> 0)
+[       OK ] test_driver_scalar_fallback_still_works
+[ RUN      ] test_driver_high_byte_oad_has_no_signed_shift
+[NETBUF][INFO] NetBufPool 0x643c5a44d4f0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d4f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d4f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d4f0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d590: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d590: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d590: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d590: Unref (1 -> 0)
+[       OK ] test_driver_high_byte_oad_has_no_signed_shift
+[ RUN      ] test_driver_carries_structure_axdr
+[NETBUF][INFO] NetBufPool 0x643c5a44d630: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d630: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d630: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d630: Unref (1 -> 0)
+[       OK ] test_driver_carries_structure_axdr
+[ RUN      ] test_driver_rejects_axdr_buffer_shortage
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_rejects_axdr_buffer_shortage
+[ RUN      ] test_driver_normal_list_uses_axdr_per_item
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_uses_axdr_per_item
+[ RUN      ] test_driver_normal_list_mixed_success_and_dar
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_mixed_success_and_dar
+[ RUN      ] test_driver_normal_list_empty_request
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_empty_request
+[ RUN      ] test_driver_normal_list_duplicate_oad_each_answered
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_duplicate_oad_each_answered
+[ RUN      ] test_driver_normal_list_reuses_one_buffer
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_driver_normal_list_reuses_one_buffer
+[ RUN      ] test_get_normal_dar_mapping
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_get_normal_dar_mapping
+[ RUN      ] test_get_normal_encode_type_mismatch_returns_dar
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_get_normal_encode_type_mismatch_returns_dar
+[ RUN      ] test_normal_list_dar_mapping
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d6d0: Unref (1 -> 0)
+[       OK ] test_normal_list_dar_mapping
+[ RUN      ] test_product_accept_set_paths
+[       OK ] test_product_accept_set_paths
+[ RUN      ] test_product_class8_datetime_round_trip
+[2026-11-26 16:21:19][WARN][NB] DCU 698 SET OI=0x4000 attr=1 被拒绝 rc=-21
+[2026-11-26 16:21:19][WARN][NB] DCU 698 SET OI=0x4000 attr=2 被拒绝 rc=-22
+[       OK ] test_product_class8_datetime_round_trip
+[ RUN      ] test_product_class2_and_5_have_no_value_yet
+[       OK ] test_product_class2_and_5_have_no_value_yet
+[ RUN      ] test_product_class14_15_16_have_no_value_yet
+[       OK ] test_product_class14_15_16_have_no_value_yet
+[ RUN      ] test_product_class17_has_no_value_yet
+[       OK ] test_product_class17_has_no_value_yet
+[ RUN      ] test_product_class11_collection_sets_have_no_value_yet
+[       OK ] test_product_class11_collection_sets_have_no_value_yet
+[ RUN      ] test_product_class12_pulse_has_no_value_yet
+[       OK ] test_product_class12_pulse_has_no_value_yet
+[ RUN      ] test_product_class25_26_comm_dar
+[       OK ] test_product_class25_26_comm_dar
+[ RUN      ] test_product_class19_devmgr_dar
+[       OK ] test_product_class19_devmgr_dar
+[ RUN      ] test_product_class21_esam_dar
+[       OK ] test_product_class21_esam_dar
+[ RUN      ] test_product_class23_group_dar
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_axdr.c:723: error: Failure!
+[  FAILED  ] test_product_class23_group_dar
+[ RUN      ] test_comm_info_platform_snapshot_encodes_or_refuses
+[       OK ] test_comm_info_platform_snapshot_encodes_or_refuses
+[ RUN      ] test_comm_info_scan_prefers_eth0
+[       OK ] test_comm_info_scan_prefers_eth0
+[ RUN      ] test_comm_info_scan_rejects_multicast_only
+[       OK ] test_comm_info_scan_rejects_multicast_only
+[ RUN      ] test_comm_info_scan_skips_multicast_for_physical
+[       OK ] test_comm_info_scan_skips_multicast_for_physical
+[ RUN      ] test_comm_info_scan_skips_en_named_bridge
+[       OK ] test_comm_info_scan_skips_en_named_bridge
+[ RUN      ] test_comm_info_scan_rejects_wireless_and_non_ethernet
+[       OK ] test_comm_info_scan_rejects_wireless_and_non_ethernet
+[ RUN      ] test_comm_info_scan_rejects_all_zero_mac
+[       OK ] test_comm_info_scan_rejects_all_zero_mac
+[ RUN      ] test_comm_info_scan_rejects_veth_named_eth0
+[       OK ] test_comm_info_scan_rejects_veth_named_eth0
+[ RUN      ] test_product_accept_set_event_attrs
+[       OK ] test_product_accept_set_event_attrs
+[ RUN      ] test_set_response_dar_paths
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_set_response_dar_paths
+[ RUN      ] test_set_missing_data_dar7
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_set_missing_data_dar7
+[ RUN      ] test_set_scalar_fallback
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_set_scalar_fallback
+[ RUN      ] test_set_scalar_fallback_rejects_structure
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_set_scalar_fallback_rejects_structure
+[ RUN      ] test_action_127_128_null_param
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 127: 产品没有告警输出，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 128: 产品没有告警输出，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=128：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_127_128_null_param
+[ RUN      ] test_action_129_trip_param
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 129: 参数已解码（2 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 129: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=129：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_129_trip_param
+[ RUN      ] test_action_130_close_param
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 130: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=130：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=130：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_130_close_param
+[ RUN      ] test_action_131_password_close_param
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 131: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=131：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=131：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_131_password_close_param
+[ RUN      ] test_action_129_131_empty_relay_map_dar2
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 129: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 130: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 131: 参数已解码（1 项，继电器 OAD=0x20000400），产品点位表没有该继电器 OAD→表地址/DO 映射，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_129_131_empty_relay_map_dar2
+[ RUN      ] test_action_129_131_relay_map_resolves_target
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 129: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 7，但产品未接真实 DO 执行，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 130: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 7，但产品未接真实 DO 执行，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][CORE] OI 8000 method 131: 继电器 OAD=0x20000400 已解析到表 202610180001 DO 通道 7，但产品未接真实 DO 执行，拒绝执行
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_129_131_relay_map_resolves_target
+[ RUN      ] test_relay_map_set_find_and_limits
+[       OK ] test_relay_map_set_find_and_limits
+[ RUN      ] test_action_rejects_other_methods_and_trailing_bytes
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=126：参数解码失败 rc=-20
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[2026-11-26 16:21:19][WARN][NB] DCU north ACTION OI=8000 method=127：参数解码失败 rc=-22
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_rejects_other_methods_and_trailing_bytes
+[ RUN      ] test_action_class9_attr3_method_shape_dar7
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_class9_attr3_method_shape_dar7
+[ RUN      ] test_archive_config_short_buffer_dar2
+[       OK ] test_archive_config_short_buffer_dar2
+[ RUN      ] test_event_catalog_ois_without_instance_dar6
+[       OK ] test_event_catalog_ois_without_instance_dar6
+[ RUN      ] test_class13_readonly_dar
+[       OK ] test_class13_readonly_dar
+[ RUN      ] test_action_unknown_oi_dar6
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_unknown_oi_dar6
+[ RUN      ] test_action_non8000_reaches_handler
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_non8000_reaches_handler
+[ RUN      ] test_action_6012_method127_valid_body_dar0
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_valid_body_dar0
+[ RUN      ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x643c5a44d740: Unref (1 -> 0)
+[       OK ] test_action_6012_method127_truncated_body_dar7_no_state_change
+[==========] tests: 59 test(s) run.
+[  PASSED  ] 58 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class23_group_dar
+
+ 1 FAILED TEST(S)
+
+      Start  31: test_dcu_698_param
+22/45 Test  #31: test_dcu_698_param ...................   Passed    0.03 sec
+      Start  32: test_dcu_698_record
+23/45 Test  #32: test_dcu_698_record ..................   Passed    0.23 sec
+      Start  33: test_dcu_698_value_table
+24/45 Test  #33: test_dcu_698_value_table .............   Passed    0.01 sec
+      Start  34: test_dcu_698_class22
+25/45 Test  #34: test_dcu_698_class22 .................   Passed    0.01 sec
+      Start  35: test_dcu_698_tasks
+26/45 Test  #35: test_dcu_698_tasks ...................   Passed    0.37 sec
+      Start  36: test_dcu_698_schemes
+27/45 Test  #36: test_dcu_698_schemes .................   Passed    0.29 sec
+      Start  37: test_dcu_698_scheme_mgmt
+28/45 Test  #37: test_dcu_698_scheme_mgmt .............***Failed    0.49 sec
+[==========] tests: Running 21 test(s).
+[ RUN      ] test_event_scheme_round_trip_and_persistence
+[       OK ] test_event_scheme_round_trip_and_persistence
+[ RUN      ] test_event_wire_shape_is_exact
+[       OK ] test_event_wire_shape_is_exact
+[ RUN      ] test_event_delete_update_clear_and_dar
+[2026-11-26 08:21:20][WARN][NB] DCU 6016: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-26 08:21:20][WARN][NB] DCU 6016: 方案 8 的电能表集合 choice 3 未实现
+[       OK ] test_event_delete_update_clear_and_dar
+[ RUN      ] test_transparent_scheme_round_trip_and_dar
+[2026-11-26 08:21:20][WARN][NB] DCU 6018: 等待后续报文（多帧累积）未实现
+[2026-11-26 08:21:20][WARN][NB] DCU 6018: 结果比对标识 1 未实现
+[       OK ] test_transparent_scheme_round_trip_and_dar
+[ RUN      ] test_transparent_wire_shape_is_exact
+[       OK ] test_transparent_wire_shape_is_exact
+[ RUN      ] test_transparent_results_round_trip
+[       OK ] test_transparent_results_round_trip
+[ RUN      ] test_report_scheme_round_trip_and_persistence
+[       OK ] test_report_scheme_round_trip_and_persistence
+[ RUN      ] test_report_wire_shape_is_exact
+[       OK ] test_report_wire_shape_is_exact
+[ RUN      ] test_report_dar_and_delete
+[2026-11-26 08:21:20][WARN][NB] DCU 601C: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[       OK ] test_report_dar_and_delete
+[ RUN      ] test_rule_unit_wire_vector_and_projection
+[       OK ] test_rule_unit_wire_vector_and_projection
+[ RUN      ] test_rule_add_spare_refreshes_and_persists
+[       OK ] test_rule_add_spare_refreshes_and_persists
+[ RUN      ] test_rule_dar_cases
+[       OK ] test_rule_dar_cases
+[ RUN      ] test_rule_phase_csd_mapping
+[       OK ] test_rule_phase_csd_mapping
+[ RUN      ] test_acq_timestamps_and_status_dar
+[       OK ] test_acq_timestamps_and_status_dar
+[ RUN      ] test_task_monitor_state_machine
+[       OK ] test_task_monitor_state_machine
+[ RUN      ] test_record_oi_maps_freeze_oad
+[       OK ] test_record_oi_maps_freeze_oad
+[ RUN      ] test_task_completion_waits_for_all_pending
+[       OK ] test_task_completion_waits_for_all_pending
+[ RUN      ] test_submit_failure_counts_no_tx
+[       OK ] test_submit_failure_counts_no_tx
+[ RUN      ] test_archive_change_reopens_execution
+[       OK ] test_archive_change_reopens_execution
+[ RUN      ] test_rule_delete_clear_keep_internal_rows
+[       OK ] test_rule_delete_clear_keep_internal_rows
+[ RUN      ] test_object_list_advertises_new_ois
+[  ERROR   ] --- 107 != 115
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  PASSED  ] 20 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+
+ 1 FAILED TEST(S)
+
+      Start  38: test_dcu_698_rules
+29/45 Test  #38: test_dcu_698_rules ...................   Passed    0.13 sec
+      Start  39: test_dcu_698_freeze
+30/45 Test  #39: test_dcu_698_freeze ..................   Passed    0.24 sec
+      Start  40: test_dcu_runtime_self_exit
+31/45 Test  #40: test_dcu_runtime_self_exit ...........   Passed    0.00 sec
+      Start  41: test_dcu_heartbeat_stop
+32/45 Test  #41: test_dcu_heartbeat_stop ..............   Passed    0.03 sec
+      Start  42: test_dlt698_conformance_suite
+33/45 Test  #42: test_dlt698_conformance_suite ........   Passed    0.00 sec
+      Start  91: test_fuzz_dlms_dlt698
+34/45 Test  #91: test_fuzz_dlms_dlt698 ................   Passed    0.01 sec
+      Start 101: test_driver_dlt698
+35/45 Test #101: test_driver_dlt698 ...................***Failed    5.11 sec
+[==========] tests: Running 30 test(s).
+[ RUN      ] test_get_request_layout
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (1 -> 0)
+[       OK ] test_get_request_layout
+[ RUN      ] test_set_long_unsigned
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (1 -> 0)
+[       OK ] test_set_long_unsigned
+[ RUN      ] test_set_double_long
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (1 -> 0)
+[       OK ] test_set_double_long
+[ RUN      ] test_set_rejects_bad_input
+[2026-11-26 16:21:21][WARN][IO] DLT698: 写请求缺少 A-XDR 类型描述
+[2026-11-26 16:21:21][WARN][IO] DLT698: 不支持的 A-XDR 类型 0x11
+[2026-11-26 16:21:21][WARN][IO] DLT698: long-unsigned 越界 70000
+[2026-11-26 16:21:21][WARN][IO] DLT698: long-unsigned 越界 -1
+[NETBUF][INFO] NetBufPool 0x7ffdb9817030: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9817030: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9817030: Unref (1 -> 0)
+[       OK ] test_set_rejects_bad_input
+[ RUN      ] test_slave_get_record_page
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_page
+[ RUN      ] test_slave_get_record_unsupported_selector
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_unsupported_selector
+[ RUN      ] test_slave_get_record_begin_failure
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_begin_failure
+[ RUN      ] test_slave_get_record_row_failure_aborts_page
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_row_failure_aborts_page
+[ RUN      ] test_slave_get_record_port_absent
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_port_absent
+[ RUN      ] test_slave_get_record_malformed_is_dropped
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98160a0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_malformed_is_dropped
+[ RUN      ] test_report_frame_layout
+[NETBUF][INFO] NetBufPool 0x7ffdb9815db0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815db0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815db0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Unref (1 -> 0)
+[       OK ] test_report_frame_layout
+[ RUN      ] test_report_no_session_no_send
+[NETBUF][INFO] NetBufPool 0x7ffdb98170d0: Unref (1 -> 0)
+[       OK ] test_report_no_session_no_send
+[ RUN      ] test_report_confirm_clears_pending
+[NETBUF][INFO] NetBufPool 0x7ffdb9815c60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815c60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815c60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815f40: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fd0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fd0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fd0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815f40: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815f40: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815f40: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815f40: Unref (1 -> 0)
+[       OK ] test_report_confirm_clears_pending
+[ RUN      ] test_report_timeout_unblocks
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816080: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816080: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816080: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816080: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816080: Unref (1 -> 0)
+[       OK ] test_report_timeout_unblocks
+[ RUN      ] test_slave_parses_long_form_acl_224
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (1 -> 0)
+[       OK ] test_slave_parses_long_form_acl_224
+[ RUN      ] test_get_maps_source_rc_to_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815fb0: Unref (1 -> 0)
+[       OK ] test_get_maps_source_rc_to_dar
+[ RUN      ] test_slave_accepts_product_object_list_42
+[  ERROR   ] --- 107 != 115
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_driver_dlt698.c:876: error: Failure!
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[ RUN      ] test_slave_class17_display_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816ec0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (1 -> 0)
+[       OK ] test_slave_class17_display_dar
+[ RUN      ] test_slave_class11_collection_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e80: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (1 -> 0)
+[       OK ] test_slave_class11_collection_dar
+[ RUN      ] test_slave_class12_pulse_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (1 -> 0)
+[       OK ] test_slave_class12_pulse_dar
+[ RUN      ] test_slave_class25_26_comm_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170b0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[       OK ] test_slave_class25_26_comm_dar
+[ RUN      ] test_slave_class19_devmgr_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (1 -> 0)
+[       OK ] test_slave_class19_devmgr_dar
+[ RUN      ] test_slave_class21_esam_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170a0: Unref (1 -> 0)
+[       OK ] test_slave_class21_esam_dar
+[ RUN      ] test_slave_class23_group_dar
+[NETBUF][INFO] NetBufPool 0x7ffdb9816e60: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_driver_dlt698.c:922: error: Failure!
+[  FAILED  ] test_slave_class23_group_dar
+[ RUN      ] test_slave_object_list_does_not_overflow_pool_buffer
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Unref (1 -> 0)
+[       OK ] test_slave_object_list_does_not_overflow_pool_buffer
+[ RUN      ] test_slave_object_list_fits_production_slave_pool
+[NETBUF][INFO] NetBufPool 0x7ffdb98170c0: Ref (1 -> 2)
+[  ERROR   ] --- 4477 != 5573
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_driver_dlt698.c:1320: error: Failure!
+[  FAILED  ] test_slave_object_list_fits_production_slave_pool
+[ RUN      ] test_slave_list_item_reserves_frame_trailer
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (1 -> 0)
+[       OK ] test_slave_list_item_reserves_frame_trailer
+[ RUN      ] test_slave_encode_failure_clears_half_frame
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815dc0: Unref (1 -> 0)
+[       OK ] test_slave_encode_failure_clears_half_frame
+[ RUN      ] test_slave_set_read_only_is_denied
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9816090: Unref (1 -> 0)
+[       OK ] test_slave_set_read_only_is_denied
+[ RUN      ] test_slave_rejects_over_cap_object_list
+[NETBUF][INFO] NetBufPool 0x7ffdb9815ec0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815ec0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffdb9815ec0: Unref (1 -> 0)
+[       OK ] test_slave_rejects_over_cap_object_list
+[==========] tests: 30 test(s) run.
+[  PASSED  ] 27 test(s).
+[  FAILED  ] tests: 3 test(s), listed below:
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[  FAILED  ] test_slave_class23_group_dar
+[  FAILED  ] test_slave_object_list_fits_production_slave_pool
+
+ 3 FAILED TEST(S)
+
+      Start 102: test_dlt698_appconn
+36/45 Test #102: test_dlt698_appconn ..................   Passed    0.00 sec
+      Start 103: test_dcu_698_appconn
+37/45 Test #103: test_dcu_698_appconn .................***Failed    0.00 sec
+[==========] tests: Running 13 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[  ERROR   ] --- 107 != 115
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_appconn.c:37: error: Failure!
+[  FAILED  ] test_object_list_shape_and_capacity
+[ RUN      ] test_class22_acl_advertises_read_only_attrs
+[       OK ] test_class22_acl_advertises_read_only_attrs
+[ RUN      ] test_class14_15_16_acl_is_read_only
+[       OK ] test_class14_15_16_acl_is_read_only
+[ RUN      ] test_class17_acl_is_read_only
+[       OK ] test_class17_acl_is_read_only
+[ RUN      ] test_class11_acl_is_read_only
+[       OK ] test_class11_acl_is_read_only
+[ RUN      ] test_class12_pulse_acl_is_read_only
+[       OK ] test_class12_pulse_acl_is_read_only
+[ RUN      ] test_class25_26_comm_acl_is_read_only
+[       OK ] test_class25_26_comm_acl_is_read_only
+[ RUN      ] test_class19_devmgr_acl_is_read_only
+[       OK ] test_class19_devmgr_acl_is_read_only
+[ RUN      ] test_class21_esam_acl_is_read_only
+[       OK ] test_class21_esam_acl_is_read_only
+[ RUN      ] test_class23_group_acl_is_read_only
+[  ERROR   ] --- acl.seen[attr] is not true
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_appconn.c:411: error: Failure!
+[  FAILED  ] test_class23_group_acl_is_read_only
+[ RUN      ] test_class22_object_masks_are_covered_by_acl
+[       OK ] test_class22_object_masks_are_covered_by_acl
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 13 test(s) run.
+[  PASSED  ] 11 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_object_list_shape_and_capacity
+[  FAILED  ] test_class23_group_acl_is_read_only
+
+ 2 FAILED TEST(S)
+
+      Start 141: test_dcu_poller
+38/45 Test #141: test_dcu_poller ......................   Passed    0.09 sec
+      Start 146: test_dcu_scale_benchmark
+39/45 Test #146: test_dcu_scale_benchmark .............   Passed    3.23 sec
+      Start 181: test_dcu
+40/45 Test #181: test_dcu .............................   Passed    0.00 sec
+      Start 241: test_driver_registry_dcu
+41/45 Test #241: test_driver_registry_dcu .............   Passed    0.00 sec
+      Start 261: test_dcu_power_quality
+42/45 Test #261: test_dcu_power_quality ...............   Passed    0.00 sec
+      Start 269: test_web_dcu_power_quality
+43/45 Test #269: test_web_dcu_power_quality ...........   Passed    0.00 sec
+      Start 343: test_dcu_mutex_marathon
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    0.82 sec
+      Start 344: test_dcu_topology_phase_id
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.02 sec
+
+89% tests passed, 5 tests failed out of 45
+
+Total Test time (real) =  32.31 sec
+
+The following tests FAILED:
+	 25 - test_dcu_698_object_model (Failed)
+	 30 - test_dcu_698_axdr (Failed)
+	 37 - test_dcu_698_scheme_mgmt (Failed)
+	101 - test_driver_dlt698 (Failed)
+	103 - test_dcu_698_appconn (Failed)
+Errors while running CTest

@@ -8,7 +8,7 @@ import sys
 
 REQUIRED = [
     "name", "version", "maturity", "owner", "subdomain", "language", "abi_stability",
-    "foundation", "ports_required", "allowed_owners", "rom_bytes_max", "ram_bytes_max",
+    "foundation", "ports_required", "allowed_owners", "ram_bytes_max",
     "stack_bytes_max", "heap", "lts",
 ]
 MATURITY = {"incubating", "stable", "maintenance", "deprecated"}
@@ -73,7 +73,7 @@ def validate(path, root):
         problems.append("abi_stability is invalid")
     if not data.get("foundation"):
         problems.append("foundation is required")
-    for key in ("rom_bytes_max", "ram_bytes_max", "stack_bytes_max"):
+    for key in ("ram_bytes_max", "stack_bytes_max"):
         try:
             int(data.get(key, ""))
         except ValueError:
@@ -84,11 +84,11 @@ def validate(path, root):
         problems.append("lts must be true or false")
     if data.get("maturity") == "stable":
         try:
-            budgeted = int(data.get("rom_bytes_max", "0")) > 0 and int(data.get("ram_bytes_max", "0")) > 0
+            budgeted = int(data.get("ram_bytes_max", "0")) > 0
         except ValueError:
             budgeted = False
         if not budgeted:
-            problems.append("stable components need real ROM/RAM budgets")
+            problems.append("stable components need a real RAM budget")
         if data.get("backup_owner", "unassigned") == "unassigned":
             problems.append("stable components need a backup_owner")
 

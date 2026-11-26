@@ -13,6 +13,11 @@ extern "C" {
 
 /* --- IO 抽象接口定义 --- */
 
+/* IO_EVENT_RX 的 payload 是 net_buf_t*，**借用**：所有权属于 io 句柄，
+ * 句柄在本轮回调返回之后自行释放。回调只能读；要跨回调使用（如异步转发）
+ * 必须自己 net_buf_ref，并在用完时 net_buf_unref。在回调里释放载荷会让回调
+ * 栈里新申请的缓冲被句柄的收尾 unref 误释放（TX 帧内容被覆盖）。
+ * IO_EVENT_TX_DONE / IO_EVENT_ERROR 的 payload 为 NULL。 */
 typedef enum {
     IO_EVENT_RX,      /**< 收到原始数据 / MQTT 消息 */
     IO_EVENT_TX_DONE, /**< 异步发送完成 / MQTT 发布成功 */
@@ -40,6 +45,11 @@ typedef enum {
 // MQTT 专用控制指令
 #define IO_CTL_MQTT_SET_TOPIC 20
 #define IO_CTL_MQTT_SUBSCRIBE 21
+
+// TCP keepalive 默认值：idle 秒无数据后每 intvl 秒探测 cnt 次
+#define IO_TCP_KEEPALIVE_IDLE_S 30
+#define IO_TCP_KEEPALIVE_INTVL_S 10
+#define IO_TCP_KEEPALIVE_CNT 3
 
 typedef struct io_handle_s io_handle_t;
 
@@ -86,6 +96,46 @@ io_handle_t *io_executor_create(uv_loop_t *loop, const io_config_t *cfg, net_buf
 void io_executor_cleanup(void);
 io_handle_t *io_executor_create_from_fd(uv_loop_t *loop, int fd, net_buf_pool_t *pool);
 void io_executor_http_request(uv_loop_t *loop, const char *url, const char *method);
+
+/* --- 异步 TCP 连接端口 --- */
+
+/** 不透明连接票据：适配器分配，调用方只持有指针。 */
+typedef struct io_tcp_connect_s io_tcp_connect_t;
+
+typedef struct {
+    const char *host; /**< 数字 IPv4；适配器同步读取，调用后无需保留 */
+    uint16_t port;
+    uint32_t keepalive_idle_s;  /**< 0 用 IO_TCP_KEEPALIVE_IDLE_S */
+    uint32_t keepalive_intvl_s; /**< 0 用 IO_TCP_KEEPALIVE_INTVL_S */
+    uint32_t keepalive_cnt;     /**< 0 用 IO_TCP_KEEPALIVE_CNT */
+} io_tcp_connect_opts_t;
+
+/**
+ * @brief 连接完成回调。
+ *
+ * err 为 0 表示成功，fd 已连通、非阻塞，所有权归调用方；keepalive 已尝试设置
+ * （setsockopt 失败仅告警）。失败时 fd == -1、err 为负 errno，适配器已关闭 fd。
+ * 回调在 loop 线程只触发一次，回调期间票据已失效。始终异步：connect() 立即
+ * 成功也走下一次 loop。
+ */
+typedef void (*io_tcp_connect_cb_t)(void *user_data, int fd, int err);
+
+/**
+ * @brief 启动一次非阻塞连接，成功返回票据。
+ *
+ * 启动前失败（参数、地址、socket/fcntl/uv_poll 初始化）返回 NULL 并置 errno；
+ * 已启动后的结果只经 cb 上报。所有调用必须在 loop 线程。
+ */
+io_tcp_connect_t *io_executor_tcp_connect_async(uv_loop_t *loop, const io_tcp_connect_opts_t *opts,
+                                                io_tcp_connect_cb_t cb, void *user_data);
+
+/**
+ * @brief 取消进行中的连接。
+ *
+ * 幂等、NULL 安全；返回后不再回调，fd 由适配器关闭。必须在 loop 线程调用，
+ * 回调内不得调用（票据已失效）。
+ */
+void io_tcp_connect_cancel(io_tcp_connect_t *op);
 
 /**
  * @brief 开/关该句柄的读事件。

@@ -1,0 +1,9 @@
+ cmd/dcu/dcu_report_scheme_store.c      | 13 +++++--
+ cmd/dcu/dcu_scheme_store.c             | 70 +++++++++++++---------------------
+ cmd/dcu/dcu_scheme_store_internal.h    |  2 +-
+ docs/evidence/DCU-D2-06-r/comments.md  |  1 +
+ docs/evidence/DCU-D2-06-r/diffstat.txt |  0
+ docs/evidence/DCU-D2-06-r/runtime.log  | 38 ++++++++++++++++++
+ docs/evidence/DCU-D2-06-r/summary.md   | 30 +++++++++++++++
+ docs/evidence/DCU-D2-06-r/tests.log    | 67 ++++++++++++++++++++++++++++++++
+ 8 files changed, 173 insertions(+), 48 deletions(-)

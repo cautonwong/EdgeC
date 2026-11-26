@@ -20,7 +20,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import guard_baseline
 
 GUARD_NAME = "ALLOC_NULL_GUARD"
-SKIP_DIRS = {".git", "build", "third-party", "node_modules", ".local", "web", ".venv"}
+from c_source_scan import SHARED_PRUNE_DIRS, rel_scan_parts
+
+SKIP_DIRS = {".git", "build", "third-party", "node_modules", ".local", "web", ".venv"} | SHARED_PRUNE_DIRS
 FUNC_RE = re.compile(r"^[A-Za-z_][\w \*]*\b(\w+)\s*\([^;]*$")
 CTOR_RE = re.compile(r"_(?:create|init|new|alloc)\w*$")
 ALLOC_RE = re.compile(r"([\w.>\-\[\]]+)\s*=\s*(?:calloc|malloc|realloc|strdup)\s*\(")
@@ -62,14 +64,13 @@ def functions(lines):
 
 def scan(root):
     violations = []
-    inside_fixtures = os.path.join("tests", "guards", "fixtures") in root
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS and not d.startswith("build")]
         for name in filenames:
             if not name.endswith(".c"):
                 continue
             path = os.path.join(dirpath, name)
-            if not inside_fixtures and os.path.join("tests", "guards", "fixtures") in path:
+            if "fixtures" in rel_scan_parts(dirpath, root):
                 continue
             try:
                 lines = open(path, "r", encoding="utf-8", errors="replace").read().splitlines()

@@ -26,7 +26,7 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 
 ## AI Coding 协作约束（信任金字塔）
 
-投入顺序：确定性代码约束 → 验证 → 文字规则。本文件只承载需要判断力、且暂时无法自动化的内容；能用 lint / 编译器 / 测试 / 依赖图表达的，一律进 `ci/scripts/`、`.clang-format`、`.clang-tidy`，不在这里加文字。
+投入顺序：设计上减少误用 → 确定性代码约束与自动检查 → 验证（运行时 + 形式化）→ 文字规则。能在设计上消除的误用，先改设计；仍可能写错的地方，用可自动执行的检查让有问题的改动无法通过；复杂规则用运行时验证或形式化验证补证；改 AGENTS.md 等文档是最后的手段。本文件只承载需要判断力、且暂时无法自动化的内容；能用设计、lint / 编译器 / 测试 / 依赖图表达的，一律进代码、`ci/scripts/`、`.clang-format`、`.clang-tidy`，不在这里加文字。
 
 ### 元规则
 
@@ -42,12 +42,43 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - 验证覆盖用户视角：feature map 以 `docs/design/`（含 `app-platform/10-product-points.md`）和各产品点位表为共享词汇表，禁止模糊指代。
 - 核心流程用不变量检查或状态机模型（如 `docs/design/BATCH_OWNERSHIP.md` 的 BATCH 生命周期、`net_buf` 池不变量）；关键算法用属性测试 / 模糊测试（`tests/test_fuzz_*.c`、`fuzz/`）。
 
+### 验证强度（/verify 与 /interrogate）
+
+`/verify` 用于任何“已修好 / 有改善”的声明：先写可证伪命题，跑 baseline（修复前或父提交）与 treatment（修复后）同一命令，比较原始产物，只给 `VERIFIED`、`NOT VERIFIED` 或 `INCONCLUSIVE`，并保留工件路径。没有 baseline 的结论按 `INCONCLUSIVE` 处理，不靠日志复述。
+
+`/interrogate` 按风险分级，不一律每任务跑：
+
+- 每任务必跑（进入集成分支前）：会删除、覆盖或迁移用户数据的；并发、事件循环、生命周期或资源所有权；解析器、协议帧或网络输入边界；安全、权限或崩溃恢复；单次 diff 超过约 500 行或跨模块。
+- 可攒到每天或每批一次：纯重命名、移动、格式、注释；只加测试或文档；单文件小改且无数据、网络、并发影响，已有 focused 测试覆盖。
+- 对抗评审只报能用运行证明的发现（命令、实际输出、按意图应得的输出）；verifier 逐条复跑，只保留可复现且违背意图的发现，再打回实现方。风格、命名与需要未来改动才成立的推测不计。
+- 评审发现的缺陷与普通缺陷同规则：同一次改动里补可执行守卫或正反夹具，并登记 `ci/scripts/run_guard_selftest.py`。
+
 ### 架构约束
 
 - 依赖方向：外层依赖内层；domain 不依赖框架、数据库、UI。用 `check_plane_isolation.py`、`check_component_boundary.py`、`check_product_build_graph.py` 强制，不在本文重复。
 - 限界上下文之间通过消费者定义的端口交互；外部系统（表计、PLC、主站、云端）通过端口 + 适配器接入，端口头在 `foundation/include/`，实现放 `adapters/`。
 - 目录结构表达边界（`modules/`、`adapters/`、`cmd/`、`foundation/`）；能用依赖图和 lint 强制的边界，不用文字重复。
 - `modules/edge_core` 与受保护的 foundation 头文件只读；改动必须登记 `contracts/schema/core_readonly_whitelist.txt`。
+
+### 变化分层（核心稳定，边缘多变）
+
+架构设计的一个核心目标，是把变化限制在局部：高频变化发生在边缘，低频变化留在中心。细层是落位判断的尺度；目录大层仍是 `foundation/modules/adapters/cmd/web`，冲突时以现有守卫的定义为准。
+
+| 变化层（由中心向外） | 本仓库落位 |
+| --- | --- |
+| 核心业务不变量 | `modules/edge_core`（只读） |
+| Contract / Interface | `foundation/include/` 端口头、`contracts/` |
+| Domain Model | `modules/` 领域组件 |
+| Application / Use Case | `modules/` 应用服务；装配在 `cmd/` 组合根 |
+| 业务策略 / Rule | 产品规则/策略模块（如 DCU 规则表、IEMS 策略） |
+| Workflow / Agent / Skill | `modules/` 编排组件、`web/core` 的 app/skill 定义 |
+| 客户定制 | 产品组合根与产品配置（`cmd/<product>`、`config/`、`web/products/`） |
+| 外部系统适配器 | `adapters/` |
+| UI / 页面 / 交互 | `web/`、产品 UI |
+
+- 新代码按变化频率落位：能通过新增或修改边缘层（策略、适配器、UI、产品配置）满足需求，就不改中心。
+- 高频需求若必须改核心不变量或契约，先按 finding 记录并走只读白名单评审，不得顺手改。
+- 本节是判断类规则，无法由依赖图完全表达；可强制的依赖方向以现有确定性门禁为准，不在本文重复。
 
 ### 本仓库的确定性门禁（先查这些，别写文字规则）
 
@@ -70,9 +101,36 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 
 ## 角色与分工
 
-假如你是`reviewer`或`verifier`,负责派活 调度 验证 验收 合并 和清理
+---
+`iems-verifier`
+- 掌管`feat/iems`分支,是`iems-v3`迁移任务(`/home/edge/migration/`)的唯一负责人/设计者,负责给`iems-dev`派活/调度,负责验证->验收(合并到`feat/iems`和清理)
+- 派活`一任务一worktree`
+- 以`poteto-mode`的夜间模式持续调度,除非被喊停`收工`或者任务全部达成
 
-假如你是`dev`,日常提交不必逐个跑`ocr`(单次成本高);收工时对当日全部改动跑一次`ocr review`, 其使用方法见`/home/edge/ocr-open-code-review-usage-2026-11-18.md`
+---
+`dcu-verifier`
+- 掌管`feat/dcu`分支,是任务(`docs/plans/2026-11-21-dcu-698-production-plan.md)`)的唯一负责人/设计者,负责给`dcu-dev`派活/调度,负责验证->验收(合并到`feat/dcu`和清理)
+- 派活`一任务一worktree`
+- 以`poteto-mode`的夜间模式持续调度,除非被喊停`收工`或者任务全部达成
+
+---
+`edgec-verifier`
+- 掌管`main`分支,是此monorepo的唯一负责人
+- 确保`main`永远保持干净,不在`main`上直接开发
+- 规划monorepo的路线和计划
+- 负责此monorepo的架构设计和质量保证
+- 接受并处理到`main`的合入请求
+- 跑此monorepo的全量CI
+- 收工流程见下面的`收工流程`
+---
+`iems-dev`
+- `iems-verifier`的dev,遵守纪律和按照`poteto-mode`推进`iems-verifier`安排的任务
+- 在/tmp下以worktree工作,独立上下文,不能碰main和别的分支
+
+---
+`dcu-dev`
+- `dcu-verifier`的dev,遵守纪律和按照`poteto-mode`推进`dcu-verifier`安排的任务
+- 在/tmp下以worktree工作,独立上下文,不能碰main和别的分支
 
 ## 收工流程
 
@@ -98,3 +156,10 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 | 构建不得改写已跟踪文件 | `cmake/WebBuild.cmake` 用 `npm ci`；干净 worktree 构建后 `git status` 为空（`506297c9` 已 A/B 验证：旧 `npm install` 弄脏锁文件） |
 | 合并后必须在目标分支重跑守卫（单批通过不等于合并后通过） | `run_guard_selftest.py` 在合并后的 main 上跑；SRP 1500 行曾在三批合并后触发 |
 | 行为、日志、启动语义变更必须同步同文件注释、设计文档状态与验收合同文字 | 人工 review（判断类，无可执行的真相来源） |
+| 形式化属性必须有界、可重跑、带负例；属性违反记 finding，不得为过而放宽断言 | `./ci/scripts/check_formal.sh --strict` 与 `./ci/scripts/check_formal_negative.sh --strict`；manifest `formal/manifest/<owner>.tsv` |
+| 已实现态设计文档必须引用真实文件/符号；目标态/“不存在”列举必须在同行带标记 | `ci/scripts/check_doc_references.py`（正反夹具 + live，已登记 `run_guard_selftest.py`） |
+| 隐式函数声明不得通过编译（干净/增量构建一致） | `-Werror=implicit-function-declaration`、`-Werror=implicit-int`（`edge_common_interface`），CI clean build 的 `check_build_warnings.py` |
+| 禁止对着旧构建产物宣布 gates 绿；构建目录必须属于当前 worktree 且无待执行工作 | `ci/scripts/check_build_freshness.py`（`run_arch_gates.sh` 与 CI arch gate 步骤在预算/符号检查之前调用；正反夹具在 `run_guard_selftest.py`） |
+| 关键不变量测试必须对真实缺陷变异变红；变异后测试仍绿即门禁失败 | `ci/scripts/run_mutation_guards.py` + `ci/mutation_guards.tsv`（`--selftest` 正反自测；manifest 每条先证红后证绿） |
+| 注释删除范围：只删当前 diff 新增的注释；删除既有 why 注释须在证据里逐条给理由 | 人工 review + no-comments 流程（判断类，无可执行的真相来源） |
+| 守卫的 tests/fixtures 豁免必须相对扫描目标判断，禁止匹配绝对路径子串（检出目录名含 tests/guards/fixtures 时守卫会静默跳过或假红） | `ci/scripts/check_guard_path_independence.py`（正反夹具 + live，已登记 `run_guard_selftest.py`）；用 `c_source_scan.rel_scan_parts` / `skip_subtree`、`guard_baseline.is_selftest_fixture` |

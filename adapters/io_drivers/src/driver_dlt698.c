@@ -297,7 +297,7 @@ static void _attr_rights_set(dlt698_acl_object_t *obj, uint8_t attr_id, uint8_t 
 
 typedef struct {
     bool loaded;
-    uint8_t count;
+    uint16_t count;
     dlt698_acl_object_t objects[DLT698_ACL_MAX_OBJECTS];
 } dlt698_acl_t;
 
@@ -313,7 +313,7 @@ typedef struct {
     dlt698_acl_t acl;
 } dlt698_session_t;
 
-_Static_assert(sizeof(dlt698_session_t) <= 1024, "DLT698 session exceeds DRIVER_PRIV_SIZE");
+_Static_assert(sizeof(dlt698_session_t) <= 4096, "DLT698 session exceeds DRIVER_PRIV_SIZE");
 
 /* 对象列表结构（7.3.20 表182）：array { structure { OI, structure { attr[], method[] } } }，
  * 字段是 A-XDR Data；越界即不可用。 */
@@ -326,10 +326,18 @@ static int _acl_take(const uint8_t *buf, size_t len, size_t *off, uint8_t tag) {
 static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
     size_t off = 0;
     if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
-    uint8_t n = buf[off++];
+    uint16_t n = 0;
+    uint8_t first = buf[off++];
+    if (first & 0x80) {
+        uint8_t nbytes = (uint8_t)(first & 0x7Fu);
+        if (nbytes == 0 || nbytes > 2 || len - off < nbytes) return false;
+        for (uint8_t i = 0; i < nbytes; i++) n = (uint16_t)((n << 8) | buf[off++]);
+    } else {
+        n = first;
+    }
     if (n > DLT698_ACL_MAX_OBJECTS) return false;
 
-    for (uint8_t i = 0; i < n; i++) {
+    for (uint16_t i = 0; i < n; i++) {
         dlt698_acl_object_t *obj = &acl->objects[i];
         if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
         if (_acl_take(buf, len, &off, 0x50) != 0 || len - off < 2) return false;
@@ -389,7 +397,7 @@ static bool _acl_load(dlt698_session_t *s, const edge_slave_source_ops_t *src, v
 
 static const dlt698_acl_object_t *_acl_find(const dlt698_session_t *s, uint16_t oi) {
     if (!s || !s->acl.loaded) return NULL;
-    for (uint8_t i = 0; i < s->acl.count; i++) {
+    for (uint16_t i = 0; i < s->acl.count; i++) {
         if (s->acl.objects[i].oi == oi) return &s->acl.objects[i];
     }
     return NULL;
@@ -644,11 +652,18 @@ static int _handle_get_record(const dlt698_addr_t *sa, uint8_t piid, const uint8
         }
         if (dlt698_encode_get_record_row(out, s_axdr_buf, row_len) != 0) {
             src->record.end(src_ctx, oad);
-            return -1;
+            out->b.len = (uint16_t)stream.start_len;
+            return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                         DLT698_DAR_TEMPORARY_FAILURE, out);
         }
     }
     src->record.end(src_ctx, oad);
-    return dlt698_encode_get_record_response_end(&stream, out);
+    if (dlt698_encode_get_record_response_end(&stream, out) != 0) {
+        out->b.len = (uint16_t)stream.start_len;
+        return dlt698_encode_get_record_response_dar(sa, piid, oad, rcsd.items, rcsd.count,
+                                                     DLT698_DAR_TEMPORARY_FAILURE, out);
+    }
+    return 0;
 }
 
 static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t choice,
@@ -686,7 +701,10 @@ static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t ch
                     continue;
                 }
                 if (dlt698_encode_get_response_list_item(out, oad, s_axdr_buf, dlen) != 0) {
-                    return -1;
+                    if (dlt698_encode_get_response_list_item_dar(
+                            out, oad, DLT698_DAR_TEMPORARY_FAILURE) != 0) {
+                        return -1;
+                    }
                 }
                 continue;
             }
@@ -730,7 +748,11 @@ static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t ch
             dlt698_encode_get_response_dar(sa, piid, oad, dar, out);
             return 0;
         }
-        dlt698_encode_get_response(sa, piid, oad, s_axdr_buf, dlen, out);
+        if (dlt698_encode_get_response(sa, piid, oad, s_axdr_buf, dlen, out) != 0) {
+            /* 响应缓冲放不下（例如 106 项对象列表 4306 B）：不截断、不越界，
+             * 回 DAR 2 让主站知道本次没取到。 */
+            dlt698_encode_get_response_dar(sa, piid, oad, DLT698_DAR_TEMPORARY_FAILURE, out);
+        }
         return 0;
     }
     edge_point_value_t v;
@@ -751,9 +773,9 @@ static int _handle_get_request(const dlt698_addr_t *sa, uint8_t piid, uint8_t ch
     return 0;
 }
 
-static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
-                                     const edge_slave_source_ops_t *src, void *src_ctx,
-                                     net_buf_t *out, size_t *consumed) {
+static int _req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
+                               const edge_slave_source_ops_t *src, void *src_ctx, net_buf_t *out,
+                               size_t *consumed) {
     dlt698_req_t *p = (dlt698_req_t *)priv;
     if (!p || !in || !out || !consumed) return -1;
     *consumed = 0;
@@ -872,6 +894,16 @@ static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *i
     }
 
     return -1;
+}
+
+/* 契约：write_async 只接收已封口帧（有合法 L/HCS/FCS/END）。处理器失败时可能已经
+ * 写了一半（例如列表项写满、end 放不下），这里清掉长度，绝不把半帧交给引擎。 */
+static int dlt698_req_slave_exchange(void *priv, void *session, const uint8_t *in, size_t in_len,
+                                     const edge_slave_source_ops_t *src, void *src_ctx,
+                                     net_buf_t *out, size_t *consumed) {
+    int rc = _req_slave_exchange(priv, session, in, in_len, src, src_ctx, out, consumed);
+    if (rc < 0 && out) out->b.len = 0;
+    return rc;
 }
 
 /* 周期发帧：只有活动连接上有待上报内容才发一帧（ADR-0017）。

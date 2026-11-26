@@ -41,9 +41,10 @@ typedef struct {
 static uint32_t g_trace_tag[TRACE_MAX];
 static int g_trace_n;
 
-static int _mock_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, poller_read_done_cb cb,
-                        void *ud) {
+static int _mock_submit(void *ctx, uint32_t meter_idx, uint32_t tag_id, uint32_t task_mask,
+                        poller_read_done_cb cb, void *ud) {
     (void)ctx;
+    (void)task_mask;
     (void)meter_idx;
     if (g_trace_n < TRACE_MAX) g_trace_tag[g_trace_n++] = tag_id;
     if (cb) cb(ud, 0, 220.0);
@@ -266,6 +267,13 @@ static int _clear(void) {
 static int _a2(uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
     return dcu_north_resolve_axdr(NULL, oad, buf, cap, len);
 }
+static bool _a2_has_scheme_id(const uint8_t *buf, size_t len, uint8_t id) {
+    const uint8_t head[] = {DLT698_TAG_STRUCTURE, 6, DLT698_TAG_UNSIGNED, id};
+    for (size_t i = 0; i + sizeof(head) <= len; i++) {
+        if (memcmp(buf + i, head, sizeof(head)) == 0) return true;
+    }
+    return false;
+}
 
 static void _step(scheme_bench_t *b) {
     poller_sink_ops_t sink = {0};
@@ -342,9 +350,13 @@ static void test_referenced_scheme_refuses_csd_change_and_delete(void **state) {
     assert_int_equal(_set_csd(7, changed, 2), EDGE_SLAVE_SRC_DENIED);
     assert_int_equal(_add_one(7, 0, 0, changed, 2, 1, 0), EDGE_SLAVE_SRC_DENIED);
     assert_int_equal(_add_one(7, 0, 0, csds, 2, 1, 0), 0); /* 列不变的重下发允许 */
-    assert_int_equal(_delete_ids((const uint8_t[]){7}, 1), EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(_delete_ids((const uint8_t[]){7}, 1), EDGE_SLAVE_SRC_DENIED);
     assert_int_equal(_clear(), EDGE_SLAVE_SRC_DENIED);
     assert_non_null(dcu_poller_get_scheme(&b.poller, 7));
+    uint8_t a2[512];
+    size_t a2_len = 0;
+    assert_int_equal(_a2(MK_OAD(OI_NORMAL_SCHEME, 2), a2, sizeof(a2), &a2_len), 0);
+    assert_true(_a2_has_scheme_id(a2, a2_len, 7));
 
     assert_int_equal(dcu_poller_remove_task(&b.poller, 9), 0);
     assert_int_equal(_clear(), 0);
@@ -525,7 +537,7 @@ static void test_id_zero_and_batch_atomicity(void **state) {
     assert_int_equal(_add_one(8, 0, 0, csds, 1, 1, 0), 0);
     assert_int_equal(dcu_poller_add_task(&b.poller, 9, 60, 8), 0);
 
-    assert_int_equal(_delete_ids((const uint8_t[]){7, 8}, 2), EDGE_SLAVE_SRC_NOT_FOUND);
+    assert_int_equal(_delete_ids((const uint8_t[]){7, 8}, 2), EDGE_SLAVE_SRC_DENIED);
     assert_non_null(dcu_poller_get_scheme(&b.poller, 7));
     assert_non_null(dcu_poller_get_scheme(&b.poller, 8));
     assert_int_equal(dcu_poller_remove_task(&b.poller, 9), 0);

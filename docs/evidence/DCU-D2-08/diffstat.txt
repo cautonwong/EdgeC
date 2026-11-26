@@ -1,0 +1,10 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |   2 +-
+ cmd/dcu/dcu_bus_source.c                    |  14 +--
+ cmd/dcu/dcu_poller.c                        |  21 +++-
+ docs/evidence/DCU-D2-08/comments.md         |   4 +
+ docs/evidence/DCU-D2-08/diffstat.txt        |  20 ----
+ docs/evidence/DCU-D2-08/runtime.log         |   6 +-
+ docs/evidence/DCU-D2-08/summary.md          |   8 ++
+ docs/evidence/DCU-D2-08/tests.log           |  84 ++++++++++++++++
+ tests/test_dcu_698_scheme_mgmt.c            | 144 ++++++++++++++++++++++++++++
+ 9 files changed, 272 insertions(+), 31 deletions(-)

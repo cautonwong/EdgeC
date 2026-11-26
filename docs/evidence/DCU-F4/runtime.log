@@ -1,0 +1,126 @@
+===== ctest -R 'dcu|dlt698' (fix 8c7f0ec7, Release) =====
+Test project /tmp/edgec-land/f4-pending-capacity/build
+      Start   9: test_dlt698_axdr
+ 1/45 Test   #9: test_dlt698_axdr .....................   Passed    0.00 sec
+      Start  10: test_dlt698_action
+ 2/45 Test  #10: test_dlt698_action ...................   Passed    0.00 sec
+      Start  11: test_dlt698_get_list
+ 3/45 Test  #11: test_dlt698_get_list .................   Passed    0.00 sec
+      Start  13: test_dcu_inventory
+ 4/45 Test  #13: test_dcu_inventory ...................   Passed    0.36 sec
+      Start  14: test_dcu_polling_loop
+ 5/45 Test  #14: test_dcu_polling_loop ................   Passed    0.00 sec
+      Start  15: test_dcu_storage
+ 6/45 Test  #15: test_dcu_storage .....................   Passed    0.00 sec
+      Start  16: test_dcu_integration
+ 7/45 Test  #16: test_dcu_integration .................   Passed   10.01 sec
+      Start  17: test_dcu_router
+ 8/45 Test  #17: test_dcu_router ......................   Passed    0.01 sec
+      Start  18: test_dcu_north_source
+ 9/45 Test  #18: test_dcu_north_source ................   Passed    0.00 sec
+      Start  19: test_dcu_advanced_modules
+10/45 Test  #19: test_dcu_advanced_modules ............   Passed    0.01 sec
+      Start  20: test_dcu_business_engines
+11/45 Test  #20: test_dcu_business_engines ............   Passed    0.00 sec
+      Start  21: test_dcu_phase1_delivery
+12/45 Test  #21: test_dcu_phase1_delivery .............   Passed    0.00 sec
+      Start  22: test_dcu_node
+13/45 Test  #22: test_dcu_node ........................   Passed    0.32 sec
+      Start  23: test_dcu_runtime_health
+14/45 Test  #23: test_dcu_runtime_health ..............   Passed    4.71 sec
+      Start  24: test_dcu_runtime_health_concurrent
+15/45 Test  #24: test_dcu_runtime_health_concurrent ...   Passed   26.14 sec
+      Start  25: test_dcu_698_object_model
+16/45 Test  #25: test_dcu_698_object_model ............   Passed    0.01 sec
+      Start  26: test_dcu_698_archive
+17/45 Test  #26: test_dcu_698_archive .................   Passed    3.03 sec
+      Start  27: test_dcu_698_catalog
+18/45 Test  #27: test_dcu_698_catalog .................   Passed    0.00 sec
+      Start  28: test_dcu_698_var
+19/45 Test  #28: test_dcu_698_var .....................   Passed    0.00 sec
+      Start  29: test_dcu_698_report
+20/45 Test  #29: test_dcu_698_report ..................   Passed    0.00 sec
+      Start  30: test_dcu_698_axdr
+21/45 Test  #30: test_dcu_698_axdr ....................   Passed    0.01 sec
+      Start  31: test_dcu_698_param
+22/45 Test  #31: test_dcu_698_param ...................   Passed    0.07 sec
+      Start  32: test_dcu_698_record
+23/45 Test  #32: test_dcu_698_record ..................   Passed    0.85 sec
+      Start  33: test_dcu_698_value_table
+24/45 Test  #33: test_dcu_698_value_table .............   Passed    0.00 sec
+      Start  34: test_dcu_698_class22
+25/45 Test  #34: test_dcu_698_class22 .................   Passed    0.00 sec
+      Start  35: test_dcu_698_tasks
+26/45 Test  #35: test_dcu_698_tasks ...................   Passed    1.03 sec
+      Start  36: test_dcu_698_schemes
+27/45 Test  #36: test_dcu_698_schemes .................   Passed    1.40 sec
+      Start  37: test_dcu_698_scheme_mgmt
+28/45 Test  #37: test_dcu_698_scheme_mgmt .............   Passed    1.50 sec
+      Start  38: test_dcu_698_rules
+29/45 Test  #38: test_dcu_698_rules ...................   Passed    0.50 sec
+      Start  39: test_dcu_698_freeze
+30/45 Test  #39: test_dcu_698_freeze ..................   Passed    0.91 sec
+      Start  40: test_dcu_runtime_self_exit
+31/45 Test  #40: test_dcu_runtime_self_exit ...........   Passed    0.00 sec
+      Start  41: test_dcu_heartbeat_stop
+32/45 Test  #41: test_dcu_heartbeat_stop ..............   Passed    0.06 sec
+      Start  42: test_dlt698_conformance_suite
+33/45 Test  #42: test_dlt698_conformance_suite ........   Passed    0.00 sec
+      Start  91: test_fuzz_dlms_dlt698
+34/45 Test  #91: test_fuzz_dlms_dlt698 ................   Passed    0.01 sec
+      Start 101: test_driver_dlt698
+35/45 Test #101: test_driver_dlt698 ...................   Passed    5.10 sec
+      Start 102: test_dlt698_appconn
+36/45 Test #102: test_dlt698_appconn ..................   Passed    0.00 sec
+      Start 103: test_dcu_698_appconn
+37/45 Test #103: test_dcu_698_appconn .................   Passed    0.00 sec
+      Start 141: test_dcu_poller
+38/45 Test #141: test_dcu_poller ......................   Passed    0.07 sec
+      Start 146: test_dcu_scale_benchmark
+39/45 Test #146: test_dcu_scale_benchmark .............   Passed    3.76 sec
+      Start 181: test_dcu
+40/45 Test #181: test_dcu .............................   Passed    0.00 sec
+      Start 241: test_driver_registry_dcu
+41/45 Test #241: test_driver_registry_dcu .............   Passed    0.00 sec
+      Start 261: test_dcu_power_quality
+42/45 Test #261: test_dcu_power_quality ...............   Passed    0.00 sec
+      Start 269: test_web_dcu_power_quality
+43/45 Test #269: test_web_dcu_power_quality ...........   Passed    0.00 sec
+      Start 343: test_dcu_mutex_marathon
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    1.77 sec
+      Start 344: test_dcu_topology_phase_id
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  61.74 sec
+
+===== focused dcu_poller =====
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.48 sec
+
+===== build warning guard (final clean build log) =====
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_build_warnings.py --log /tmp/f4-final-build2.log
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+===== static guards =====
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_public_structs.py --root .
+✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_caller_allocated_storage.py --root .
+✅ [CALLER_ALLOCATED_STORAGE_GUARD] Caller-Allocated Storage, alignment, and opaque encapsulation verified cleanly.
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_no_dynamic_memory.py --root .
+✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_stack_usage.py --root .
+✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_resource_discipline.py --root .
+✅ [RESOURCE_DISCIPLINE] clean: getenv_calls=0, heap_calls=175, thread_creations=0
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_plane_isolation.py --root .
+✅ [PLANE_ISOLATION_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+$ /home/edge/EdgeC/.venv/bin/python3 ci/scripts/check_component_boundary.py --root .
+✅ [COMPONENT_BOUNDARY_GUARD] clean. Baseline owners: none
+
+===== struct size: base 383c91cc header vs fix (same include set) =====
+old: chain=376 poller=584520
+new: chain=512 poller=588872

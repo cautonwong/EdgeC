@@ -19,10 +19,14 @@
 #include <unistd.h>
 #include <uv.h>
 
+#include "dcu_event_monitor.h"
 #include "dcu_heartbeat.h"
+#include "dcu_inventory.h"
 #include "dcu_node.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
+#include "stream_bus_datahub_adapter.h"
+#include "stream_engine.h"
 
 static dcu_heartbeat_t g_hb; /* 定时器句柄生命周期需越过单个用例栈帧 */
 
@@ -120,6 +124,21 @@ static int count_rows(sqlite3 *db, const char *table) {
     int n = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
     return n;
+}
+
+static int _archive_freeze_to_storage(void *ctx, const char *addr, uint32_t freeze_oad,
+                                      uint64_t freeze_time, uint32_t src_oad, double value) {
+    return dcu_storage_write_freeze((dcu_storage_t *)ctx, addr, freeze_oad, freeze_time, src_oad,
+                                    value);
+}
+
+static int freeze_rows_for(dcu_storage_t *storage, const char *addr) {
+    dcu_freeze_record_t rows[8];
+    uint16_t count = 0;
+    assert_int_equal(dcu_storage_query_freeze(storage, addr, OAD_DAILY_FREEZE, 0,
+                                              0x7FFFFFFFFFFFFFFFULL, rows, 8, &count),
+                     0);
+    return count;
 }
 
 /* 默认生产模式：3 个周期内不冻结、不跳闸、不触发遥控、不退出，但仍刷盘。 */
@@ -238,12 +257,67 @@ static void test_demo_mode_restores_bench_behavior(void **state) {
     unsetenv("DCU_CONTROL_DELAY_MS");
 }
 
+/* 演示冻结触发必须带表的稳定 slot_id。删除 slot 0 后，末元素 slot 2 顶到下标 0，
+ * slot 1 留在下标 1；触发若按下标发，下标 0 的表一条冻结都收不到。 */
+static void test_demo_freeze_trigger_uses_slot_identity(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_slot");
+
+    seed_inventory(db_path, 3);
+    void *mem = NULL;
+    dcu_node_t *node = create_node(loop, db_path, &mem);
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+    dcu_storage_t *storage = dcu_node_get_storage(node);
+
+    /* 删除 slot 0：slot 2 顶到下标 0，slot 1 留在下标 1，slot 与下标分叉。 */
+    assert_int_equal(dcu_inventory_remove(inv, "000000000001"), 0);
+    assert_int_equal(inv->count, 2);
+    assert_string_equal(inv->meters[0].address, "000000000003");
+    assert_int_equal(inv->meters[0].slot_id, 2);
+    assert_int_equal(inv->meters[1].slot_id, 1);
+
+    /* demo 分支只在“本轮有落库”时进冻结管线。 */
+    double value = 220.0;
+    assert_int_equal(
+        dcu_node_record_reading(node, 2, 0x02010100, (const uint8_t *)&value, sizeof(value)), 0);
+
+    datahub_t *hub = dcu_node_get_datahub(node);
+    stream_engine_t *se = stream_engine_create_datahub(hub, loop, NULL, NULL);
+    assert_non_null(se);
+    pipeline_t *pipeline = stream_engine_add_pipeline(se, "TEST_HEARTBEAT_FREEZE", 0);
+    event_sink_ops_t sink = {.ctx = storage, .archive_freeze = _archive_freeze_to_storage};
+    pipeline_stage_t *stage = stage_periodic_freeze_create_ex(inv, hub, sink);
+    assert_non_null(stage);
+    pipeline_add_stage(pipeline, stage->name, stage->process, stage->priv_state,
+                       stage->cleanup_state, NULL, NULL);
+    free(stage); /* 管线复制 stage 字段，工厂对象只是临时描述符。 */
+
+    dcu_heartbeat_t hb;
+    memset(&hb, 0, sizeof(hb));
+    hb.demo_mode = true;
+    hb.node = node;
+    hb.se = se;
+    dcu_heartbeat_tick(&hb);
+
+    /* 每只表 3 个冻结源。按下标发触发时 slot 2 一条没有。 */
+    assert_int_equal(freeze_rows_for(storage, "000000000002"), 3);
+    assert_int_equal(freeze_rows_for(storage, "000000000003"), 3);
+
+    stream_engine_destroy(se);
+    dcu_node_destroy(node);
+    free(mem);
+    unlink(db_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_production_cycle_has_no_demo_behavior, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_demo_mode_restores_bench_behavior, setup, teardown),
         cmocka_unit_test_setup_teardown(test_node_lifecycle_runs_on_one_thread, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_demo_freeze_trigger_uses_slot_identity, setup,
+                                        teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

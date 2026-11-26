@@ -55,6 +55,7 @@ static int fake_store_read(void *ctx, uint32_t limit, snf_record_t *out, uint32_
         *out_count = 0;
         return 0;
     }
+    out[0].wall_ts_us = 1600000000000000ULL;
     out[0].ts = 1000;
     out[0].tag_id = 0x1001;
     out[0].value = 220.0;
@@ -71,9 +72,10 @@ static int fake_store_mark(void *ctx, const snf_record_t *records, uint32_t coun
     return 0;
 }
 
-static int fake_store_insert(void *ctx, const PipeMsg *msg) {
+static int fake_store_insert(void *ctx, const PipeMsg *msg, uint64_t wall_ts_us) {
     (void)ctx;
     (void)msg;
+    (void)wall_ts_us;
     return 0;
 }
 

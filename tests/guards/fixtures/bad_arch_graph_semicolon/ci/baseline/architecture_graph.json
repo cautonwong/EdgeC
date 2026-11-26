@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "description": "Refutation: a quoted semicolon link list hides foundation -> modules.",
+  "allowed_layer_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    }
+  ],
+  "allowed_component_edges": [],
+  "forbidden_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "modules",
+      "reason": "foundation is the lowest layer"
+    }
+  ],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

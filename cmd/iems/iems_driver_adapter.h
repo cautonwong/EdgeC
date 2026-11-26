@@ -40,6 +40,13 @@ extern "C" {
 #define IEMS_TAG_SOLAR_RELAY         8004
 #define IEMS_TAG_PCS_CONTROL         8005
 
+/* 系统级硬件健康点（device 0；无设备槽，DataHub 回退 idx=tag_id） */
+#define IEMS_TAG_EMS_POWER           9001
+#define IEMS_TAG_EMS_CPU_HIGH        9002
+#define IEMS_TAG_EMS_MEM_HIGH        9003
+#define IEMS_TAG_EMS_EMMC_HIGH       9004
+#define IEMS_TAG_EMS_SSD_HIGH        9005
+
 /**
  * @brief 初始化并注册 IEMS 储能系统所需的工业协议驱动模板 (ModbusRTU, IEC104, CAN, DLT645)
  */
@@ -52,6 +59,17 @@ int iems_driver_registry_init(const edge_driver_registry_port_t *registry);
  * @return 0 成功；-1 表示空值、未知值或仅支持 1997 的 DLT645
  */
 int iems_driver_protocol_canonical(const char *raw, char out[16]);
+
+/**
+ * @brief 配置族 schema 的 protocol token → 驱动规范名。
+ *
+ * token 是 P1-03b 转换产物的枚举值（modbus_rtu/modbus_tcp/can_raw/...），
+ * 不是驱动别名。只接受本轮有驱动的 token，最终仍走
+ * iems_driver_protocol_canonical 归一。
+ *
+ * @return 0 成功；-1 未支持或未知 token。
+ */
+int iems_driver_protocol_from_config(const char *token, char out[16]);
 
 /* [ADR-002] 点位标识翻译与量纲：产品侧负责，驱动不再查表。
  *   native_id：tag_id → 驱动认识的原生标识（CAN 是 CAN ID，其余暂等值）
@@ -116,6 +134,7 @@ extern const size_t g_edge_driver_registry_count;
 /* 兼容外部全栈测试点表反查符号导出 */
 const void *iems_lookup_modbus_by_key(uint64_t key);
 const void *iems_lookup_modbus_by_tag(uint32_t tag_id);
+const void *iems_lookup_can_by_tag(uint32_t tag_id);
 const void *iems_lookup_iec104_by_key(uint64_t key);
 const void *iems_lookup_iec104_by_tag(uint32_t tag_id);
 

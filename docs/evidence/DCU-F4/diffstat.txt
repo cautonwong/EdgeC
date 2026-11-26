@@ -1,0 +1,28 @@
+# dcu/F4-pending-capacity vs feat/dcu 383c91cc
+
+## per commit (code, oldest first)
+fe8b8035 test(dcu): pin per-meter tag-union capacity batching
+8c7f0ec7 fix(dcu): batch one meter visit by capacity instead of dropping tags
+f26fd3e8 test(dcu): pin cross-batch meter success aggregation
+
+## total code vs 383c91cc
+ cmd/dcu/dcu_poller.c    | 153 +++++++++++++++++++++++++----------
+ cmd/dcu/dcu_poller.h    |  21 +++--
+ tests/test_dcu_poller.c | 207 ++++++++++++++++++++++++++++++++++++++++++++++--
+ 3 files changed, 328 insertions(+), 53 deletions(-)
+
+## test commit fe8b8035
+fe8b8035 test(dcu): pin per-meter tag-union capacity batching
+ tests/test_dcu_poller.c | 154 ++++++++++++++++++++++++++++++++++++++++++++++--
+ 1 file changed, 149 insertions(+), 5 deletions(-)
+
+## fix commit 8c7f0ec7
+8c7f0ec7 fix(dcu): batch one meter visit by capacity instead of dropping tags
+ cmd/dcu/dcu_poller.c | 153 +++++++++++++++++++++++++++++++++++++--------------
+ cmd/dcu/dcu_poller.h |  21 +++++--
+ 2 files changed, 126 insertions(+), 48 deletions(-)
+
+## test commit f26fd3e8
+f26fd3e8 test(dcu): pin cross-batch meter success aggregation
+ tests/test_dcu_poller.c | 65 ++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 59 insertions(+), 6 deletions(-)

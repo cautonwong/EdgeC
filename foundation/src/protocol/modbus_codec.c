@@ -1,4 +1,6 @@
 #include "modbus_codec.h"
+#include <float.h>
+#include <math.h>
 #include <string.h>
 
 static const uint16_t s_modbus_crc16_table[256] = {
@@ -44,6 +46,121 @@ uint16_t modbus_calculate_crc(const uint8_t *buf, size_t len) {
     return crc;
 }
 
+static int _write_type_regs(uint8_t type) {
+    switch (type) {
+        case MODBUS_WRITE_U16:
+        case MODBUS_WRITE_I16:
+            return 1;
+        case MODBUS_WRITE_U32:
+        case MODBUS_WRITE_I32:
+        case MODBUS_WRITE_F32:
+            return 2;
+        case MODBUS_WRITE_U64:
+        case MODBUS_WRITE_I64:
+        case MODBUS_WRITE_F64:
+            return 4;
+        default:
+            return 0;
+    }
+}
+
+/* 规范形式按大端字序（A B, C D, ...）生成，再按消费者的字序重排。
+ * CDAB 是 16 位字序反转，BADC 是字内字节交换，DCBA 两者都做。
+ * v3 ORDER_* 名字按寄存器值语义命名，wire 字节与名字交叉（见头文件）。 */
+static void _order_write_regs(uint16_t *regs, int n, uint8_t order) {
+    bool reverse = order == MODBUS_WORD_ORDER_CDAB || order == MODBUS_WORD_ORDER_DCBA;
+    bool swap = order == MODBUS_WORD_ORDER_BADC || order == MODBUS_WORD_ORDER_DCBA;
+    if (swap) {
+        for (int i = 0; i < n; i++) {
+            regs[i] = (uint16_t)((regs[i] >> 8) | (regs[i] << 8));
+        }
+    }
+    if (reverse) {
+        for (int i = 0, j = n - 1; i < j; i++, j--) {
+            uint16_t tmp = regs[i];
+            regs[i] = regs[j];
+            regs[j] = tmp;
+        }
+    }
+}
+
+int modbus_encode_write_regs(double value, const modbus_write_desc_t *desc, uint16_t quantity,
+                             uint16_t *regs) {
+    if (!regs || !isfinite(value)) return -1;
+
+    uint8_t type;
+    uint8_t order;
+    if (desc) {
+        type = desc->type;
+        order = desc->order;
+        if (_write_type_regs(type) != quantity) return -1;
+        if (order > MODBUS_WORD_ORDER_DCBA) return -1;
+    } else {
+        /* 旧默认：1 个寄存器 u16，2 个寄存器 u32 ABCD；其余数量拒绝 */
+        order = MODBUS_WORD_ORDER_ABCD;
+        if (quantity == 1) {
+            type = MODBUS_WRITE_U16;
+        } else if (quantity == 2) {
+            type = MODBUS_WRITE_U32;
+        } else {
+            return -1;
+        }
+    }
+
+    /* 整数先按 double 区间检查再向零截断；越界值直接拒绝，不回绕也不静默截断。 */
+    uint64_t bits = 0;
+    switch (type) {
+        case MODBUS_WRITE_U16:
+            if (value < 0.0 || value > 65535.0) return -1;
+            bits = (uint16_t)value;
+            break;
+        case MODBUS_WRITE_I16:
+            if (value < -32768.0 || value > 32767.0) return -1;
+            bits = (uint16_t)(int16_t)value;
+            break;
+        case MODBUS_WRITE_U32:
+            if (value < 0.0 || value > 4294967295.0) return -1;
+            bits = (uint32_t)value;
+            break;
+        case MODBUS_WRITE_I32:
+            if (value < -2147483648.0 || value > 2147483647.0) return -1;
+            bits = (uint32_t)(int32_t)value;
+            break;
+        case MODBUS_WRITE_F32: {
+            /* double→float 超范围是 UB；先挡住，cast 溢出成 inf 的帧不发给从站 */
+            if (value > FLT_MAX || value < -FLT_MAX) return -1;
+            float f = (float)value;
+            uint32_t u = 0;
+            memcpy(&u, &f, sizeof(u));
+            bits = u;
+            break;
+        }
+        case MODBUS_WRITE_U64:
+            if (value < 0.0 || value >= 18446744073709551616.0) return -1; /* 2^64 */
+            bits = (uint64_t)value;
+            break;
+        case MODBUS_WRITE_I64:
+            if (value < -9223372036854775808.0 || value >= 9223372036854775808.0) return -1;
+            bits = (uint64_t)(int64_t)value;
+            break;
+        case MODBUS_WRITE_F64: {
+            uint64_t u = 0;
+            memcpy(&u, &value, sizeof(u));
+            bits = u;
+            break;
+        }
+        default:
+            return -1;
+    }
+
+    int n = _write_type_regs(type);
+    for (int i = 0; i < n; i++) {
+        regs[i] = (uint16_t)(bits >> (16 * (n - 1 - i)));
+    }
+    _order_write_regs(regs, n, order);
+    return 0;
+}
+
 /* 标准 Modbus 低字节先发；hi_crc 是从 iems_v3 默认 modbus_rtu 继承的高字节先发 */
 static void _put_crc(uint8_t *p, size_t body_len, bool hi_crc) {
     uint16_t crc = modbus_calculate_crc(p, body_len);
@@ -58,6 +175,7 @@ static uint16_t _get_crc(const uint8_t *p, size_t frame_len, bool hi_crc) {
 
 static int _modbus_rtu_encode_generic(uint8_t slave_id, uint8_t fc, uint16_t p1, uint16_t p2,
                                       bool hi_crc, net_buf_t *out) {
+    if (!out || net_buf_tailroom(out) < 8) return -1;
     uint8_t *p = net_buf_add(out, 8);
     p[0] = slave_id;
     p[1] = fc;
@@ -90,8 +208,9 @@ int modbus_rtu_encode_write_single(uint8_t slave_id, uint16_t addr, uint16_t val
 
 int modbus_rtu_encode_write_multiple_ex(uint8_t slave_id, uint16_t addr, uint16_t quantity,
                                         const uint16_t *values, bool hi_crc, net_buf_t *out) {
-    if (!values || quantity == 0 || quantity > 123) return -1;
+    if (!out || !values || quantity == 0 || quantity > 123) return -1;
     size_t body_len = 7 + 2 * (size_t)quantity; /* slave/fc/addr/qty/byte_count + values */
+    if (net_buf_tailroom(out) < body_len + 2) return -1;
     uint8_t *p = net_buf_add(out, body_len + 2);
     p[0] = slave_id;
     p[1] = MODBUS_FC_WRITE_MULTIPLE_REGS;
@@ -115,6 +234,7 @@ int modbus_rtu_encode_write_multiple(uint8_t slave_id, uint16_t addr, uint16_t q
 
 int modbus_rtu_encode_exception_ex(uint8_t slave_id, uint8_t fc, uint8_t ex_code, bool hi_crc,
                                    net_buf_t *out) {
+    if (!out || net_buf_tailroom(out) < 5) return -1;
     uint8_t *p = net_buf_add(out, 5);
     p[0] = slave_id;
     p[1] = (uint8_t)(fc | 0x80);

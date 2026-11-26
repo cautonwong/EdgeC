@@ -114,7 +114,7 @@ static int64_t _scale_to_raw(double value, int8_t scaler) {
     return (int64_t)(x >= 0 ? x + 0.5 : x - 0.5);
 }
 
-static int _read_element(const var_shape_t *shape, uint8_t slot, uint8_t elem, int64_t *raw,
+static int _read_element(const var_shape_t *shape, uint32_t device_id, uint8_t elem, int64_t *raw,
                          double *value, uint64_t *ts_ms, uint8_t *quality) {
     if (!shape || !raw || !value || elem >= shape->count) return -1;
     const router_bus_ops_t *bus = dcu_698_object_model_bus_ops();
@@ -122,7 +122,7 @@ static int _read_element(const var_shape_t *shape, uint8_t slot, uint8_t elem, i
 
     pipe_msg_t msg;
     memset(&msg, 0, sizeof(msg));
-    if (bus->read_shadow(bus->ctx, shape->elements[elem].tag, slot, &msg) != 0) return -1;
+    if (bus->read_shadow(bus->ctx, shape->elements[elem].tag, device_id, &msg) != 0) return -1;
     *value = msg.payload.val.f;
     *raw = _scale_to_raw(*value, shape->scaler);
     *ts_ms = msg.ts / 1000000ULL;
@@ -165,12 +165,11 @@ typedef struct {
 } scalar_desc_t;
 
 static const scalar_desc_t k_scalars[] = {
-    {OI_METER_DISCOVERY, 3, VK_U16},   {OI_METER_DISCOVERY, 6, VK_U16},
-    {OI_METER_DISCOVERY, 10, VK_ENUM}, {OI_CHANNEL_CONFIG, 2, VK_U32},
-    {OI_CHANNEL_CONFIG, 3, VK_U8},     {OI_VOLTAGE_DROP, 4, VK_U16},
-    {OI_VOLTAGE_DROP, 11, VK_ENUM},    {OI_VOLTAGE_DROP, 12, VK_BOOL},
-    {OI_OVER_CURRENT, 4, VK_U16},      {OI_OVER_CURRENT, 11, VK_ENUM},
-    {OI_OVER_CURRENT, 12, VK_BOOL},
+    {OI_METER_DISCOVERY, 3, VK_U16}, {OI_METER_DISCOVERY, 6, VK_U16},
+    {OI_METER_DISCOVERY, 10, VK_ENUM},
+    {OI_VOLTAGE_DROP, 4, VK_U16},    {OI_VOLTAGE_DROP, 11, VK_ENUM},
+    {OI_VOLTAGE_DROP, 12, VK_BOOL},  {OI_OVER_CURRENT, 4, VK_U16},
+    {OI_OVER_CURRENT, 11, VK_ENUM},  {OI_OVER_CURRENT, 12, VK_BOOL},
 };
 
 static const scalar_desc_t *_find_scalar(uint16_t oi, uint8_t attr_id) {
@@ -254,12 +253,12 @@ static int _put_scaler_unit(uint8_t *buf, size_t cap, size_t *off, int8_t scaler
     return 0;
 }
 
-int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+static int _var_encode_axdr(uint32_t oad, uint32_t device_id, uint8_t *buf, size_t cap,
+                            size_t *len) {
     if (!buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 
     uint16_t oi = (uint16_t)(oad >> 16);
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
-    uint8_t slot = (uint8_t)(oad & 0xFF);
     const var_desc_t *desc = _find_var(oi);
     if (!desc) return EDGE_SLAVE_SRC_NOT_FOUND;
 
@@ -286,7 +285,7 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
         int64_t raw = 0;
         double value = 0.0;
         uint64_t ts_ms = 0;
-        if (_read_element(shape, slot, 0, &raw, &value, &ts_ms, NULL) != 0) {
+        if (_read_element(shape, device_id, 0, &raw, &value, &ts_ms, NULL) != 0) {
             return EDGE_SLAVE_SRC_NOT_FOUND;
         }
         if (_put_element(buf, cap, &off, shape->tag, raw) != 0) {
@@ -303,7 +302,7 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
         int64_t raw = 0;
         double value = 0.0;
         uint64_t ts_ms = 0;
-        if (_read_element(shape, slot, i, &raw, &value, &ts_ms, NULL) != 0) {
+        if (_read_element(shape, device_id, i, &raw, &value, &ts_ms, NULL) != 0) {
             return EDGE_SLAVE_SRC_NOT_FOUND;
         }
         if (_put_element(buf, cap, &off, shape->tag, raw) != 0) {
@@ -312,6 +311,15 @@ int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len)
     }
     *len = off;
     return 0;
+}
+
+int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len) {
+    return _var_encode_axdr(oad, (uint8_t)(oad & 0xFF), buf, cap, len);
+}
+
+int dcu_698_var_encode_axdr_device(uint32_t oad, uint32_t device_id, uint8_t *buf, size_t cap,
+                                   size_t *len) {
+    return _var_encode_axdr(oad, device_id, buf, cap, len);
 }
 
 static int _unadvertised_attr_rc(const dcu_698_object_t *obj, uint8_t attr_id) {

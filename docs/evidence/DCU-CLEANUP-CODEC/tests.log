@@ -1,0 +1,52 @@
+== BEFORE: base 8236eb3d (clean Release build) ==
+$ ctest --test-dir build -R 'dlt698|driver_dlt698' --output-on-failure
+Test project /tmp/edgec-land/codec-tags/build
+    Start   9: test_dlt698_axdr
+1/7 Test   #9: test_dlt698_axdr .................   Passed    0.00 sec
+    Start  10: test_dlt698_action
+2/7 Test  #10: test_dlt698_action ...............   Passed    0.00 sec
+    Start  11: test_dlt698_get_list
+3/7 Test  #11: test_dlt698_get_list .............   Passed    0.00 sec
+    Start  42: test_dlt698_conformance_suite
+4/7 Test  #42: test_dlt698_conformance_suite ....   Passed    0.00 sec
+    Start  91: test_fuzz_dlms_dlt698
+5/7 Test  #91: test_fuzz_dlms_dlt698 ............   Passed    0.00 sec
+    Start 101: test_driver_dlt698
+6/7 Test #101: test_driver_dlt698 ...............   Passed    5.11 sec
+    Start 102: test_dlt698_appconn
+7/7 Test #102: test_dlt698_appconn ..............   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   5.12 sec
+
+== AFTER: dcu/cleanup-codec-tags (clean rebuild) ==
+$ ctest --test-dir build -R 'dlt698|driver_dlt698' --output-on-failure
+Test project /tmp/edgec-land/codec-tags/build
+    Start   9: test_dlt698_axdr
+1/7 Test   #9: test_dlt698_axdr .................   Passed    0.00 sec
+    Start  10: test_dlt698_action
+2/7 Test  #10: test_dlt698_action ...............   Passed    0.00 sec
+    Start  11: test_dlt698_get_list
+3/7 Test  #11: test_dlt698_get_list .............   Passed    0.00 sec
+    Start  42: test_dlt698_conformance_suite
+4/7 Test  #42: test_dlt698_conformance_suite ....   Passed    0.00 sec
+    Start  91: test_fuzz_dlms_dlt698
+5/7 Test  #91: test_fuzz_dlms_dlt698 ............   Passed    0.00 sec
+    Start 101: test_driver_dlt698
+6/7 Test #101: test_driver_dlt698 ...............   Passed    5.11 sec
+    Start 102: test_dlt698_appconn
+7/7 Test #102: test_dlt698_appconn ..............   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   5.13 sec
+
+== AFTER: golden/vector binaries direct ==
+$ ./build/tests/test_dlt698_conformance_suite
+[==========] tests: 30 test(s) run.
+[  PASSED  ] 30 test(s).
+
+$ ./build/tests/test_driver_dlt698
+[==========] tests: 29 test(s) run.
+[  PASSED  ] 29 test(s).

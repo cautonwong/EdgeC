@@ -1,0 +1,737 @@
+{
+  "version": 1,
+  "description": "Shrink-only architecture graph ledger. Add an entry with a reason only after an architecture review; remove entries when the code shrinks. Allowed component edges carry kinds (include/link) so a link permission cannot widen the include graph beyond check_plane_isolation. A modules -> modules include permission outside check_plane_isolation.MODULE_ALLOWED must carry sources: [preprocessor_closure], the explicit provenance marker for edges only the real preprocessor closure can see. When the gate runs with --compile-commands, component edges and forbidden headers are judged on the real preprocessor closure, and text-only edges from uncompiled branches are still kept and judged (fail-closed). Residuals: add_edge_test macro-generated test targets are folded; cmake/ helper macros and edge_add_contract are not expanded; cycle detection is capped at 1000 nodes and fails instead of skipping; generated headers (contracts/build paths) are not indexed; a forbidden_headers files rule can be pointed at an unrelated file, so review of ledger edits remains the control. Ledger changes require the same architecture review as code.",
+  "shared_surfaces": {
+    "reason": "The public include/ tree and foundation/include are shared dependency surfaces, not implementation components. The current ROOT<->edge_io mutual include is a facade split (shared port headers vs aggregating SDK headers), not a component cycle."
+  },
+  "conditional_handling": "All if()/else() branches are parsed and merged. An edge that exists on only one platform still has to obey this matrix, so conditionals fail closed instead of disappearing.",
+  "allowed_layer_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "foundation",
+      "reason": "foundation support libraries link each other (edge_codec -> edge_foundation/edge_netbuf/edge_crypto)."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "foundation",
+      "reason": "modules depend on pure foundation support code."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "reason": "peer module dependencies are enumerated one pair at a time in allowed_component_edges."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "root",
+      "reason": "modules link edge_common_interface and include shared public headers."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "foundation",
+      "reason": "adapters use foundation ports and utilities."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "modules",
+      "reason": "adapters implement module-owned ports."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "root",
+      "reason": "adapters link edge_common_interface."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "foundation",
+      "reason": "public SDK headers alias foundation types."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "modules",
+      "reason": "public SDK headers aggregate module interfaces."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "adapters",
+      "reason": "include/edgeos/driver.h exposes the driver registration port owned by adapters/io_drivers (edge_io)."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "foundation",
+      "reason": "product composition roots use foundation support."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "modules",
+      "reason": "product composition roots assemble modules."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "adapters",
+      "reason": "product composition roots assemble adapters."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "root",
+      "reason": "product composition roots use the public build interface."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "cmd",
+      "reason": "product executables link libraries defined in the same cmd/ layer (iems_app_lib, dcu_app_lib, smartbox_app_lib)."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "foundation",
+      "reason": "tests link and include foundation support."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "modules",
+      "reason": "tests link and include modules under test."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "adapters",
+      "reason": "tests link and include adapters under test."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "root",
+      "reason": "tests exercise the public SDK surface."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "cmd",
+      "reason": "tests compile and link product sources directly."
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "other",
+      "reason": "tests compile and include example plugin code."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "foundation",
+      "reason": "examples, tools and fuzz targets are consumers of foundation support."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "modules",
+      "reason": "examples, tools and fuzz targets are consumers of modules."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "adapters",
+      "reason": "examples, tools and fuzz targets are consumers of adapters."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "root",
+      "reason": "examples, tools and fuzz targets use the public build interface."
+    }
+  ],
+  "allowed_component_edges": [
+    {
+      "from_component": "edge_infra",
+      "to_component": "edge_core",
+      "reason": "edge_infra includes edge_core's datahub_ops.h, datahub_dds.h, datahub_mqtt.h and shmring.h to implement telemetry storage and bus backends.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_io",
+      "to_component": "edge_core",
+      "reason": "edge_io includes edge_core's arbiter.h and shmring.h for request arbitration and shared-memory transport.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_io",
+      "to_component": "edge_stream",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_io",
+      "to_component": "edge_infra",
+      "reason": "Include permission migrated from MODULE_ALLOWED (no live include site); the live edge is the CMake link, so this entry is consumed by the link graph. Remove only if both dimensions stay unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_io",
+      "to_component": "edge_mgmt",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_io",
+      "to_component": "edge_session",
+      "reason": "edge_io includes edge_session's session_manager.h to attach per-device sessions to the bus.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_north",
+      "to_component": "edge_io",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_api",
+      "to_component": "edge_io",
+      "reason": "edge_api includes edge_io's bus_orchestrator.h in its public API signature.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_session",
+      "to_component": "edge_io",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_core",
+      "reason": "edge_bootstrap includes edge_core's datahub.h when assembling the datahub.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_infra",
+      "reason": "edge_bootstrap includes edge_infra's dma_buf_pool.h and edge_anti_corruption.h when assembling infra.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_infra_security",
+      "reason": "edge_bootstrap includes edge_infra_security's edge_guard.h when assembling security.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_stream",
+      "reason": "Include permission migrated from MODULE_ALLOWED (no live include site); the live edge is the CMake link, so this entry is consumed by the link graph. Remove only if both dimensions stay unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_io",
+      "reason": "edge_bootstrap includes edge_io's edge_io_guard_port.h when wiring the IO guard.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_mcp",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_mgmt",
+      "reason": "Dormant permission migrated from MODULE_ALLOWED; no live include site. Remove if it stays unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include"
+      ]
+    },
+    {
+      "from_component": "edge_bootstrap",
+      "to_component": "edge_north",
+      "reason": "Include permission migrated from MODULE_ALLOWED (no live include site); the live edge is the CMake link, so this entry is consumed by the link graph. Remove only if both dimensions stay unused.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_api",
+      "to_layer": "modules",
+      "to_component": "edge_core",
+      "reason": "Existing CMake link: edge_api links edge_core for arbiter/datahub symbols. The preprocessor closure also attributes edge_api's transitive arbiter.h dependency (through edge_io's bus_orchestrator.h) as an include edge. Recorded baseline; not granted to plane isolation.",
+      "origin": "live",
+      "sources": [
+        "preprocessor_closure"
+      ],
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_bootstrap",
+      "to_layer": "adapters",
+      "to_component": "edge_io",
+      "reason": "Composition root assembles the io_drivers adapter (link) and includes driver_manager.h from adapters/io_drivers/include (include).",
+      "origin": "live",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_bootstrap",
+      "to_layer": "adapters",
+      "to_component": "datahub_bridges",
+      "reason": "Composition root assembles the datahub bridges.",
+      "origin": "live",
+      "kinds": [
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_bootstrap",
+      "to_layer": "adapters",
+      "to_component": "edge_ports",
+      "reason": "Composition root assembles the port adapters.",
+      "origin": "live",
+      "kinds": [
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_bootstrap",
+      "to_layer": "adapters",
+      "to_component": "sqlite_adapters",
+      "reason": "Composition root assembles the sqlite adapters.",
+      "origin": "live",
+      "kinds": [
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "edge_io",
+      "to_layer": "adapters",
+      "to_component": "edge_io",
+      "reason": "modules/edge_io links edge_linux_platform, its platform executor. Same component name, different layer; recorded layer inversion.",
+      "origin": "live",
+      "kinds": [
+        "link"
+      ]
+    },
+    {
+      "from_component": "edge_infra_security",
+      "to_component": "edge_core",
+      "reason": "edge_infra_security includes edge_core's edge_os_port.h for OS port hooks.",
+      "sources": [
+        "plane_isolation"
+      ],
+      "origin": "migrated:check_plane_isolation.MODULE_ALLOWED",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    }
+  ],
+  "forbidden_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "modules",
+      "reason": "foundation is the lowest layer and cannot depend on a module."
+    },
+    {
+      "from_layer": "foundation",
+      "to_layer": "adapters",
+      "reason": "foundation cannot depend on an adapter."
+    },
+    {
+      "from_layer": "foundation",
+      "to_layer": "root",
+      "reason": "foundation cannot depend on the public SDK facade."
+    },
+    {
+      "from_layer": "foundation",
+      "to_layer": "cmd",
+      "reason": "foundation cannot depend on a product composition root."
+    },
+    {
+      "from_layer": "foundation",
+      "to_layer": "tests",
+      "reason": "foundation cannot depend on test code."
+    },
+    {
+      "from_layer": "foundation",
+      "to_layer": "other",
+      "reason": "foundation cannot depend on examples, tools or fuzz code."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "cmd",
+      "reason": "a module cannot depend on a product composition root."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "tests",
+      "reason": "a module cannot depend on test code."
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "other",
+      "reason": "a module cannot depend on example, tool or fuzz code."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "adapters",
+      "reason": "adapters do not depend on each other; composition happens in cmd/ or edge_bootstrap."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "cmd",
+      "reason": "an adapter cannot depend on a product composition root."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "tests",
+      "reason": "an adapter cannot depend on test code."
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "other",
+      "reason": "an adapter cannot depend on example, tool or fuzz code."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "cmd",
+      "reason": "the public SDK facade cannot depend on a product composition root."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "tests",
+      "reason": "the public SDK facade cannot depend on test code."
+    },
+    {
+      "from_layer": "root",
+      "to_layer": "other",
+      "reason": "the public SDK facade cannot depend on example, tool or fuzz code."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "tests",
+      "reason": "a product cannot depend on test code."
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "other",
+      "reason": "a product cannot depend on example, tool or fuzz code."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "cmd",
+      "reason": "examples, tools and fuzz targets are consumers, not product dependencies."
+    },
+    {
+      "from_layer": "other",
+      "to_layer": "tests",
+      "reason": "examples, tools and fuzz targets cannot depend on test code."
+    }
+  ],
+  "forbidden_headers": [
+    {
+      "component": "edge_stream",
+      "header": "datahub.h",
+      "reason": "edge_stream must consume DataHub through its port.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "component": "edge_stream",
+      "header": "datahub_router.h",
+      "reason": "edge_stream must consume DataHub through its port.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "component": "edge_mgmt",
+      "header": "datahub.h",
+      "reason": "edge_mgmt must consume DataHub through its port.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "component": "edge_mgmt",
+      "header": "datahub_router.h",
+      "reason": "edge_mgmt must consume DataHub through its port.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "component": "edge_mcp",
+      "header": "datahub.h",
+      "reason": "edge_mcp reaches DataHub through edge_mcp_bus.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "component": "edge_mcp",
+      "header": "datahub_router.h",
+      "reason": "edge_mcp reaches DataHub through edge_mcp_bus.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "files": [
+        "modules/edge_io/src/protocol_bridge.c",
+        "modules/edge_io/include/protocol_bridge.h"
+      ],
+      "header": "datahub.h",
+      "reason": "Direct datahub.h include in these edge_io files is forbidden; they reach DataHub through the port.",
+      "sources": [
+        "component_boundary"
+      ]
+    },
+    {
+      "files": [
+        "modules/edge_mcp/src/edge_mcp_dispatcher.c",
+        "modules/edge_mcp/include/edgeos/edge_mcp_dispatcher.h"
+      ],
+      "header": "datahub.h",
+      "reason": "Direct datahub.h include in these edge_mcp files is forbidden; edge_mcp reaches DataHub through edge_mcp_bus.",
+      "sources": [
+        "component_boundary"
+      ]
+    }
+  ],
+  "composition_roots": [
+    {
+      "path": "cmd/iems/main.c",
+      "reason": "IEMS product entry point."
+    },
+    {
+      "path": "cmd/iems/iems_app.c",
+      "reason": "IEMS application composition root."
+    },
+    {
+      "path": "cmd/iems/iems_southbound_adapter.c",
+      "reason": "Wiring adapter: attaches southbound UDS sockets to the orchestrator the composition root already built."
+    },
+    {
+      "path": "cmd/iems/iems_north_listener.c",
+      "reason": "North slave wiring adapter: attaches accepted UDS clients to the existing orchestrator."
+    },
+    {
+      "path": "cmd/iems/iems_north_iec104.c",
+      "reason": "IEC104 north wiring adapter: attaches accepted TCP clients to the existing orchestrator."
+    },
+    {
+      "path": "cmd/dcu/main.c",
+      "reason": "DCU product entry point."
+    },
+    {
+      "path": "cmd/smart_box/main.c",
+      "reason": "SmartBox product entry point."
+    },
+    {
+      "path": "cmd/edge_mcp_server/main.c",
+      "reason": "MCP server product entry point."
+    },
+    {
+      "path": "cmd/nexus_lab/main.c",
+      "reason": "Nexus lab product entry point."
+    },
+    {
+      "path": "cmd/dcu/dcu_north_adapter.c",
+      "reason": "DCU north wiring adapter: transport/session plumbing, not a second lifecycle root."
+    },
+    {
+      "path": "cmd/dcu/dcu_bus_adapter.c",
+      "reason": "DCU southbound wiring adapter: RS485 channel sockets to orchestrator, not a lifecycle root."
+    },
+    {
+      "path": "cmd/iems/iems_app_manager_adapter.c",
+      "reason": "App manager wiring adapter: builds the sqlite repo adapter and the manager."
+    },
+    {
+      "path": "modules/edge_north/src/northbound_mgr.c",
+      "reason": "Northbound adapter owns its protocol driver instance; not a second product lifecycle root."
+    },
+    {
+      "path": "adapters/datahub_bridges/src/stream_bus_datahub_adapter.c",
+      "reason": "DataHub bridge owns the stream-engine-to-bus adapter, not a product lifecycle root."
+    },
+    {
+      "path": "modules/edge_session/src/session_manager.c",
+      "reason": "Session manager owns per-device driver instances; wiring adapter for the bus."
+    },
+    {
+      "path": "adapters/datahub_bridges/src/bus_datahub_adapter.c",
+      "reason": "DataHub-backed bus convenience factory; the adapter owns the port."
+    }
+  ],
+  "known_skips": [
+    {
+      "kind": "cmake-macro",
+      "file": "tests/CMakeLists.txt",
+      "detail": "add_edge_test",
+      "reason": "The add_edge_test macro is not expanded; its generated test targets are leaves in the CMake graph. Test targets are covered by the include graph and the direct test target definitions."
+    },
+    {
+      "kind": "include-ambiguous",
+      "file": "modules/edge_bootstrap/src/edge_composition_root.c",
+      "detail": "datahub_ops.h: edge_core/edge_infra",
+      "reason": "datahub_ops.h exists in both edge_core and edge_infra; edge_bootstrap's PUBLIC include order lists edge_core before edge_infra, but the parser does not model transitive include order."
+    },
+    {
+      "kind": "include-ambiguous",
+      "file": "tests/test_infra_interfaces.c",
+      "detail": "datahub_ops.h: edge_core/edge_infra",
+      "reason": "datahub_ops.h exists in both edge_core and edge_infra; tests include both modules, so either resolution is the tests->modules edge the tests layer already allows."
+    },
+    {
+      "kind": "cmake-macro-target",
+      "file": "tests/CMakeLists.txt",
+      "detail": "add_edge_test",
+      "reason": "target_link_libraries names a test target generated by the unexpanded add_edge_test macro; the macro's own edges are the registered cmake-macro gap."
+    }
+  ]
+}

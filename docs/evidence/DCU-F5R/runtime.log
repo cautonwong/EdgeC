@@ -1,0 +1,145 @@
+=== RED (test commit 4fd7c9f4, product code unfixed) 2026-11-26T03:53:02Z ===
+$ ./build/tests/test_dcu_node
+[==========] tests: Running 4 test(s).
+[ RUN      ] test_dcu_node_lifecycle
+[2026-11-26 11:53:02][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:02][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-26 11:53:02][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:02][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:53:02][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_lifecycle
+[ RUN      ] test_dcu_node_domain_methods_and_events
+[2026-11-26 11:53:02][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:02][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:02][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:02][WARN][CORE] DCU Feed Reading: Meter '999999999999' not registered in inventory
+[2026-11-26 11:53:02][WARN][CORE] DCU Control: Unauthorized control OI 0x1234
+[       OK ] test_dcu_node_domain_methods_and_events
+[ RUN      ] test_dcu_node_set_source_ops_is_used
+[2026-11-26 11:53:02][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:02][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:03][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:53:03][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_set_source_ops_is_used
+[ RUN      ] test_dcu_node_record_reading_uses_slot_id
+[2026-11-26 11:53:03][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:03][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[  ERROR   ] --- 0 != 1
+[   LINE   ] --- /tmp/edgec-land/f5-device-identity/tests/test_dcu_node.c:266: error: Failure!
+[  FAILED  ] test_dcu_node_record_reading_uses_slot_id
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 3 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_dcu_node_record_reading_uses_slot_id
+
+ 1 FAILED TEST(S)
+exit=1
+
+$ ./build/tests/test_dcu_advanced_modules
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 11:53:03][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+[2026-11-26 11:53:03][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 11:53:03][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 11:53:03][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000005) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 0 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000005)！记录更新。
+[  ERROR   ] --- 0 == 0
+[   LINE   ] --- /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:548: error: Failure!
+[  FAILED  ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 1 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+
+ 1 FAILED TEST(S)
+exit=1
+
+=== GREEN (fix commit) 2026-11-26T03:53:09Z ===
+$ ./build/tests/test_dcu_node
+[==========] tests: Running 4 test(s).
+[ RUN      ] test_dcu_node_lifecycle
+[2026-11-26 11:53:09][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-26 11:53:09][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:09][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:53:09][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_lifecycle
+[ RUN      ] test_dcu_node_domain_methods_and_events
+[2026-11-26 11:53:09][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:09][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:09][WARN][CORE] DCU Feed Reading: Meter '999999999999' not registered in inventory
+[2026-11-26 11:53:09][WARN][CORE] DCU Control: Unauthorized control OI 0x1234
+[       OK ] test_dcu_node_domain_methods_and_events
+[ RUN      ] test_dcu_node_set_source_ops_is_used
+[2026-11-26 11:53:09][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:09][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[2026-11-26 11:53:09][INFO][CORE] DCU Node started with polling interval 100 ms
+[2026-11-26 11:53:09][INFO][CORE] DCU Node stopped successfully
+[       OK ] test_dcu_node_set_source_ops_is_used
+[ RUN      ] test_dcu_node_record_reading_uses_slot_id
+[2026-11-26 11:53:09][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 2052 KB)
+[2026-11-26 11:53:09][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 0)
+[       OK ] test_dcu_node_record_reading_uses_slot_id
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 4 test(s).
+exit=0
+
+$ ./build/tests/test_dcu_advanced_modules
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+[2026-11-26 11:53:09][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 11:53:09][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 11:53:09][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000004) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 0 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000004)！记录更新。
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+exit=0

@@ -1,0 +1,9 @@
+Command: python3 ci/scripts/check_architecture_graph.py --root .
+Exit: 0
+
+✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 132 CMake target(s), 588 first-party link edge(s), 0 target cycle(s); 1142 include file(s), 122 component edge(s), 0 component cycle(s); 4 known parse gap(s), 433 external/imported link(s) ignored, 1 external CMake module include(s), 34 quoted and 4824 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+ℹ️  [ARCHITECTURE_GRAPH] folded out of the parsed subgraph: 272 macro-generated target call(s) (add_edge_test etc.) and cmake/ helper macros; File API reports the full configure-time graph.
+ℹ️  [ARCHITECTURE_GRAPH] shared-surface mutual include(s) outside cycle nodes by design: modules/edge_infra <-> root/ROOT, modules/edge_io <-> root/ROOT
+
+Text mode remains an approximation; the gate also runs strong mode
+(docs/evidence/ARCH-GRAPH/strong-mode.txt).

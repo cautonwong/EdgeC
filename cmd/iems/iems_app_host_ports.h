@@ -12,7 +12,7 @@
 #include "edge_app_host.h"
 #include "sqlite_service.h"
 
-#define IEMS_MAX_POINT_SUBSCRIPTIONS 64 /* matches DATAHUB_MAX_SUBSCRIBERS */
+#define IEMS_MAX_POINT_SUBSCRIPTIONS 32
 
 /* One DataHub registration. Written on the loop thread before subscribe
  * returns; immutable until unsubscribe has returned and the slot is cleared. */

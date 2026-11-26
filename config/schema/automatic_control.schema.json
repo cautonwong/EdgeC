@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "automatic_control",
+  "description": "P6-04a round 1. Covers root automatic_control.json, lc/automatic_control.json and lc_devs/LCx/automatic_control.json. Array-root converted output uses the {schema_version, config} envelope enforced by config_schema.py.",
+  "x-schema-version": "1.0.0",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "name"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "pattern": "^.+$"
+      },
+      "reset": {
+        "type": "integer"
+      },
+      "resetValue": {
+        "type": "integer"
+      },
+      "conditionInfo": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "actVal": {
+              "type": "integer"
+            },
+            "conditionList": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "mode": {
+                    "type": "integer",
+                    "enum": [
+                      0,
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "and_list": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "condition"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "pattern": "^.+$"
+                        },
+                        "condition": {
+                          "type": "string",
+                          "enum": [
+                            ">",
+                            ">=",
+                            "=",
+                            "<",
+                            "<="
+                          ]
+                        },
+                        "value": {
+                          "oneOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "debounceTime": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  }
+}

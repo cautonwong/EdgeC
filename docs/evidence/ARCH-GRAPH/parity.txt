@@ -1,0 +1,4 @@
+Command: python3 ci/scripts/check_ci_gate_parity.py --root .
+Exit: 0
+
+✅ [CI_GATE_PARITY] local runner matches CI (17 arch gates, 4 formal gates)

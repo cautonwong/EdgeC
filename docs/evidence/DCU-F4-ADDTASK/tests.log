@@ -1,0 +1,29 @@
+== RED on a3421169 (test commit acafecf4 only) ==
+[  ERROR   ] --- 2 != 1
+[   LINE   ] --- /tmp/edgec-land/f4-addtask-targeted/tests/test_dcu_poller.c:1546: error: Failure!
+[  FAILED  ] test_add_task_does_not_reopen_active_execution
+[ RUN      ] test_scheme_content_change_reopens_referencing_execution
+[ RUN      ] test_new_exec_mid_batch_failure_not_tainted
+[ RUN      ] test_batched_visit_breaker_settles_once_per_round
+[2026-11-26 12:44:22][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[==========] tests: 36 test(s) run.
+[  PASSED  ] 35 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_add_task_does_not_reopen_active_execution
+ 1 FAILED TEST(S)
+
+== GREEN at HEAD 93877f9e (clean build) ==
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 101.97 sec
+
+== new case (individual) ==
+[ RUN      ] test_add_task_does_not_reopen_active_execution
+[       OK ] test_add_task_does_not_reopen_active_execution
+[  PASSED  ] 1 test(s).
+
+== poller suite ==
+[==========] tests: 36 test(s) run.
+[  PASSED  ] 36 test(s).

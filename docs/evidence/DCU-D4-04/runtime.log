@@ -1,0 +1,70 @@
+== build (clean, HEAD 3788a76d) ==
+cmake --build build --clean-first -j4 -> rc=0; first-party warnings: 0 (only third-party open62541)
+
+== object list / ACL budget ==
+rc=0 len=4306 count_byte=106
+ACL objects 106 <= EDGE_SLAVE_ACL_MAX_OBJECTS 224
+dlt698_acl_object_t 16 B * 106 = 1696 B + header <= DRIVER_PRIV_SIZE 4096
+
+== guards ==
+check_build_warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_build_freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/d4-04-class19
+check_doc_references: 
+check_no_dynamic_memory: ✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_public_structs: ✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+check_stack_usage: ✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+== targeted suite ==
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) = 112.65 sec
+
+== 返工补记（73e729fc）==
+clean build (--clean-first) rc=0; first-party warnings: 0
+check_build_warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_build_freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/d4-04-class19
+check_doc_references: 
+check_no_dynamic_memory: ✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_public_structs: ✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+check_stack_usage: ✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+object list 4306 B / 106 items; slave pool 32 x 10496 B ~= 328 KB; shared pool unchanged 8192 x 4096 ~= 33.5 MB
+targeted suite:
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  89.02 sec
+
+acceptance run2 (pre-leak-fix): 22 failed, 13 passed in 72.61s (0:01:12)
+acceptance run6: 35 passed in 22.59s
+acceptance run7: 35 passed in 17.82s
+acceptance run8: 35 passed in 22.74s
+acceptance run5 flake: 1 failed, 34 passed in 23.04s (spare-DI timing, 3 consecutive greens after)
+
+== 第二轮补记（de424dad）==
+-- mutation guard --
+=== Mutation guards: 1 entries, build /tmp/edgec-land/d4-04-class19/build ===
+
+[MUTATION] DCU-D4-04-list-trailer-reserve (foundation/src/protocol/dlt698_codec.c)
+  [mutate] foundation/src/protocol/dlt698_codec.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] foundation/src/protocol/dlt698_codec.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D4-04-list-trailer-reserve: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+-- clean build / guards --
+clean build rc=0; first-party warnings: 0
+check_build_warnings: ✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_build_freshness: ✅ [BUILD_FRESHNESS] build is current for /tmp/edgec-land/d4-04-class19
+check_doc_references: 
+check_no_dynamic_memory: ✅ [ZERO_DYNAMIC_MEMORY_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+check_public_structs: ✅ [PUBLIC_STRUCTS] clean: 10 public structs audited.
+check_stack_usage: ✅ [STACK_USAGE_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+-- targeted suite --
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  23.86 sec
+-- acceptance --
+run9: 35 passed in 22.29s
+run10: 35 passed in 22.88s
+run11: 35 passed in 22.79s

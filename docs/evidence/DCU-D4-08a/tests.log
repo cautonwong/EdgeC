@@ -1,0 +1,38 @@
+=== D4-08a TESTS (2026-11-25T01:30:36Z) ===
+--- repo: 65999bce + interrogate fixes (working tree), base 6ad00780 ---
+
+--- clean build warnings (build-ci/build.log) ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+--- unit: class22 (6) ---
+[       OK ] test_oi_specific_methods_and_attrs_are_defined
+[==========] tests: 6 test(s) run.
+[  PASSED  ] 6 test(s).
+
+--- unit: appconn (4) ---
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 4 test(s) run.
+[  PASSED  ] 4 test(s).
+
+--- ctest -R dcu (38) ---
+100% tests passed, 0 tests failed out of 38
+
+Total Test time (real) =  10.03 sec
+
+--- ASAN detect_leaks=1 (dcu/698/dlt698) ---
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  10.02 sec
+
+--- guard selftest (118) ---
+📊 Refutation Test Results: 118/118 passed (100% sensitivity)
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+--- fanalyzer ---
+✅ [FANALYZER] 3 known finding(s), no new reports
+
+--- SRP / plane / component / doc refs ---
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+✅ [PLANE_ISOLATION_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [COMPONENT_BOUNDARY_GUARD] clean. Baseline owners: none
+docref rc=0

@@ -1,0 +1,17 @@
+{
+  "cafilePath": "/opt/certs/serverca.pem",
+  "certEnable": 1,
+  "certfilePath": "/opt/certs/client.pem",
+  "clientID": "SN0001",
+  "desc": "mqttA",
+  "devID": "SN0001",
+  "httpsCa": "/opt/certs/httpsca.pem",
+  "keepAlive": 30,
+  "keyfilePath": "/opt/certs/client.key",
+  "mainIP": "10.0.0.10",
+  "password": "",
+  "portnum": 1883,
+  "protocol": "MQTT_Send",
+  "schema_version": "1.0.0",
+  "username": ""
+}

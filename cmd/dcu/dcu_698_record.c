@@ -7,7 +7,14 @@
 #include "dlt698_codec.h"
 
 #define OAD_FREEZE_TIME 0x20210200U
-#define OI_DAILY_FREEZE 0x5004U
+#define OI_FREEZE_FIRST 0x5000U
+#define OI_FREEZE_LAST 0x5007U
+
+/* 时钟驱动的 5000–5007 有记录来源；5008/5009/500A/500B/5011 依赖产品没有的
+ * 时区/时段/费率/阶梯切换事件（D3-02 证据）。 */
+static int _freeze_oi_supported(uint16_t oi) {
+    return oi >= OI_FREEZE_FIRST && oi <= OI_FREEZE_LAST;
+}
 
 typedef struct {
     uint32_t oad;
@@ -102,9 +109,14 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection, s
     ctx->row_count = 0;
     ctx->page_count = 0;
 
-    if ((oad >> 16) != OI_DAILY_FREEZE || ((oad >> 8) & 0xFF) != 2) {
+    uint16_t oi = (uint16_t)(oad >> 16);
+    if (((oad >> 8) & 0xFF) != 2) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (!_freeze_oi_supported(oi)) {
+        if (oi == 0x5008 || oi == 0x5009 || oi == 0x500A || oi == 0x500B || oi == 0x5011)
+            return EDGE_SLAVE_SRC_TEMPORARY;
         return EDGE_SLAVE_SRC_NOT_FOUND;
     }
+    uint32_t freeze_oad = ((uint32_t)oi << 16) | 0x0200u;
     uint8_t slot = (uint8_t)(oad & 0xFF);
     const production_meter_t *meter = dcu_inventory_by_slot(ctx->inventory, slot);
     if (!meter) return EDGE_SLAVE_SRC_NOT_FOUND;
@@ -162,8 +174,8 @@ int dcu_698_record_begin(void *opaque, uint32_t oad, const uint8_t *selection, s
     }
 
     uint16_t count = 0;
-    if (dcu_storage_query_freeze(ctx->storage, meter->address, OAD_DAILY_FREEZE, start, end,
-                                 ctx->page, DCU_RECORD_PAGE_ROWS, &count) != 0) {
+    if (dcu_storage_query_freeze(ctx->storage, meter->address, freeze_oad, start, end, ctx->page,
+                                 DCU_RECORD_PAGE_ROWS, &count) != 0) {
         return EDGE_SLAVE_SRC_TEMPORARY;
     }
     if (count > DCU_RECORD_PAGE_CAP) return EDGE_SLAVE_SRC_TEMPORARY;

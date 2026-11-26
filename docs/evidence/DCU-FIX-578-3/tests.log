@@ -1,0 +1,162 @@
+=== BEFORE FIX: test_dcu_698_schemes ===
+[==========] tests: Running 12 test(s).
+[ RUN      ] test_add_selected_columns_are_submitted
+[       OK ] test_add_selected_columns_are_submitted
+[ RUN      ] test_set_csd_replaces_and_delete_stops
+[       OK ] test_set_csd_replaces_and_delete_stops
+[ RUN      ] test_referenced_scheme_refuses_csd_change_and_delete
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Set_CSD
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝改记录列选择
+[  ERROR   ] --- -20 != -25
+[   LINE   ] --- /tmp/edgec-land/fix3-scheme-dar/tests/test_dcu_698_schemes.c:345: error: Failure!
+[  FAILED  ] test_referenced_scheme_refuses_csd_change_and_delete
+[ RUN      ] test_shape_errors_return_7
+[       OK ] test_shape_errors_return_7
+[ RUN      ] test_policy_errors_return_2
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的存储深度 1 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的存储时标 1 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的采集类型 1 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的采集类型 2 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的采集类型 3 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的采集类型 4 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 0 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 2 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 3 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 4 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 5 未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的 CSD 为空（标准语义为全选）未实现
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的 CSD OAD 0x11111111 不是可采集点位
+[2026-11-23 09:45:12][WARN][NB] DCU 6014: 方案 7 的 CSD 含 ROAD（记录型列）未实现
+[       OK ] test_policy_errors_return_2
+[ RUN      ] test_id_zero_and_batch_atomicity
+[2026-11-23 09:45:13][WARN][NB] DCU 6014: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[  ERROR   ] --- -20 != -25
+[   LINE   ] --- /tmp/edgec-land/fix3-scheme-dar/tests/test_dcu_698_schemes.c:540: error: Failure!
+[  FAILED  ] test_id_zero_and_batch_atomicity
+[ RUN      ] test_a2_bytes_are_exact
+[       OK ] test_a2_bytes_are_exact
+[ RUN      ] test_masks_and_unknown_methods
+[       OK ] test_masks_and_unknown_methods
+[ RUN      ] test_persistence_reload_and_seed_once
+[       OK ] test_persistence_reload_and_seed_once
+[ RUN      ] test_north_route_6014_and_time_tag
+[       OK ] test_north_route_6014_and_time_tag
+[ RUN      ] test_clear_persists_across_reload
+[2026-11-23 09:45:13][WARN][NB] DCU 6014: 方案 1 被活动任务引用，拒绝 Clear
+[       OK ] test_clear_persists_across_reload
+[ RUN      ] test_sql_failure_rolls_back_db_and_ram
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 10 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_referenced_scheme_refuses_csd_change_and_delete
+[  FAILED  ] test_id_zero_and_batch_atomicity
+
+ 2 FAILED TEST(S)
+
+=== AFTER FIX: test_dcu_698_schemes ===
+[==========] tests: Running 12 test(s).
+[ RUN      ] test_add_selected_columns_are_submitted
+[       OK ] test_add_selected_columns_are_submitted
+[ RUN      ] test_set_csd_replaces_and_delete_stops
+[       OK ] test_set_csd_replaces_and_delete_stops
+[ RUN      ] test_referenced_scheme_refuses_csd_change_and_delete
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Set_CSD
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝改记录列选择
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝删除
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Clear
+[       OK ] test_referenced_scheme_refuses_csd_change_and_delete
+[ RUN      ] test_shape_errors_return_7
+[       OK ] test_shape_errors_return_7
+[ RUN      ] test_policy_errors_return_2
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的存储深度 1 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的存储时标 1 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的采集类型 1 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的采集类型 2 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的采集类型 3 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的采集类型 4 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 0 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 2 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 3 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 4 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 5 未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的 CSD 为空（标准语义为全选）未实现
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的 CSD OAD 0x11111111 不是可采集点位
+[2026-11-23 10:05:59][WARN][NB] DCU 6014: 方案 7 的 CSD 含 ROAD（记录型列）未实现
+[       OK ] test_policy_errors_return_2
+[ RUN      ] test_id_zero_and_batch_atomicity
+[2026-11-23 10:06:00][WARN][NB] DCU 6014: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-23 10:06:00][WARN][NB] DCU 6014: 方案 8 被活动任务引用，拒绝删除
+[       OK ] test_id_zero_and_batch_atomicity
+[ RUN      ] test_a2_bytes_are_exact
+[       OK ] test_a2_bytes_are_exact
+[ RUN      ] test_masks_and_unknown_methods
+[       OK ] test_masks_and_unknown_methods
+[ RUN      ] test_persistence_reload_and_seed_once
+[       OK ] test_persistence_reload_and_seed_once
+[ RUN      ] test_north_route_6014_and_time_tag
+[       OK ] test_north_route_6014_and_time_tag
+[ RUN      ] test_clear_persists_across_reload
+[2026-11-23 10:06:00][WARN][NB] DCU 6014: 方案 1 被活动任务引用，拒绝 Clear
+[       OK ] test_clear_persists_across_reload
+[ RUN      ] test_sql_failure_rolls_back_db_and_ram
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+
+=== AFTER FIX: ASAN build ===
+[==========] tests: Running 12 test(s).
+[ RUN      ] test_add_selected_columns_are_submitted
+[       OK ] test_add_selected_columns_are_submitted
+[ RUN      ] test_set_csd_replaces_and_delete_stops
+[       OK ] test_set_csd_replaces_and_delete_stops
+[ RUN      ] test_referenced_scheme_refuses_csd_change_and_delete
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Set_CSD
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝改记录列选择
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝删除
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 被活动任务引用，拒绝 Clear
+[       OK ] test_referenced_scheme_refuses_csd_change_and_delete
+[ RUN      ] test_shape_errors_return_7
+[       OK ] test_shape_errors_return_7
+[ RUN      ] test_policy_errors_return_2
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的存储深度 1 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的存储时标 1 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的采集类型 1 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的采集类型 2 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的采集类型 3 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的采集类型 4 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 0 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 2 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 3 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 4 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的电能表集合 choice 5 未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的 CSD 为空（标准语义为全选）未实现
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的 CSD OAD 0x11111111 不是可采集点位
+[2026-11-23 10:07:18][WARN][NB] DCU 6014: 方案 7 的 CSD 含 ROAD（记录型列）未实现
+[       OK ] test_policy_errors_return_2
+[ RUN      ] test_id_zero_and_batch_atomicity
+[2026-11-23 10:07:19][WARN][NB] DCU 6014: 方案编号 0 是保留值（OAD 元素 0 = 最小现有编号）
+[2026-11-23 10:07:19][WARN][NB] DCU 6014: 方案 8 被活动任务引用，拒绝删除
+[       OK ] test_id_zero_and_batch_atomicity
+[ RUN      ] test_a2_bytes_are_exact
+[       OK ] test_a2_bytes_are_exact
+[ RUN      ] test_masks_and_unknown_methods
+[       OK ] test_masks_and_unknown_methods
+[ RUN      ] test_persistence_reload_and_seed_once
+[       OK ] test_persistence_reload_and_seed_once
+[ RUN      ] test_north_route_6014_and_time_tag
+[       OK ] test_north_route_6014_and_time_tag
+[ RUN      ] test_clear_persists_across_reload
+[2026-11-23 10:07:19][WARN][NB] DCU 6014: 方案 1 被活动任务引用，拒绝 Clear
+[       OK ] test_clear_persists_across_reload
+[ RUN      ] test_sql_failure_rolls_back_db_and_ram
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+
+=== BUILD WARNING GATE ===
+[1/4] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_scheme_store.c.o
+[2/4] Building C object tests/CMakeFiles/test_dcu_698_schemes.dir/test_dcu_698_schemes.c.o
+[3/4] Linking C static library cmd/dcu/libdcu_app_lib.a
+[4/4] Linking C executable tests/test_dcu_698_schemes
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.

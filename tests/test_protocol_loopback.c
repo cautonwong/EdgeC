@@ -131,7 +131,7 @@ static void test_modbus_loopback_flow(void** state) {
     loopback_ctx_t* ctx = *state;
 
     /* 原生点位 0（寄存器 0，1 个寄存器），回调要拿回产品 tag 1001 */
-    assert_int_equal(edge_api_read_tag_ex(0, "ModbusRTU", 1, MODBUS_NATIVE(0, 1), 1001, 1.0, NULL,
+    assert_int_equal(edge_api_read_tag_ex(0, "ModbusRTU", 1, 0, MODBUS_NATIVE(0, 1), 1001, 1.0, NULL,
                                           0, ARBITER_PRIO_NORMAL, on_read_done, ctx),
                      0);
 

@@ -1,0 +1,7 @@
+=== D3-08 ACCEPTANCE (2026-11-24T04:52:25Z) ===
+cmd: TESTPLATFORM=/home/edge/test-platform PYTHON=/home/edge/EdgeC/.venv/bin/python3 ./acceptance/run.sh dcu
+34 passed in 46.21s
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+--- existing cases mapped in summary (no new case) ---
+D_00_00_02_000011 D_00_00_02_000016 D_00_00_02_000017 D_00_00_02_000022 D_00_00_02_000032 D_00_00_02_000033 

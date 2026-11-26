@@ -1,0 +1,58 @@
+== RED on 88e1e550 (test commit only) ==
+[==========] tests: Running 2 test(s).
+[  ERROR   ] --- 0 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-07-esam/tests/test_dcu_advanced_modules.c:223: error: Failure!
+[  FAILED  ] test_dcu_advanced_features_dispatch
+[==========] tests: 2 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_dcu_advanced_features_dispatch
+ 1 FAILED TEST(S)
+[==========] tests: Running 22 test(s).
+[  ERROR   ] --- Memory is not equal:
+[   LINE   ] --- /tmp/edgec-land/d4-07-esam/tests/test_dcu_698_object_model.c:98: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-07-esam/tests/test_dcu_698_object_model.c:235: error: Failure!
+[  FAILED  ] test_dar_classification_by_class_definition
+[==========] tests: 22 test(s) run.
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_dar_classification_by_class_definition
+ 2 FAILED TEST(S)
+[==========] tests: Running 58 test(s).
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-07-esam/tests/test_dcu_698_axdr.c:691: error: Failure!
+[  FAILED  ] test_product_class21_esam_dar
+[==========] tests: 58 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class21_esam_dar
+ 1 FAILED TEST(S)
+[==========] tests: Running 21 test(s).
+[  ERROR   ] --- 106 != 107
+
+== GREEN at HEAD (clean build) ==
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  23.89 sec
+
+== new cases ==
+== test_dcu_698_object_model::test_dar_classification_by_class_definition
+[ RUN      ] test_dar_classification_by_class_definition
+[       OK ] test_dar_classification_by_class_definition
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn::test_class21_esam_acl_is_read_only
+[ RUN      ] test_class21_esam_acl_is_read_only
+[       OK ] test_class21_esam_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr::test_product_class21_esam_dar
+[ RUN      ] test_product_class21_esam_dar
+[       OK ] test_product_class21_esam_dar
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698::test_slave_class21_esam_dar
+[ RUN      ] test_slave_class21_esam_dar
+[       OK ] test_slave_class21_esam_dar
+[  PASSED  ] 1 test(s).
+== test_dcu_advanced_modules::test_dcu_advanced_features_dispatch
+[ RUN      ] test_dcu_advanced_features_dispatch
+[       OK ] test_dcu_advanced_features_dispatch
+[  PASSED  ] 1 test(s).

@@ -1,0 +1,14 @@
+ cmd/dcu/CMakeLists.txt              |   1 +
+ cmd/dcu/dcu_698_appconn.c           |  16 +++++
+ cmd/dcu/dcu_698_axdr.c              |   6 ++
+ cmd/dcu/dcu_698_object_model.c      |  25 ++++++-
+ cmd/dcu/dcu_comm_info.c             | 140 ++++++++++++++++++++++++++++++++++++
+ cmd/dcu/dcu_comm_info.h             |  37 ++++++++++
+ cmd/dcu/dcu_router.h                |   6 ++
+ docs/design/DCU_698_OBJECT_MODEL.md |  29 +++++---
+ tests/test_dcu_698_appconn.c        |  34 ++++++++-
+ tests/test_dcu_698_axdr.c           | 105 +++++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c   |  45 +++++++++++-
+ tests/test_dcu_698_scheme_mgmt.c    |   2 +-
+ tests/test_driver_dlt698.c          |  96 ++++++++++++++++++++++++-
+ 13 files changed, 529 insertions(+), 13 deletions(-)

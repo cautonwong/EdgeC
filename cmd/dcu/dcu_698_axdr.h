@@ -5,6 +5,8 @@
 #include <stdint.h>
 
 #include "dcu_698_object_model.h"
+#include "dcu_698_rules.h"
+#include "dcu_scheme_store.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +49,28 @@ int dcu_698_decode_scheme_op(uint8_t method, const uint8_t *buf, size_t len,
  */
 int dcu_698_scheme_encode_axdr(const dcu_poller_t *poller, uint32_t oad, uint8_t *buf,
                                size_t cap, size_t *len);
+/** @brief 解 6016 方法 127/128/129/130 的参数；形状错误 DAR 7，容量超限 DAR 2。 */
+int dcu_698_decode_event_scheme_op(uint8_t method, const uint8_t *buf, size_t len,
+                                   dcu_event_scheme_op_t *out);
+/** @brief 6016 A2 数组 / 6017 A2 单元（元素索引 = 方案编号，0 = 最小现有 ID）。 */
+int dcu_698_event_scheme_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+/** @brief 解 6018 方法 127/128/129/130/131 的参数；形状错误 DAR 7，容量超限 DAR 2。 */
+int dcu_698_decode_transparent_op(uint8_t method, const uint8_t *buf, size_t len,
+                                  dcu_transparent_op_t *out);
+/** @brief 6018 A2 数组 / 6019 A2 单元（元素索引 = 方案编号，0 = 最小现有 ID）。 */
+int dcu_698_transparent_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+/** @brief 601A A2 数组 / 601B A2 单元（元素索引 = 结果存储序号，0 = 最小现有）。 */
+int dcu_698_transparent_result_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+/** @brief 解 601C 方法 127/128/129 的参数；形状错误 DAR 7，记录型上报/容量超限 DAR 2。 */
+int dcu_698_decode_report_op(uint8_t method, const uint8_t *buf, size_t len, dcu_report_op_t *out);
+/** @brief 601C A2 数组 / 601D A2 单元（元素索引 = 方案编号，0 = 最小现有 ID）。 */
+int dcu_698_report_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+/** @brief 解 601E 方法 127/128/129 的参数；ROAD/多 DI 数组 DAR 2，形状错误 DAR 7。 */
+int dcu_698_decode_rule_op(uint8_t method, const uint8_t *buf, size_t len, dcu_rule_op_t *out);
+/** @brief 601E A2 数组 / 601F A2 单元（元素索引 = 601E 投影位置，0 = 第一项）。 */
+int dcu_698_rule_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
+/** @brief 6034 A2 数组 / 6035 A2 单元（元素索引 = task_id）；未知 task_id 回 DAR 6。 */
+int dcu_698_task_monitor_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
 
 /**
  * @brief 编码 date_time_s：UNIX 整秒 → tag 0x1C + 设备本地公历 7 字节。

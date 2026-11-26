@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ems_lc_list",
+  "description": "P6-04a round 1. Covers ems_lc_list.json. All per-device fields are functional-required by load_lc_list.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "devices"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "devices": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "sn",
+          "name",
+          "no",
+          "type",
+          "disabled",
+          "ipaddr"
+        ],
+        "properties": {
+          "sn": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "no": {
+            "type": "string",
+            "pattern": "^.+$"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "lc",
+              "vlc",
+              "ems"
+            ]
+          },
+          "disabled": {
+            "type": "integer"
+          },
+          "ipaddr": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

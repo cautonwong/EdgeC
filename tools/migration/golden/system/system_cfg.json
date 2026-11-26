@@ -1,0 +1,19 @@
+{
+  "capacity": 200,
+  "cnt_id": "def",
+  "en_diesel_generator": 1,
+  "en_esc": 1,
+  "en_lc": 0,
+  "en_lc_ctrl": 1,
+  "en_mains": 1,
+  "en_mcb": 0,
+  "en_photovoltaic": 1,
+  "en_swb": 1,
+  "id": "000001",
+  "is_slave": 0,
+  "mode": 1,
+  "mode_microgrid": 2,
+  "name": "cabinetA",
+  "power": 100,
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "description": "Refutation: examples are scanned and cannot include cmd headers.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [
+    {
+      "from_layer": "other",
+      "to_layer": "cmd",
+      "reason": "examples are consumers"
+    }
+  ],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

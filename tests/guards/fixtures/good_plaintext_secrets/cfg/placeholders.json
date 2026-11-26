@@ -1,0 +1,6 @@
+{
+  "password": "$secret:fixture.password",
+  "token": "${FIXTURE_TOKEN}",
+  "api_key": "${FIXTURE_API_KEY}",
+  "empty_pass": ""
+}

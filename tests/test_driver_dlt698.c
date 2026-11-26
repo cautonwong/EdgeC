@@ -18,9 +18,15 @@
 #include <string.h>
 #include <time.h>
 
+#include "bus_orchestrator.h"
+#include "dcu_comm_info.h"
 #include "dcu_698_appconn.h"
 #include "dcu_698_axdr.h"
+#include "dcu_698_object_model.h"
 #include "dcu_698_param.h"
+#include "dcu_inventory.h"
+#include "dcu_north_adapter.h"
+#include "dcu_poller.h"
 #include "dlt698_codec.h"
 #include "driver_dlt698.h"
 #include "edge_driver.h"
@@ -212,7 +218,7 @@ typedef struct {
     size_t total;
     int begin_rc;
     bool row_fails;
-    uint8_t acl[1024];
+    uint8_t acl[4096];
     size_t acl_len;
     size_t fail_index;
     int row_rc;
@@ -225,7 +231,12 @@ typedef struct {
 static size_t build_acl(uint8_t* buf, const uint16_t* ois, size_t n) {
     size_t o = 0;
     buf[o++] = 0x01;
-    buf[o++] = (uint8_t)n;
+    if (n < 0x80) {
+        buf[o++] = (uint8_t)n;
+    } else {
+        buf[o++] = 0x81;
+        buf[o++] = (uint8_t)n; /* 224 < 256 */
+    }
     for (size_t i = 0; i < n; i++) {
         buf[o++] = 0x02;
         buf[o++] = 0x02;
@@ -333,7 +344,7 @@ static int run_record_case(const uint8_t* apdu, size_t apdu_len, fake_record_t* 
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
     size_t consumed = 0;
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     return dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, f, out, &consumed);
 }
@@ -588,7 +599,7 @@ static void test_report_frame_layout(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_record_t f;
     memset(&f, 0, sizeof(f));
@@ -627,7 +638,7 @@ static void test_report_no_session_no_send(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
 
     fake_report_t r;
@@ -646,7 +657,7 @@ static void test_report_confirm_clears_pending(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_record_t f;
     memset(&f, 0, sizeof(f));
@@ -680,7 +691,7 @@ static void test_report_timeout_unblocks(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 4, 512, 0, NULL, NULL), 0);
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_record_t f;
     memset(&f, 0, sizeof(f));
@@ -712,6 +723,63 @@ static void test_report_timeout_unblocks(void** state) {
 }
 
 /* GET 5004 A2：端口回 CLASS_MISMATCH / UNDEFINED 时驱动必须映射成 DAR 5 / 4。 */
+
+/* N=224 的对象列表必须用 A-XDR 长格式长度解析；最后一个对象 0x0002
+ * 带 attr 2 只读，GET 应进入 resolve（返回 DAR 6）而不是被 ACL 拒绝。 */
+static void test_slave_parses_long_form_acl_224(void** state) {
+    (void)state;
+    static uint8_t session[4096];
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    memset(session, 0, sizeof(session));
+
+    fake_record_t f;
+    memset(&f, 0, sizeof(f));
+    static uint16_t ois[224];
+    for (size_t i = 0; i < 223; i++) ois[i] = 0x0001;
+    ois[223] = 0x0002;
+    f.acl_len = build_acl(f.acl, ois, 224);
+    f.axdr_rc = EDGE_SLAVE_SRC_NOT_FOUND;
+
+    static const uint8_t get_allowed[] = {DLT698_SVC_GET_REQ, 0x01, 0x05, 0x00, 0x02, 0x02, 0x00,
+                                          0x00};
+    static const uint8_t get_denied[] = {DLT698_SVC_GET_REQ, 0x01, 0x05, 0x00, 0x03, 0x02, 0x00,
+                                         0x00};
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = fake_object_list;
+    src.resolve_axdr = fake_resolve_axdr;
+
+    const uint8_t* reqs[] = {get_allowed, get_denied};
+    const uint8_t want_dar[] = {DLT698_DAR_OBJECT_NOT_FOUND, DLT698_DAR_DENIED};
+    for (size_t c = 0; c < 2; c++) {
+        uint8_t frame[64];
+        size_t flen = build_slave_frame(frame, reqs[c], sizeof(get_allowed));
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+        memset(priv, 0, sizeof(priv));
+        size_t consumed = 0;
+        assert_int_equal(
+            dlt698_driver.req_slave_exchange(priv, session, frame, flen, &src, &f, out, &consumed),
+            0);
+        struct net_buf_simple nb;
+        net_buf_simple_init_with_data(&nb, out->b.data, out->b.len);
+        nb.len = (uint16_t)out->b.len;
+        dlt698_addr_t sa;
+        uint8_t svc = 0, choice = 0, piid = 0;
+        uint8_t* payload = NULL;
+        size_t payload_len = 0;
+        assert_int_equal(
+            dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len), 0);
+        assert_int_equal(svc, DLT698_SVC_GET_RES);
+        assert_int_equal(payload[4], 0x00);
+        assert_int_equal(payload[5], want_dar[c]);
+        net_buf_unref(out);
+    }
+    net_buf_pool_destroy(&pool);
+}
+
 static void test_get_maps_source_rc_to_dar(void** state) {
     (void)state;
     struct {
@@ -721,7 +789,7 @@ static void test_get_maps_source_rc_to_dar(void** state) {
         {EDGE_SLAVE_SRC_CLASS_MISMATCH, DLT698_DAR_OBJECT_CLASS_MISMATCH},
         {EDGE_SLAVE_SRC_UNDEFINED, DLT698_DAR_OBJECT_UNDEFINED},
     };
-    static uint8_t session[1024];
+    static uint8_t session[4096];
 
     for (size_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++) {
         net_buf_pool_t pool;
@@ -776,7 +844,7 @@ static int run_slave_apdu(const uint8_t* apdu, size_t apdu_len, const edge_slave
     size_t flen = build_slave_frame(frame, apdu, apdu_len);
     alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
     memset(priv, 0, sizeof(priv));
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     size_t consumed = 0;
     return dlt698_driver.req_slave_exchange(priv, session, frame, flen, src, src_ctx, out,
@@ -800,12 +868,12 @@ static void decode_payload(const net_buf_t* out, uint8_t** payload, uint8_t* svc
                      0);
 }
 
-static void test_slave_accepts_product_object_list_36(void** state) {
+static void test_slave_accepts_product_object_list_42(void** state) {
     (void)state;
-    uint8_t list[2048];
+    uint8_t list[EDGE_SLAVE_AXDR_MAX];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 36);
+    assert_int_equal(list[1], 118);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -832,6 +900,751 @@ static void test_slave_accepts_product_object_list_36(void** state) {
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
+}
+
+static void assert_product_get_dar(const uint8_t* apdu, size_t apdu_len, uint8_t want_dar) {
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    assert_int_equal(run_slave_apdu(apdu, apdu_len, &src, NULL, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x00); /* A-Result Data 的 DAR 分支 */
+    assert_int_equal(payload[5], want_dar);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_class17_display_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    static const uint8_t get_f300_a2[] = {0x05, 0x01, 0x05, 0xF3, 0x00, 0x02, 0x00, 0x00};
+    static const uint8_t get_f300_a1[] = {0x05, 0x01, 0x05, 0xF3, 0x00, 0x01, 0x00, 0x00};
+    static const uint8_t get_f301_a2[] = {0x05, 0x01, 0x05, 0xF3, 0x01, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_f300_a2, sizeof(get_f300_a2), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f301_a2, sizeof(get_f301_a2), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f300_a1, sizeof(get_f300_a1), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    static const uint8_t set_f300_a2[] = {0x06, 0x01, 0x05, 0xF3, 0x00, 0x02,
+                                          0x00, 0x09, 0x00, 0x00};
+    assert_int_equal(run_slave_apdu(set_f300_a2, sizeof(set_f300_a2), &src, NULL, out), 0);
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class11_collection_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    static const uint8_t get_7010_a2[] = {0x05, 0x01, 0x05, 0x70, 0x10, 0x02, 0x00, 0x00};
+    static const uint8_t get_7010_a1[] = {0x05, 0x01, 0x05, 0x70, 0x10, 0x01, 0x00, 0x00};
+    static const uint8_t get_7000_a2[] = {0x05, 0x01, 0x05, 0x70, 0x00, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_7010_a2, sizeof(get_7010_a2), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_7010_a1, sizeof(get_7010_a1), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_7000_a2, sizeof(get_7000_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    static const uint8_t action_7000_127[] = {0x07, 0x01, 0x05, 0x70, 0x00,
+                                              0x7F, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_7000_127, sizeof(action_7000_127), &src, NULL, out), 0);
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    net_buf_unref(out);
+
+    static const uint8_t action_7000_130[] = {0x07, 0x01, 0x05, 0x70, 0x00,
+                                              0x82, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_7000_130, sizeof(action_7000_130), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_7010_a2[] = {0x06, 0x01, 0x05, 0x70, 0x10,
+                                          0x02, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_7010_a2, sizeof(set_7010_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class12_pulse_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    /* ACL 广告 A1..A15：类定义但无来源 → DAR 5；A16/A20 不在 ACL → 主站先 DAR 3。 */
+    static const uint8_t get_2401_a1[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x01, 0x00, 0x00};
+    static const uint8_t get_2401_a15[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x0F, 0x00, 0x00};
+    static const uint8_t get_2401_a16[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x10, 0x00, 0x00};
+    static const uint8_t get_2401_a20[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x14, 0x00, 0x00};
+    static const uint8_t get_2402_a2[] = {0x05, 0x01, 0x05, 0x24, 0x02, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_2401_a1, sizeof(get_2401_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2401_a15, sizeof(get_2401_a15), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2401_a16, sizeof(get_2401_a16), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2401_a20, sizeof(get_2401_a20), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2402_a2, sizeof(get_2402_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    for (uint8_t method = 1; method <= 4; method++) {
+        uint8_t action_2401[9] = {0x07, 0x01, 0x05, 0x24, 0x01, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_2401, sizeof(action_2401), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    static const uint8_t action_2401_5[] = {0x07, 0x01, 0x05, 0x24, 0x01,
+                                            0x05, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_2401_5, sizeof(action_2401_5), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_2401_a1[] = {0x06, 0x01, 0x05, 0x24, 0x01,
+                                          0x01, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_2401_a1, sizeof(set_2401_a1), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class25_26_comm_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    static const uint8_t k_mac[6] = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55};
+    dcu_comm_info_t info = {.mac_present = true};
+    memcpy(info.mac, k_mac, sizeof(k_mac));
+    dcu_comm_info_install(&info);
+
+    /* ACL 广告 A1..A11（Class 25）/A1..A5（Class 26）：类定义但无来源 → DAR 5；
+     * 未在 ACL 先 DAR 3。4510 A5 是唯一有平台来源的属性。 */
+    static const uint8_t get_4500_a1[] = {0x05, 0x01, 0x05, 0x45, 0x00, 0x01, 0x00, 0x00};
+    static const uint8_t get_4500_a12[] = {0x05, 0x01, 0x05, 0x45, 0x00, 0x0C, 0x00, 0x00};
+    static const uint8_t get_4510_a4[] = {0x05, 0x01, 0x05, 0x45, 0x10, 0x04, 0x00, 0x00};
+    static const uint8_t get_4510_a6[] = {0x05, 0x01, 0x05, 0x45, 0x10, 0x06, 0x00, 0x00};
+    static const uint8_t get_4510_a5[] = {0x05, 0x01, 0x05, 0x45, 0x10, 0x05, 0x00, 0x00};
+    static const uint8_t get_4511_a5[] = {0x05, 0x01, 0x05, 0x45, 0x11, 0x05, 0x00, 0x00};
+    static const uint8_t get_4502_a2[] = {0x05, 0x01, 0x05, 0x45, 0x02, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_4500_a1, sizeof(get_4500_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_4500_a12, sizeof(get_4500_a12), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_4510_a4, sizeof(get_4510_a4), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_4510_a6, sizeof(get_4510_a6), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_4511_a5, sizeof(get_4511_a5), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_4502_a2, sizeof(get_4502_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(get_4510_a5, sizeof(get_4510_a5), &src, NULL, out), 0);
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x01); /* A-Result Data */
+    assert_int_equal(payload[5], DLT698_TAG_OCTET_STRING);
+    assert_int_equal(payload[6], 6);
+    assert_memory_equal(payload + 7, k_mac, sizeof(k_mac));
+    net_buf_unref(out);
+
+    static const uint8_t action_4500_1[] = {0x07, 0x01, 0x05, 0x45, 0x00,
+                                            0x01, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_4500_1, sizeof(action_4500_1), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    net_buf_unref(out);
+
+    static const uint8_t action_4500_2[] = {0x07, 0x01, 0x05, 0x45, 0x00,
+                                            0x02, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_4500_2, sizeof(action_4500_2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_4510_a5[] = {0x06, 0x01, 0x05, 0x45, 0x10,
+                                          0x05, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_4510_a5, sizeof(set_4510_a5), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+
+    /* 平台没有以太网接口时 A5 回 DAR 5，不拿全零或编造的 MAC 冒充。 */
+    dcu_comm_info_reset();
+    assert_product_get_dar(get_4510_a5, sizeof(get_4510_a5), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class19_devmgr_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    /* ACL 广告 A1..A10 与方法 1..6：类定义但无来源 → DAR 5；未在 ACL 先 DAR 3。 */
+    static const uint8_t get_4300_a1[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x01, 0x00, 0x00};
+    static const uint8_t get_4300_a10[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x0A, 0x00, 0x00};
+    static const uint8_t get_4300_a11[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x0B, 0x00, 0x00};
+    static const uint8_t get_4301_a2[] = {0x05, 0x01, 0x05, 0x43, 0x01, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_4300_a1, sizeof(get_4300_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_4300_a10, sizeof(get_4300_a10), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_4300_a11, sizeof(get_4300_a11), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_4301_a2, sizeof(get_4301_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    /* 复位/执行/数据初始化/恢复出厂/事件初始化/需量初始化都广告，ACTION 到对象表
+     * 如实回 DAR 5，绝不运行。 */
+    for (uint8_t method = 1; method <= 6; method++) {
+        uint8_t action_4300[9] = {0x07, 0x01, 0x05, 0x43, 0x00, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_4300, sizeof(action_4300), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    static const uint8_t action_4300_7[] = {0x07, 0x01, 0x05, 0x43, 0x00,
+                                            0x07, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_4300_7, sizeof(action_4300_7), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    /* 4307 的 127 已计入 resolver 定义，但 ACL 每对象方法上限 8 已被类方法占用，
+     * 主站 ACTION 先回 DAR 3。 */
+    static const uint8_t action_4307_127[] = {0x07, 0x01, 0x05, 0x43, 0x07,
+                                              0x7F, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_4307_127, sizeof(action_4307_127), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_4300_a2[] = {0x06, 0x01, 0x05, 0x43, 0x00,
+                                          0x02, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_4300_a2, sizeof(set_4300_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+/* D4-04 回归：118 项对象列表的 GET 响应是 5806 B 数据 + 22 B 帧 = 5828 B。
+ * 生产共享池的 4096 B 装不下；旧码 net_buf 的 assert 在 NDEBUG 下被编译掉，
+ * 直接越界写坏下一个 net_buf 节点。放不下时必须干净回 DAR 2。 */
+static void test_slave_object_list_does_not_overflow_pool_buffer(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 4096, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t get_4400[] = {0x05, 0x01, 0x05, 0x44, 0x00, 0x02, 0x00, 0x00};
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
+
+    assert_true(out->b.len <= out->b.size);
+    const uint8_t* end = out->b.__buf + out->b.size;
+    for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x00); /* A-Result Data 的 DAR 分支 */
+    assert_int_equal(payload[5], DLT698_DAR_TEMPORARY_FAILURE);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 生产从站池尺寸下，106 项对象列表必须完整装入，且缓冲末尾之后不被触碰。 */
+static void test_slave_object_list_fits_production_slave_pool(void** state) {
+    (void)state;
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, BUS_SLAVE_POOL_BUF_SIZE, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    static const uint8_t get_4400[] = {0x05, 0x01, 0x05, 0x44, 0x00, 0x02, 0x00, 0x00};
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
+
+    assert_int_equal(out->b.len, 5828);
+    assert_true(out->b.len <= out->b.size);
+    const uint8_t* end = out->b.__buf + out->b.size;
+    for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x01); /* A-Result Data */
+    assert_int_equal(payload[5], 0x01); /* array */
+    assert_int_equal(payload[6], 118);  /* 对象列表项数 */
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+typedef struct {
+    fake_record_t rec;
+    size_t lens[3];
+} list_buf_case_t;
+
+static int list_case_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    list_buf_case_t* c = (list_buf_case_t*)ctx;
+    return fake_object_list(&c->rec, oad, buf, cap, len);
+}
+
+static int list_case_resolve(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    list_buf_case_t* c = (list_buf_case_t*)ctx;
+    uint16_t oi = (uint16_t)(oad >> 16);
+    size_t idx = oi == 0x3000 ? 0 : (oi == 0x3005 ? 1 : 2);
+    size_t n = c->lens[idx];
+    if (n > cap) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memset(buf, 0x5A, n);
+    *len = n;
+    return 0;
+}
+
+/* GET-NORMAL-LIST 请求：前 n 个 OI 的 A2。 */
+static int run_list_case(list_buf_case_t* c, size_t n, net_buf_t* out) {
+    static const uint16_t ois[3] = {0x3000, 0x3005, 0x3006};
+    c->rec.acl_len = build_acl(c->rec.acl, ois, 3);
+    uint8_t apdu[32];
+    size_t o = 0;
+    apdu[o++] = DLT698_SVC_GET_REQ;
+    apdu[o++] = DLT698_CHOICE_GET_NORMAL_LIST;
+    apdu[o++] = 0x01;
+    apdu[o++] = (uint8_t)n;
+    for (size_t i = 0; i < n; i++) {
+        apdu[o++] = (uint8_t)(ois[i] >> 8);
+        apdu[o++] = (uint8_t)ois[i];
+        apdu[o++] = 0x02;
+        apdu[o++] = 0x00;
+    }
+    apdu[o++] = 0x00; /* 时间标签 */
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = list_case_object_list;
+    src.resolve_axdr = list_case_resolve;
+    return run_slave_apdu(apdu, o, &src, c, out);
+}
+
+/* 列表项必须给帧尾预留 5 字节（跟随上报|时间标签|FCS|END）。生产池 10496：
+ * 头 9 + APDU 4 + item1(5+10240) 后剩 238；item2 数据 229+10=239 > 238，
+ * 必须回该项 DAR 2，end 才能封口。旧码写满后 end 失败，留下 L=0 的半帧。 */
+static void test_slave_list_item_reserves_frame_trailer(void** state) {
+    (void)state;
+    list_buf_case_t c;
+    memset(&c, 0, sizeof(c));
+    c.lens[0] = 10240;
+    c.lens[1] = 165;
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, BUS_SLAVE_POOL_BUF_SIZE, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_list_case(&c, 2, out), 0);
+
+    assert_int_equal(out->b.data[out->b.len - 1], DLT698_END);
+    uint16_t l = (uint16_t)(out->b.data[1] | ((uint16_t)out->b.data[2] << 8));
+    assert_int_equal((size_t)l, out->b.len - 2);
+    /* item1 从偏移 13 开始：OAD(4)+Data(1)+10240；item2 紧随其后回 DAR 2。 */
+    size_t item2 = 13 + 5 + 10240;
+    assert_int_equal(out->b.data[item2 + 4], 0x00);
+    assert_int_equal(out->b.data[item2 + 5], DLT698_DAR_TEMPORARY_FAILURE);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+/* 编码失败不得留下半帧：item2 写满后只剩 5 字节，下一项与其 DAR 都放不下，
+ * 驱动必须清空 resp 长度；旧码会把半帧交给引擎并随每个 RX 事件重发。 */
+static void test_slave_encode_failure_clears_half_frame(void** state) {
+    (void)state;
+    list_buf_case_t c;
+    memset(&c, 0, sizeof(c));
+    c.lens[0] = 10240;
+    c.lens[1] = 164;
+    c.lens[2] = 1;
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, BUS_SLAVE_POOL_BUF_SIZE, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    int rc = run_list_case(&c, 3, out);
+    assert_true(rc < 0);
+    assert_int_equal(out->b.len, 0);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_class21_esam_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    /* ACL 广告 A1..A15 与方法 1..8：类定义但无 ESAM 来源 → DAR 5；未在 ACL 先 DAR 3。 */
+    static const uint8_t get_f100_a1[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x01, 0x00, 0x00};
+    static const uint8_t get_f100_a15[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x0F, 0x00, 0x00};
+    static const uint8_t get_f100_a16[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x10, 0x00, 0x00};
+    static const uint8_t get_f101_a2[] = {0x05, 0x01, 0x05, 0xF1, 0x01, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_f100_a1, sizeof(get_f100_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f100_a15, sizeof(get_f100_a15), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f100_a16, sizeof(get_f100_a16), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_f101_a2, sizeof(get_f101_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    /* 复位/执行/数据读取/更新/协商失效/钱包/密钥/证书：全部无处理器，DAR 5，绝不运行。 */
+    for (uint8_t method = 1; method <= 8; method++) {
+        uint8_t action_f100[9] = {0x07, 0x01, 0x05, 0xF1, 0x00, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_f100, sizeof(action_f100), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    /* 方法 9..12 已计入 resolver 定义，但 ACL 每对象方法上限 8，主站先 DAR 3。 */
+    static const uint8_t action_f100_9[] = {0x07, 0x01, 0x05, 0xF1, 0x00,
+                                            0x09, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_f100_9, sizeof(action_f100_9), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_f100_a2[] = {0x06, 0x01, 0x05, 0xF1, 0x00,
+                                          0x02, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_f100_a2, sizeof(set_f100_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class23_group_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    /* ACL 广告 A1..A16 与方法 1..5：类定义但无来源 → DAR 5；A17/A18 超出 ACL 属性
+     * schema、A19 类未定义、未知 OI 都先 DAR 3。 */
+    static const uint8_t get_2301_a1[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x01, 0x00, 0x00};
+    static const uint8_t get_2301_a16[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x10, 0x00, 0x00};
+    static const uint8_t get_2301_a17[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x11, 0x00, 0x00};
+    static const uint8_t get_2301_a18[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x12, 0x00, 0x00};
+    static const uint8_t get_2301_a19[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x13, 0x00, 0x00};
+    static const uint8_t get_2309_a2[] = {0x05, 0x01, 0x05, 0x23, 0x09, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_2301_a1, sizeof(get_2301_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2301_a16, sizeof(get_2301_a16), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2301_a17, sizeof(get_2301_a17), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2301_a18, sizeof(get_2301_a18), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2301_a19, sizeof(get_2301_a19), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2309_a2, sizeof(get_2309_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    /* 清空/执行/添加/批量添加/删除：全部无处理器，DAR 5，绝不执行总加配置。 */
+    for (uint8_t method = 1; method <= 5; method++) {
+        uint8_t action_2301[9] = {0x07, 0x01, 0x05, 0x23, 0x01, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_2301, sizeof(action_2301), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    static const uint8_t action_2301_6[] = {0x07, 0x01, 0x05, 0x23, 0x01,
+                                            0x06, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_2301_6, sizeof(action_2301_6), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_2301_a2[] = {0x06, 0x01, 0x05, 0x23, 0x01,
+                                          0x02, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_2301_a2, sizeof(set_2301_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class18_file_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    /* ACL：F000 广告 A1..A5，F001/F002 广告 A1..A4；方法 1..8。类定义但无来源 →
+     * DAR 5；未在 ACL 先 DAR 3。 */
+    static const uint8_t get_f000_a1[] = {0x05, 0x01, 0x05, 0xF0, 0x00, 0x01, 0x00, 0x00};
+    static const uint8_t get_f000_a5[] = {0x05, 0x01, 0x05, 0xF0, 0x00, 0x05, 0x00, 0x00};
+    static const uint8_t get_f000_a6[] = {0x05, 0x01, 0x05, 0xF0, 0x00, 0x06, 0x00, 0x00};
+    static const uint8_t get_f001_a4[] = {0x05, 0x01, 0x05, 0xF0, 0x01, 0x04, 0x00, 0x00};
+    static const uint8_t get_f001_a5[] = {0x05, 0x01, 0x05, 0xF0, 0x01, 0x05, 0x00, 0x00};
+    static const uint8_t get_f002_a4[] = {0x05, 0x01, 0x05, 0xF0, 0x02, 0x04, 0x00, 0x00};
+    static const uint8_t get_f003_a2[] = {0x05, 0x01, 0x05, 0xF0, 0x03, 0x02, 0x00, 0x00};
+    assert_product_get_dar(get_f000_a1, sizeof(get_f000_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f000_a5, sizeof(get_f000_a5), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f000_a6, sizeof(get_f000_a6), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_f001_a4, sizeof(get_f001_a4), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f001_a5, sizeof(get_f001_a5), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_f002_a4, sizeof(get_f002_a4), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_f003_a2, sizeof(get_f003_a2), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_action = dcu_north_accept_action;
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    /* 复位/执行/删除/校验/代发/代收/上传/下载：全部无处理器，DAR 5，绝不传输。 */
+    for (uint8_t method = 1; method <= 8; method++) {
+        uint8_t action_f000[9] = {0x07, 0x01, 0x05, 0xF0, 0x00, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_f000, sizeof(action_f000), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    /* F001 的 OI 方法 9/10 已计入 resolver 定义，但 ACL 方法槽 8 已满，主站 DAR 3。 */
+    static const uint8_t action_f001_9[] = {0x07, 0x01, 0x05, 0xF0, 0x01,
+                                            0x09, 0x00, 0x00, 0x00};
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_f001_9, sizeof(action_f001_9), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t set_f000_a2[] = {0x06, 0x01, 0x05, 0xF0, 0x00,
+                                          0x02, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_f000_a2, sizeof(set_f000_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
 }
 
 static void test_slave_set_read_only_is_denied(void** state) {
@@ -862,18 +1675,18 @@ static void test_slave_set_read_only_is_denied(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
-static void test_slave_rejects_41_object_list(void** state) {
+static void test_slave_rejects_over_cap_object_list(void** state) {
     (void)state;
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    uint16_t ois[41];
-    for (size_t i = 0; i < 41; i++) ois[i] = (uint16_t)(0x2000 + i);
+    uint16_t ois[225];
+    for (size_t i = 0; i < 225; i++) ois[i] = (uint16_t)(0x2000 + i);
     fake_record_t f;
     memset(&f, 0, sizeof(f));
-    f.acl_len = build_acl(f.acl, ois, 41);
+    f.acl_len = build_acl(f.acl, ois, 225);
 
     edge_slave_source_ops_t src;
     memset(&src, 0, sizeof(src));
@@ -909,10 +1722,23 @@ int main(void) {
         cmocka_unit_test(test_report_no_session_no_send),
         cmocka_unit_test(test_report_confirm_clears_pending),
         cmocka_unit_test(test_report_timeout_unblocks),
+        cmocka_unit_test(test_slave_parses_long_form_acl_224),
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
-        cmocka_unit_test(test_slave_accepts_product_object_list_36),
+        cmocka_unit_test(test_slave_accepts_product_object_list_42),
+        cmocka_unit_test(test_slave_class17_display_dar),
+        cmocka_unit_test(test_slave_class11_collection_dar),
+        cmocka_unit_test(test_slave_class12_pulse_dar),
+        cmocka_unit_test(test_slave_class25_26_comm_dar),
+        cmocka_unit_test(test_slave_class19_devmgr_dar),
+        cmocka_unit_test(test_slave_class21_esam_dar),
+        cmocka_unit_test(test_slave_class23_group_dar),
+        cmocka_unit_test(test_slave_class18_file_dar),
+        cmocka_unit_test(test_slave_object_list_does_not_overflow_pool_buffer),
+        cmocka_unit_test(test_slave_object_list_fits_production_slave_pool),
+        cmocka_unit_test(test_slave_list_item_reserves_frame_trailer),
+        cmocka_unit_test(test_slave_encode_failure_clears_half_frame),
         cmocka_unit_test(test_slave_set_read_only_is_denied),
-        cmocka_unit_test(test_slave_rejects_41_object_list),
+        cmocka_unit_test(test_slave_rejects_over_cap_object_list),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

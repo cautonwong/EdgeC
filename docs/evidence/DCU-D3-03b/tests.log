@@ -1,0 +1,42 @@
+=== D3-03b TESTS (2026-11-24T01:50:14Z) ===
+--- unit: test_dcu_698_freeze (10) stdout ---
+exit=0
+[==========] tests: Running 10 test(s).
+[ RUN      ] test_freeze_boundaries
+[       OK ] test_freeze_boundaries
+[ RUN      ] test_freeze_hour_boundary_uses_local_time
+[       OK ] test_freeze_hour_boundary_uses_local_time
+[ RUN      ] test_next_boundary_aligns_to_second
+[       OK ] test_next_boundary_aligns_to_second
+[ RUN      ] test_freeze_attr3_config_drives_records
+[       OK ] test_freeze_attr3_config_drives_records
+[ RUN      ] test_freeze_attr3_rollback_and_dar
+[       OK ] test_freeze_attr3_rollback_and_dar
+[ RUN      ] test_freeze_per_entry_periods
+[       OK ] test_freeze_per_entry_periods
+[ RUN      ] test_freeze_delayed_trigger
+[       OK ] test_freeze_delayed_trigger
+[ RUN      ] test_freeze_depth_trim
+[       OK ] test_freeze_depth_trim
+[ RUN      ] test_freeze_attr3_capacity_dar
+[2026-11-24 01:50:15][WARN][CORE] DCU freeze attr3 oi=5007: DB has more than 8 rows; extra ignored
+[       OK ] test_freeze_attr3_capacity_dar
+[ RUN      ] test_freeze_pending_retries_after_failure
+[2026-11-24 01:50:15][WARN][CORE] DCU freeze delayed trigger oi=5003 failed; retry next tick
+[       OK ] test_freeze_pending_retries_after_failure
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+--- unit stderr (must be empty; product WARN is stdout) ---
+--- ctest -R 'dcu|freeze' ---
+100% tests passed, 0 tests failed out of 35
+
+Total Test time (real) =  82.16 sec
+--- ASAN detect_leaks=1 ---
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   4.07 sec
+--- gates ---
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [FANALYZER] 3 known finding(s), no new reports
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+📊 Refutation Test Results: 108/108 passed (100% sensitivity)

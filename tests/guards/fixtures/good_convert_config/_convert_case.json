@@ -1,0 +1,5 @@
+{
+  "family": "device",
+  "mode": "dry-run",
+  "description": "positive device conversion fixture for the guard selftest"
+}

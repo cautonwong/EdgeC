@@ -188,8 +188,9 @@ static void test_object_model_scalar_type_tags(void **state) {
     assert_int_equal(
         dcu_698_value_for_oad(MK_OAD((uint16_t)((OAD_DAILY_FREEZE >> 16) & 0xFFFF), 2), &v),
         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* F200 A2 是端口配置数组（COMDCB），标量端口明确拒绝。 */
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 2), &v),
-                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 3), &v),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_CHANNEL_CONFIG, 4), &v),

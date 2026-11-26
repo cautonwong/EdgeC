@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "description": "Refutation: unknown top-level key.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": [],
+  "bogus_key": true
+}

@@ -141,7 +141,7 @@ static void test_connect_ok_and_get_allowed(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_ctx_t f;
     static const uint16_t ois[] = {0x5004};
@@ -178,7 +178,7 @@ static void test_connect_rejects_bad_version(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_ctx_t f;
     static const uint16_t ois[] = {0x5004};
@@ -212,7 +212,7 @@ static void test_connect_malformed_returns_other_error(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_ctx_t f;
     static const uint16_t ois[] = {0x5004};
@@ -244,7 +244,7 @@ static void test_data_denied_without_list_entry(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_ctx_t f;
     static const uint16_t ois[] = {0x5004};
@@ -324,7 +324,7 @@ static void test_release_response(void** state) {
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
 
-    static uint8_t session[1024];
+    static uint8_t session[4096];
     memset(session, 0, sizeof(session));
     fake_ctx_t f;
     static const uint16_t ois[] = {0x5004};

@@ -1,0 +1,8 @@
+ acceptance/dcu/tests/test_dcu_northbound.py | 20 ++++++++++++++++-
+ cmd/dcu/dcu_698_appconn.c                   |  3 ++-
+ cmd/dcu/dcu_698_axdr.c                      | 20 +++++++++++++++++
+ cmd/dcu/dcu_698_object_model.c              | 28 ++++++++++++++++++++++++
+ cmd/dcu/dcu_router.h                        |  8 +++++++
+ tests/test_dcu_698_axdr.c                   | 33 +++++++++++++++++++++++++++++
+ tests/test_dcu_698_object_model.c           |  5 +++--
+ 7 files changed, 113 insertions(+), 4 deletions(-)

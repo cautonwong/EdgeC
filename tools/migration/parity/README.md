@@ -6,9 +6,11 @@ selftest 退出 1，从而阻断构建。
 
 ## 文件
 
-- `run_parity.py`：轨迹加载、回放、比较、报告与 selftest；`--target mock|edgec-modbus`。
+- `run_parity.py`：轨迹加载、回放、比较、报告与 selftest；`--target mock|edgec-modbus`，
+  `--trace-sha256` 可选完整性校验。
 - `samples/sample_trace.jsonl`：14 条样例轨迹，同时用作输入与 oracle。
 - `edgec_target/edgec_modbus_target.c`：C harness，链接仓库内真实 Modbus RTU codec。
+- 轨迹线格式、语义与哈希校验规则冻结在 `docs/design/trace-format.md`。
 
 ## 本机复现 CI 门禁
 
@@ -39,9 +41,20 @@ python3 tools/migration/parity/run_parity.py replay \
   --target mock --report tools/migration/parity/reports/replay_mock.json
 python3 tools/migration/parity/run_parity.py replay \
   --trace tools/migration/parity/samples/sample_trace.jsonl \
-  --target edgec-modbus --report tools/migration/parity/reports/edgec_target.json
+  --target edgec-modbus \
+  --trace-sha256 32de3467bb747e751954575e2d12dd56ae80540771335cad9eb09f688463fa29 \
+  --report tools/migration/parity/reports/edgec_target.json
 ```
 
-selftest 四例：mock 零差异；mock 注入差异后报告 `meter1.grid_power` 并退出 1；真实
-codec 零差异；篡改寄存器后首差 `t_ms=3000` 并退出 1。第 2、4 例就是“注入差异会拦住
-构建”的证明。`reports/` 与 harness 二进制是生成物。
+轨迹是自带 oracle 的输入，单改 `value` 不会产生回放分歧；`--trace-sha256` 在解析与
+回放前按原始字节校验，不匹配退出 2 并打印期望/实际哈希。不带该参数时行为不变。
+哈希只证明文件与登记值一致（防漂移/误改），不防能同时改登记值的人；细节与局限见
+`docs/design/trace-format.md` 第 8 节。
+
+selftest 十例：mock 零差异；mock 注入差异后报告 `meter1.grid_power` 并退出 1；真实
+codec 零差异；篡改寄存器后首差 `t_ms=3000` 并退出 1；正确哈希回放退出 0；篡改轨迹
+后错误哈希非零退出且错误含两侧哈希；缺字段、坏版本、乱序轨迹带正确哈希仍被拒绝；
+`value` 含溢出非有限数（`1e999`）时退出 2 且无 traceback。
+第 2、4 例是“注入 target 差异会拦住构建”的证明，第 5-9 例是轨迹完整性门禁，第 10 例是
+非有限数拒绝。
+`reports/` 与 harness 二进制是生成物。

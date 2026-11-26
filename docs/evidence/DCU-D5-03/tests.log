@@ -1,0 +1,60 @@
+== RED: test commit 8146f199, implementation not yet landed ==
+$ ctest --test-dir build -R "test_dcu_698_object_model|test_dcu_698_axdr|test_dcu_698_appconn|test_dcu_698_scheme_mgmt|test_driver_dlt698" --output-on-failure
+[   LINE   ] --- tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[   LINE   ] --- tests/test_dcu_698_object_model.c:572: error: Failure!
+[  FAILED  ] test_class11_collection_rows_are_empty
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class11_collection_rows_are_empty
+ 2 FAILED TEST(S)
+[   LINE   ] --- tests/test_dcu_698_axdr.c:477: error: Failure!
+[  FAILED  ] test_product_class11_collection_sets_have_no_value_yet
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class11_collection_sets_have_no_value_yet
+ 1 FAILED TEST(S)
+[   LINE   ] --- tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+ 1 FAILED TEST(S)
+[   LINE   ] --- tests/test_driver_dlt698.c:874: error: Failure!
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[   LINE   ] --- tests/test_driver_dlt698.c:920: error: Failure!
+[  FAILED  ] test_slave_class11_collection_dar
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_slave_accepts_product_object_list_42
+[  FAILED  ] test_slave_class11_collection_dar
+ 2 FAILED TEST(S)
+[   LINE   ] --- tests/test_dcu_698_appconn.c:37: error: Failure!
+[  FAILED  ] test_object_list_shape_and_capacity
+[   LINE   ] --- tests/test_dcu_698_appconn.c:291: error: Failure!
+[  FAILED  ] test_class11_acl_is_read_only
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_object_list_shape_and_capacity
+[  FAILED  ] test_class11_acl_is_read_only
+ 2 FAILED TEST(S)
+0% tests passed, 5 tests failed out of 5
+The following tests FAILED:
+
+== GREEN: fix commit c5adb633, same build tree ==
+$ ctest --test-dir build -R "dcu|dlt698" --output-on-failure
+36/45 Test #102: test_dlt698_appconn ..................   Passed    0.00 sec
+37/45 Test #103: test_dcu_698_appconn .................   Passed    0.00 sec
+38/45 Test #141: test_dcu_poller ......................   Passed    0.07 sec
+39/45 Test #146: test_dcu_scale_benchmark .............   Passed    2.51 sec
+40/45 Test #181: test_dcu .............................   Passed    0.00 sec
+41/45 Test #241: test_driver_registry_dcu .............   Passed    0.00 sec
+42/45 Test #261: test_dcu_power_quality ...............   Passed    0.00 sec
+43/45 Test #269: test_web_dcu_power_quality ...........   Passed    0.00 sec
+44/45 Test #343: test_dcu_mutex_marathon ..............   Passed    0.66 sec
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+100% tests passed, 0 tests failed out of 45
+Total Test time (real) =  29.03 sec
+
+== GREEN: final HEAD rerun ==
+45/45 Test #344: test_dcu_topology_phase_id ...........   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  29.03 sec

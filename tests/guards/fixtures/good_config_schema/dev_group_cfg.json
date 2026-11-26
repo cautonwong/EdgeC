@@ -1,0 +1,14 @@
+[
+  {
+    "group": "Group1",
+    "devices": [
+      {
+        "mp": "LC1",
+        "mpd": "Cabinet1",
+        "type": "PCS",
+        "no": "PCS",
+        "name": "PCS1"
+      }
+    ]
+  }
+]

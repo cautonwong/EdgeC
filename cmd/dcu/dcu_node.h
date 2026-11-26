@@ -18,6 +18,7 @@
 #include "dcu_event_monitor.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
+#include "dcu_relay_map.h"
 #include "dcu_router.h"
 #include "dcu_storage.h"
 #include "edge_composition_root.h"
@@ -77,12 +78,12 @@ int dcu_node_pump(dcu_node_t *node);
 /**
  * @brief 聚合根唯一进件入口：驱动 decode 完直接调这里，不经 shadow 反查。
  *
- * @param device_id 表在档案中的下标（= 驱动会话的 device_id）
+ * @param slot_id   表在影子表中的稳定设备身份 slot_id（不是可变的档案下标）
  * @param proto_id  线上协议号(DLT645 的 DI / Modbus 寄存器号)；OAD 归属与 scale 由本层点表决定
  * @param raw       驱动解出的原始值字节（当前是 pipe_msg 的 double）
  * @param raw_len   raw 的字节数
  */
-int dcu_node_record_reading(dcu_node_t *node, uint32_t device_id, uint32_t proto_id,
+int dcu_node_record_reading(dcu_node_t *node, uint32_t slot_id, uint32_t proto_id,
                             const uint8_t *raw, size_t raw_len);
 
 /** @brief 取走自上轮以来的落库条数（供轮次驱动用，取后清零） */
@@ -156,6 +157,18 @@ int dcu_node_feed_meter_reading(dcu_node_t *node, const char *meter_addr, uint32
 /* trip=true 跳闸(1AH)、false 合闸允许(1BH)。下发 645 控制帧，标准 7.13。 */
 int dcu_node_execute_control(dcu_node_t *node, const char *meter_addr, uint16_t control_oi,
                              bool trip);
+
+/**
+ * @brief 产品点位表：继电器 OAD → 表地址 + DO 通道（OI 8000 方法 129/130/131）。
+ *
+ * 表由聚合根拥有；未填时 129–131 查不到目标回 DAR 2，命中后真实 DO 执行未接线，
+ * 仍回 DAR 5，不返回成功。返回 0 或 -1（地址为空/超长、表满）。
+ */
+int dcu_node_set_relay(dcu_node_t *node, uint32_t relay_oad, const char *meter_addr,
+                       uint8_t do_channel);
+
+/** @brief 查本节点的继电器映射；未命中返回 NULL。 */
+const dcu_relay_entry_t *dcu_node_find_relay(const dcu_node_t *node, uint32_t relay_oad);
 
 /**
  * @brief Destroy the DCU Node and clean up all resources

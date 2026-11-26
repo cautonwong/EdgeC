@@ -1,0 +1,9 @@
+{
+  "data_persistence": 1,
+  "db_update_interval": 60,
+  "history": 0,
+  "history_rolling": 48,
+  "sample_rate": 60,
+  "schema_version": "1.0.0",
+  "snapshoot_interval": 15
+}

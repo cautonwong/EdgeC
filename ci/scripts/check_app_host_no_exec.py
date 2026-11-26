@@ -11,6 +11,8 @@ import os
 import re
 import sys
 
+from c_source_scan import SHARED_PRUNE_DIRS
+
 TARGETS = ("modules/edge_app_host", "cmd/app-host", "sdk/c")
 FORBIDDEN = re.compile(
     r"\b(?:execv|execve|execvp|execl|execle|execlp|execveat|posix_spawn|system|popen)\s*\("
@@ -24,7 +26,8 @@ def scan(root):
         base = os.path.join(root, target)
         if not os.path.isdir(base):
             continue
-        for dirpath, _, filenames in os.walk(base):
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [d for d in dirnames if d not in SHARED_PRUNE_DIRS]
             for name in filenames:
                 if not name.endswith((".c", ".h")):
                     continue

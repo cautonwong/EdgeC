@@ -1,0 +1,191 @@
+=== SLICE 3 E2E ACCEPTANCE (final) ===
+3 passed in 10.26s
+任务 dcu-northbound(产品 dcu)·设备清单 /tmp/edgec-land/d2-07-rules/acceptance/dcu/configs/devices_north.yaml · 筛选 tag:北向 · 模拟从站 []
+29 passed in 16.34s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+1 failed, 28 passed in 21.36s
+任务 dcu-northbound 结束,退出码 3
+
+=== E2E BENCH EVIDENCE (runtime/dcu/dcu_northbound/bus.json) ===
+per_di main=02010100: 84  spare=02010105: 44
+meter 000000000040 sequence (incl. post-case restore tail): ['02010100', '02010105', '02010100', '02010105', '02010100']
+
+=== THREAD EVIDENCE ===
+cmd/dcu thread creation:
+  none
+loop wiring:
+85:    uv_loop_t* loop = uv_default_loop();
+147:        bus_source = dcu_bus_source_start(hub, inv, g_dcu_node, 4000);
+179:    dcu_north_slave_attach(loop, hub, io_orch, g_dcu_node);
+
+=== TSAN GAP ===
+vm.mmap_rnd_bits=32 (sysctl read-only; setarch -R denied)
+FATAL: ThreadSanitizer: unexpected memory mapping 0x61dea79e9000-0x61dea79f7000
+
+=== FINAL SRP GUARD ===
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+
+=== FINAL RUN_GUARD_SELFTEST ===
+📊 Refutation Test Results: 105/105 passed (100% sensitivity)
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+=== FINAL AFFECTED CTEST (17) ===
+Test project /tmp/edgec-land/d2-07-rules/build
+      Start  13: test_dcu_inventory
+ 1/17 Test  #13: test_dcu_inventory ...............   Passed    0.57 sec
+      Start  22: test_dcu_node
+ 2/17 Test  #22: test_dcu_node ....................   Passed    0.88 sec
+      Start  25: test_dcu_698_object_model
+ 3/17 Test  #25: test_dcu_698_object_model ........   Passed    0.04 sec
+      Start  27: test_dcu_698_catalog
+ 4/17 Test  #27: test_dcu_698_catalog .............   Passed    0.03 sec
+      Start  28: test_dcu_698_var
+ 5/17 Test  #28: test_dcu_698_var .................   Passed    0.05 sec
+      Start  29: test_dcu_698_report
+ 6/17 Test  #29: test_dcu_698_report ..............   Passed    0.04 sec
+      Start  30: test_dcu_698_axdr
+ 7/17 Test  #30: test_dcu_698_axdr ................   Passed    0.06 sec
+      Start  31: test_dcu_698_param
+ 8/17 Test  #31: test_dcu_698_param ...............   Passed    0.13 sec
+      Start  33: test_dcu_698_value_table
+ 9/17 Test  #33: test_dcu_698_value_table .........   Passed    0.05 sec
+      Start  34: test_dcu_698_tasks
+10/17 Test  #34: test_dcu_698_tasks ...............   Passed    1.91 sec
+      Start  35: test_dcu_698_schemes
+11/17 Test  #35: test_dcu_698_schemes .............   Passed    1.47 sec
+      Start  36: test_dcu_698_scheme_mgmt
+12/17 Test  #36: test_dcu_698_scheme_mgmt .........   Passed    1.88 sec
+      Start  37: test_dcu_698_rules
+13/17 Test  #37: test_dcu_698_rules ...............   Passed    0.96 sec
+      Start  93: test_driver_dlt698
+14/17 Test  #93: test_driver_dlt698 ...............   Passed    5.13 sec
+      Start  94: test_dlt698_appconn
+15/17 Test  #94: test_dlt698_appconn ..............   Passed    0.02 sec
+      Start  95: test_dcu_698_appconn
+16/17 Test  #95: test_dcu_698_appconn .............   Passed    0.04 sec
+      Start 219: test_driver_registry_dcu
+17/17 Test #219: test_driver_registry_dcu .........   Passed    0.04 sec
+
+100% tests passed, 0 tests failed out of 17
+
+Total Test time (real) =  13.45 sec
+
+=== FINAL ASAN + detect_leaks=1 ===
+--- test_dcu_698_rules
+[       OK ] test_retry_decision_one_shot
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+--- test_dcu_698_scheme_mgmt
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 15 test(s) run.
+[  PASSED  ] 15 test(s).
+--- test_dcu_698_schemes
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+--- test_dcu_node
+[       OK ] test_dcu_node_set_source_ops_is_used
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+=== FINAL BUILD WARNING GATE + FANALYZER (last clean build) ===
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [FANALYZER] 3 known finding(s), no new reports
+
+=== SLICE 3 E2E WINDOW FIX: 3 CONSECUTIVE ./acceptance/run.sh dcu (all green) ===
+--- run1
+29 passed in 21.70s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+spare_window deltas main=28 spare=28 meters=26 sample=[('000000000022', ['02010100', '02010105']), ('000000000002', ['02010100', '02010105'])]
+bus per_di main=84 spare=44 reads=1217
+--- run2
+29 passed in 21.66s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+spare_window deltas main=18 spare=15 meters=15 sample=[('000000000020', ['02010100', '02010105']), ('000000000024', ['02010100', '02010105'])]
+bus per_di main=60 spare=33 reads=825
+--- run3
+29 passed in 19.09s
+任务 dcu-northbound 结束,退出码 0
+全部合格:2 个验收任务
+✅ [ACCEPTANCE_TASKS] 2/2 expected tasks exited 0.
+spare_window deltas main=15 spare=16 meters=15 sample=[('000000000036', ['02010100', '02010105']), ('000000000028', ['02010100', '02010105'])]
+bus per_di main=80 spare=39 reads=1113
+注：全局 per_di 差值在快照边界会落在主用块/备用块之间（run2 main>spare、run3 spare>main），不作为次数判据；每块表严格 主用→备用 配对才是判据。
+
+=== FINAL (window fix) SRP GUARD ===
+✅ [SRP_BLOAT_GUARD] All files and functions respect Single Responsibility bounds.
+
+=== FINAL (window fix) RUN_GUARD_SELFTEST ===
+📊 Refutation Test Results: 105/105 passed (100% sensitivity)
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+=== FINAL (window fix) AFFECTED CTEST (17) ===
+Test project /tmp/edgec-land/d2-07-rules/build
+      Start  13: test_dcu_inventory
+ 1/17 Test  #13: test_dcu_inventory ...............   Passed    0.50 sec
+      Start  22: test_dcu_node
+ 2/17 Test  #22: test_dcu_node ....................   Passed    1.25 sec
+      Start  25: test_dcu_698_object_model
+ 3/17 Test  #25: test_dcu_698_object_model ........   Passed    0.04 sec
+      Start  27: test_dcu_698_catalog
+ 4/17 Test  #27: test_dcu_698_catalog .............   Passed    0.04 sec
+      Start  28: test_dcu_698_var
+ 5/17 Test  #28: test_dcu_698_var .................   Passed    0.04 sec
+      Start  29: test_dcu_698_report
+ 6/17 Test  #29: test_dcu_698_report ..............   Passed    0.03 sec
+      Start  30: test_dcu_698_axdr
+ 7/17 Test  #30: test_dcu_698_axdr ................   Passed    0.15 sec
+      Start  31: test_dcu_698_param
+ 8/17 Test  #31: test_dcu_698_param ...............   Passed    0.31 sec
+      Start  33: test_dcu_698_value_table
+ 9/17 Test  #33: test_dcu_698_value_table .........   Passed    0.04 sec
+      Start  34: test_dcu_698_tasks
+10/17 Test  #34: test_dcu_698_tasks ...............   Passed    2.81 sec
+      Start  35: test_dcu_698_schemes
+11/17 Test  #35: test_dcu_698_schemes .............   Passed    2.56 sec
+      Start  36: test_dcu_698_scheme_mgmt
+12/17 Test  #36: test_dcu_698_scheme_mgmt .........   Passed    3.25 sec
+      Start  37: test_dcu_698_rules
+13/17 Test  #37: test_dcu_698_rules ...............   Passed    1.45 sec
+      Start  93: test_driver_dlt698
+14/17 Test  #93: test_driver_dlt698 ...............   Passed    5.13 sec
+      Start  94: test_dlt698_appconn
+15/17 Test  #94: test_dlt698_appconn ..............   Passed    0.02 sec
+      Start  95: test_dcu_698_appconn
+16/17 Test  #95: test_dcu_698_appconn .............   Passed    0.01 sec
+      Start 219: test_driver_registry_dcu
+17/17 Test #219: test_driver_registry_dcu .........   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 17
+
+Total Test time (real) =  17.75 sec
+
+=== FINAL (window fix) ASAN + detect_leaks=1 ===
+--- test_dcu_698_rules
+[       OK ] test_retry_decision_one_shot
+[==========] tests: 10 test(s) run.
+[  PASSED  ] 10 test(s).
+--- test_dcu_698_scheme_mgmt
+[       OK ] test_object_list_advertises_new_ois
+[==========] tests: 15 test(s) run.
+[  PASSED  ] 15 test(s).
+--- test_dcu_698_schemes
+[       OK ] test_sql_failure_rolls_back_db_and_ram
+[==========] tests: 12 test(s) run.
+[  PASSED  ] 12 test(s).
+--- test_dcu_node
+[       OK ] test_dcu_node_set_source_ops_is_used
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 3 test(s).
+
+=== WARNING GATE / FANALYZER (C unchanged since clean build) ===
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+✅ [FANALYZER] 3 known finding(s), no new reports

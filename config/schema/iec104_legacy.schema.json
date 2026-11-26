@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "iec104_legacy",
+  "description": "P6-04a round 2. Covers iec104_config.json, the legacy 5-tuple IEC104 point table at the config root. Structure frozen, semantics unconfirmed: no iems_v3 code loads this path, and the live reader expects north/iec104_north_map.json objects with type and points (src/iec104_server/iec104_server.c:1002-1133). Point rows are [tag, address, type, change report, coefficient]; do not convert this file into the P4-04 north map.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "ver",
+    "periodReportEnable",
+    "reportInterval",
+    "pts"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "ver": {
+      "type": "integer"
+    },
+    "periodReportEnable": {
+      "type": "integer"
+    },
+    "reportInterval": {
+      "type": "integer"
+    },
+    "pts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "commonAddr",
+          "pointInfo"
+        ],
+        "properties": {
+          "commonAddr": {
+            "type": "integer"
+          },
+          "pointInfo": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "prefixItems": [
+                {
+                  "type": "string",
+                  "pattern": "^.+$"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[0-9]+$"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^.+$"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

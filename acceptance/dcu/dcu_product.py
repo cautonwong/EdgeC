@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import json
 import os
+import signal
 import socket
 import sqlite3
 import subprocess
@@ -30,6 +31,42 @@ from testplatform.protocol import dlt645
 
 _lock = threading.Lock()
 _seen = {"requests": 0, "per_di": {}, "first_request_hex": None}
+_last_dump = 0.0
+
+
+def _dump_seen() -> None:
+    """bus.json 是全量 JSON：每帧重写会在高请求率下饿死 asyncio 事件循环。
+    100ms 合并一次；测试的等待循环轮询文件，100ms 滞后不影响判据。"""
+    global _last_dump
+    now = time.time()
+    if now - _last_dump < 0.1:
+        return
+    _last_dump = now
+    dump_json_atomic(BUS_LOG, _seen)
+# opt-in 台架覆盖：{"fail": ["02010100"], "payloads": {"02010105": "0022"}}。
+# 用例写这个文件来制造"主用 DI 失败、备用 DI 有值"；默认没有文件 = 现有行为。
+_SIM_CONTROL = RUN_DIR / "sim645_control.json"
+_sim_lock = threading.Lock()
+_sim_state = {"mtime": -1, "fail": frozenset(), "payloads": {}}
+
+
+def _sim_overrides():
+    try:
+        st = _SIM_CONTROL.stat()
+    except FileNotFoundError:
+        return frozenset(), {}
+    with _sim_lock:
+        if st.st_mtime_ns == _sim_state["mtime"]:
+            return _sim_state["fail"], _sim_state["payloads"]
+    try:
+        data = json.loads(_SIM_CONTROL.read_text(encoding="utf-8"))
+        fail = frozenset(str(x).lower() for x in data.get("fail", []))
+        payloads = {str(k).lower(): bytes.fromhex(v) for k, v in data.get("payloads", {}).items()}
+    except (OSError, ValueError):
+        fail, payloads = frozenset(), {}
+    with _sim_lock:
+        _sim_state.update(mtime=st.st_mtime_ns, fail=fail, payloads=payloads)
+    return fail, payloads
 
 
 def _record_control(meter: str, cmd: int, frame: bytes) -> None:
@@ -38,16 +75,27 @@ def _record_control(meter: str, cmd: int, frame: bytes) -> None:
         _seen.setdefault("controls", []).append(
             {"meter": meter, "cmd": cmd, "at": time.time(), "frame_hex": frame.hex()}
         )
-        dump_json_atomic(BUS_LOG, _seen)
+        _dump_seen()
 
 
-def _record(data_id: str, request: bytes) -> None:
+def _record(meter: str, data_id: str, request: bytes, conn: str = "", chan: str = "") -> None:
     with _lock:
         _seen["requests"] += 1
         _seen["per_di"][data_id] = _seen["per_di"].get(data_id, 0) + 1
+        reads = _seen.setdefault("reads", [])
+        if len(reads) < 20000:
+            reads.append({"meter": meter, "di": data_id, "at": time.time(), "conn": conn,
+                          "chan": chan, "frame_hex": request.hex()})
         if _seen["first_request_hex"] is None:
             _seen["first_request_hex"] = request.hex()
-        dump_json_atomic(BUS_LOG, _seen)
+        _dump_seen()
+
+
+def _build_error_response(address: str, data_id: str) -> bytes:
+    """645 异常应答：C=0xD1，数据域=数据标识+错误信息字。驱动只认 C=0x91，收到即判失败。"""
+    data = dlt645._escape(dlt645._data_id_bytes(data_id) + b"\x01")
+    return dlt645._build_frame(
+        address, dlt645.READ_DATA | dlt645._RESPONSE_FLAG | dlt645._EXCEPTION_FLAG, data)
 
 
 def provision() -> None:
@@ -98,6 +146,8 @@ async def _serve(chan: int, value: bytes) -> None:
         pass
 
     async def handle(reader, writer):
+        conn = str(id(writer))
+        chan_s = str(chan)
         try:
             while True:
                 head = await reader.read(256)
@@ -111,14 +161,20 @@ async def _serve(chan: int, value: bytes) -> None:
                     try:
                         meter, cmd, _data = dlt645.parse_control_request(head)
                     except ValueError:
-                        _record("<unparsed>", head)
+                        _record("<unparsed>", "<unparsed>", head, conn, chan_s)
                         continue
                     _record_control(meter, cmd, head)
                     writer.write(dlt645.build_control_response(meter))
                     await writer.drain()
                     continue
-                _record(data_id, head)
-                payload = value if data_id == DI_VOLTAGE else b"\x00\x00\x00\x00"
+                _record(address, data_id, head, conn, chan_s)
+                fail, payloads = _sim_overrides()
+                if data_id in fail:
+                    writer.write(_build_error_response(address, data_id))
+                    await writer.drain()
+                    continue
+                payload = payloads.get(
+                    data_id, value if data_id == DI_VOLTAGE else b"\x00\x00\x00\x00")
                 try:
                     writer.write(dlt645.build_read_response(address, data_id, payload))
                 except ValueError as exc:
@@ -185,7 +241,7 @@ def _record_north_frame(req: bytes) -> None:
         _seen.setdefault("north_frames", []).append(
             {"choice": choice, "frame_hex": req.hex()}
         )
-        dump_json_atomic(BUS_LOG, _seen)
+        _dump_seen()
 
 
 def _serve_north(conn: socket.socket) -> None:
@@ -284,12 +340,36 @@ def main() -> int:
 
     threading.Thread(target=_north_bridge, daemon=True).start()
     proc = subprocess.Popen([DCU_BIN], env=env, cwd=str(RUN_DIR))
-    code = proc.wait()
+
+    state = {"signum": 0}
+
+    # 主线程阻塞在 proc.wait() 时，信号处理器里再 wait 会撞上 subprocess 的
+    # waitpid 锁（同线程重入，实测卡死）。处理器只转发信号并记标志，收尾放主循环。
+    def _forward(signum, _frame):
+        state["signum"] = signum
+        try:
+            proc.terminate()
+        except ProcessLookupError:
+            pass
+
+    signal.signal(signal.SIGTERM, _forward)
+    signal.signal(signal.SIGINT, _forward)
+    kill_at = None
+    while proc.poll() is None:
+        if state["signum"] and kill_at is None:
+            kill_at = time.monotonic() + 3
+        if kill_at is not None and time.monotonic() > kill_at:
+            proc.kill()
+            proc.wait()
+            break
+        time.sleep(0.1)
+    code = proc.returncode
     # 平台把产品自己退出记成 product_exit=self_exit（产品不合格）：壳不能跟着 DCU 退出。
     (RUN_DIR / "dcu_exit.json").write_text(
         json.dumps({"code": code}), encoding="utf-8")
-    while True:
-        time.sleep(1)
+    while not state["signum"]:
+        time.sleep(0.2)
+    raise SystemExit(128 + state["signum"])
 
 
 if __name__ == "__main__":

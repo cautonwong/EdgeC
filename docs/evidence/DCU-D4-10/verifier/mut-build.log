@@ -1,0 +1,281 @@
+[1/42] Building C object cmd/dcu/CMakeFiles/dcu_app_lib.dir/dcu_comm_info.c.o
+[2/42] Linking C static library cmd/dcu/libdcu_app_lib.a
+[3/42] Linking C executable tests/test_dcu_698_axdr
+[4/42] Building Web UI for iems...
+
+> edgeos-iems-ui@2.3.0 build
+> node ../../tooling/cli.mjs registry --product iems && vite build
+
+✓ iems: 30 页面 / 58 接口 → products/iems/src/generated/registry.json
+  registry digest sha256:9fbc0b07bb6e6e40d72a3c1c4b3f3db0256bb0d72e512621ba85dc24343b28ca
+  ! 因 release-scope 关闭而未生成的接口: upgradeFirmware
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:7:34). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 848 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                     1.35 kB │ gzip:   0.76 kB
+dist/assets/noto-emoji-1-CZSVBhxc.woff2             4.66 kB
+dist/assets/noto-emoji-0-Cm6SX98Y.woff2             5.18 kB
+dist/assets/edge-mono-400-V6pRDFza.woff2           21.16 kB
+dist/assets/edge-mono-600-C8RAYTDA.woff2           21.86 kB
+dist/assets/noto-emoji-2-DsyeskL9.woff2            33.85 kB
+dist/assets/noto-emoji-4-D1YLMdXR.woff2            48.26 kB
+dist/assets/noto-emoji-5-ikj0hddf.woff2            51.15 kB
+dist/assets/noto-emoji-6-DC-aesWy.woff2            52.94 kB
+dist/assets/noto-emoji-8-CSW1I2kC.woff2            64.13 kB
+dist/assets/noto-emoji-9-DUPZFmkX.woff2            69.66 kB
+dist/assets/noto-emoji-3-D42Gzc-g.woff2            80.07 kB
+dist/assets/noto-emoji-7-C2tMAGS-.woff2           112.08 kB
+dist/assets/edge-sans-400-CEyhjefA.woff2          869.40 kB
+dist/assets/edge-sans-600-B6-WISjZ.woff2          884.51 kB
+dist/assets/WebConsoleDrawer-C-4-V-N4.css           0.07 kB │ gzip:   0.09 kB
+dist/assets/ChannelTopologyHeatmap-CIe7JSEn.css     0.12 kB │ gzip:   0.13 kB
+dist/assets/StrategyView-Nkfbz8Z7.css               0.23 kB │ gzip:   0.14 kB
+dist/assets/LogStreamTerminal-DZ8K6TFN.css          0.27 kB │ gzip:   0.15 kB
+dist/assets/FirewallView-yZQMlm43.css               0.37 kB │ gzip:   0.20 kB
+dist/assets/TimeView-BBnMD0ds.css                   0.37 kB │ gzip:   0.20 kB
+dist/assets/CellularView-B-MiFgIb.css               0.39 kB │ gzip:   0.21 kB
+dist/assets/TelemetryOverview-BXi9K8D2.css          0.39 kB │ gzip:   0.21 kB
+dist/assets/EnergyFlowView-BxG_wA6P.css             0.40 kB │ gzip:   0.19 kB
+dist/assets/NetworkView-k-n1ki6u.css                0.54 kB │ gzip:   0.24 kB
+dist/assets/SessionsView-IPIJcQSP.css               0.54 kB │ gzip:   0.25 kB
+dist/assets/AICopilotDrawer-IpXg3bL3.css            0.55 kB │ gzip:   0.23 kB
+dist/assets/AboutView-Byq_lc3m.css                  0.69 kB │ gzip:   0.30 kB
+dist/assets/ConfigTransactionBar-B3U3L-3t.css       0.72 kB │ gzip:   0.32 kB
+dist/assets/StatusBadge-B3lho4fE.css                0.87 kB │ gzip:   0.35 kB
+dist/assets/NotificationsView-Ap2-hzyW.css          0.89 kB │ gzip:   0.38 kB
+dist/assets/Storage-CfVk5oj8.css                    0.90 kB │ gzip:   0.34 kB
+dist/assets/MetricCard-C6jPZanV.css                 0.96 kB │ gzip:   0.35 kB
+dist/assets/DataTable-CrQOazB1.css                  1.03 kB │ gzip:   0.40 kB
+dist/assets/AuditView-B1lh-Gu1.css                  1.05 kB │ gzip:   0.40 kB
+dist/assets/SchemaForm-C5eHJmeo.css                 1.09 kB │ gzip:   0.40 kB
+dist/assets/AlarmsView-t5-xgWeU.css                 1.25 kB │ gzip:   0.48 kB
+dist/assets/Scheduling-Zjsy5P0T.css                 1.32 kB │ gzip:   0.46 kB
+dist/assets/Dashboard-Dg32Dt7N.css                  1.41 kB │ gzip:   0.50 kB
+dist/assets/UsersView-BSKZ_koY.css                  1.64 kB │ gzip:   0.49 kB
+dist/assets/ControlView-CJ3m2VsI.css                1.99 kB │ gzip:   0.55 kB
+dist/assets/RolesView-kcXFF6JU.css                  2.28 kB │ gzip:   0.64 kB
+dist/assets/AppStore-C73H0IIb.css                  13.64 kB │ gzip:   2.47 kB
+dist/assets/index-C4w4kOUt.css                     81.22 kB │ gzip:  19.11 kB
+dist/assets/rolldown-runtime-DK3Fl9T5.js            0.15 kB │ gzip:   0.15 kB
+dist/assets/ui-DibpYn-5.js                          0.16 kB │ gzip:   0.13 kB
+dist/assets/useLiveFeed-7_uO_pC6.js                 0.25 kB │ gzip:   0.19 kB
+dist/assets/useAuthz-B3cvjqA0.js                    0.50 kB │ gzip:   0.30 kB
+dist/assets/StatusBadge-19l6577S.js                 0.74 kB │ gzip:   0.50 kB
+dist/assets/chartTheme-IY6dalXY.js                  0.94 kB │ gzip:   0.58 kB
+dist/assets/MetricCard-B0L9ueN4.js                  0.96 kB │ gzip:   0.54 kB
+dist/assets/useDialogA11y-CYsT6qld.js               0.98 kB │ gzip:   0.49 kB
+dist/assets/Storage-J1_nc4EG.js                     1.13 kB │ gzip:   0.72 kB
+dist/assets/StrategyView-B5KuqGQo.js                1.21 kB │ gzip:   0.87 kB
+dist/assets/DataTable-DUyGZGdM.js                   1.33 kB │ gzip:   0.73 kB
+dist/assets/AboutView-DVZSuCGh.js                   1.46 kB │ gzip:   0.81 kB
+dist/assets/TelemetryOverview-DxYqtHbY.js           1.52 kB │ gzip:   0.96 kB
+dist/assets/Scheduling-JC4BxWG9.js                  1.54 kB │ gzip:   0.96 kB
+dist/assets/CellularView-CpSh6Oaf.js                1.56 kB │ gzip:   0.99 kB
+dist/assets/TimeView-BG-9p_2L.js                    1.62 kB │ gzip:   1.10 kB
+dist/assets/FirewallView-D9iW7P4j.js                1.96 kB │ gzip:   1.28 kB
+dist/assets/SystemConfig-CDBKP3Ub.js                2.02 kB │ gzip:   1.09 kB
+dist/assets/PipelineList-IHF7PfTH.js                2.54 kB │ gzip:   1.32 kB
+dist/assets/SchemaForm-BQF1Wf6j.js                  2.76 kB │ gzip:   1.10 kB
+dist/assets/NetworkView-Nv5wCN-s.js                 3.14 kB │ gzip:   1.76 kB
+dist/assets/SessionsView-D6Hfi4tA.js                3.30 kB │ gzip:   1.70 kB
+dist/assets/DeviceList-xpvfYuzI.js                  3.32 kB │ gzip:   1.59 kB
+dist/assets/ConfigEditor-D-K3ovIC.js                3.62 kB │ gzip:   1.92 kB
+dist/assets/Dashboard-uh10O15O.js                   3.71 kB │ gzip:   1.94 kB
+dist/assets/AuditView-aJ4DJhr2.js                   3.83 kB │ gzip:   2.02 kB
+dist/assets/ConfigTransactionBar-B0Q8N3E_.js        4.23 kB │ gzip:   1.97 kB
+dist/assets/NotificationsView-CH_VvlGg.js           4.91 kB │ gzip:   2.16 kB
+dist/assets/ControlView-CNzw9Hwv.js                 6.11 kB │ gzip:   2.63 kB
+dist/assets/UsersView-ChXVcEeo.js                   6.17 kB │ gzip:   2.56 kB
+dist/assets/RolesView-2qXhhesF.js                   6.24 kB │ gzip:   2.69 kB
+dist/assets/HistoryCurves-BMQgoLXV.js               6.56 kB │ gzip:   2.95 kB
+dist/assets/AlarmsView-CMHsFBlc.js                  7.21 kB │ gzip:   2.93 kB
+dist/assets/DataCurves-CVz6Z2HI.js                 11.05 kB │ gzip:   4.23 kB
+dist/assets/PacketCapture-BX-IcqMB.js              13.69 kB │ gzip:   4.34 kB
+dist/assets/EventStreamHub-B8bhGugD.js             17.03 kB │ gzip:   5.99 kB
+dist/assets/LogStreamTerminal-BH8lqsDz.js          17.12 kB │ gzip:   6.52 kB
+dist/assets/AICopilotDrawer-CUpGW_EG.js            18.52 kB │ gzip:   6.63 kB
+dist/assets/AppStore-J2Q_arYq.js                   21.01 kB │ gzip:   7.95 kB
+dist/assets/MetricsMatrix-BOqnfSQD.js              22.26 kB │ gzip:   6.11 kB
+dist/assets/PowerQuality-DvLjXr4f.js               26.04 kB │ gzip:   7.32 kB
+dist/assets/EnergyFlowView-BRFc9G6e.js             30.43 kB │ gzip:   7.67 kB
+dist/assets/ChannelTopologyHeatmap-Byd3a6dZ.js     36.91 kB │ gzip:  10.14 kB
+dist/assets/WebConsoleDrawer-COfc90V9.js           58.99 kB │ gzip:  18.48 kB
+dist/assets/runtime-core.esm-bundler-M-rpxDl-.js   68.63 kB │ gzip:  26.79 kB
+dist/assets/index-DqNrrkkv.js                     197.87 kB │ gzip:  65.61 kB
+dist/assets/echarts-cFGeznsF.js                   528.71 kB │ gzip: 178.20 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 26.91s
+[PLUGIN_TIMINGS] JavaScript callbacks ran for 23.3s of this 26.4s build (88%).
+The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - plugin vite:vue transform (25%, 6.6s, 151 calls)
+  - plugin vite:build-html transform (12%, 3.3s, 1 call)
+Additional callback time came from the callbacks below and from callbacks under 1s.
+1 callback is listed without a time. Its calls overlapped, so the time inside one call includes work from other calls. To find its cost, profile the build with `node --cpu-prof`:
+  - plugin vite:css transform (40 calls)
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+
+[5/42] Linking C executable tests/test_dcu_inventory
+[6/42] Linking C executable tests/test_dcu_polling_loop
+[7/42] Linking C executable tests/test_dcu_storage
+[8/42] Linking C executable tests/test_dcu_integration
+[9/42] Linking C executable tests/test_dcu_advanced_modules
+[10/42] Linking C executable tests/test_dcu_router
+[11/42] Linking C executable tests/test_dcu_north_source
+[12/42] Building Web UI for dcu...
+
+> edgeos-dcu-ui@1.4.0 build
+> node ../../tooling/cli.mjs registry --product dcu && vite build
+
+✓ dcu: 29 页面 / 59 接口 → products/dcu/src/generated/registry.json
+  registry digest sha256:61621d1387bfb9e311cb39c14daaa09ea598b7b50870e302e907549afbb18a16
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - `__dirname` (vite.config.ts:7:34). Use `import.meta.dirname` instead
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+vite v8.3.8 building client environment for production...
+transforming...
+✓ 845 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                     1.28 kB │ gzip:   0.69 kB
+dist/assets/noto-emoji-1-CZSVBhxc.woff2             4.66 kB
+dist/assets/noto-emoji-0-Cm6SX98Y.woff2             5.18 kB
+dist/assets/edge-mono-400-V6pRDFza.woff2           21.16 kB
+dist/assets/edge-mono-600-C8RAYTDA.woff2           21.86 kB
+dist/assets/noto-emoji-2-DsyeskL9.woff2            33.85 kB
+dist/assets/noto-emoji-4-D1YLMdXR.woff2            48.26 kB
+dist/assets/noto-emoji-5-ikj0hddf.woff2            51.15 kB
+dist/assets/noto-emoji-6-DC-aesWy.woff2            52.94 kB
+dist/assets/noto-emoji-8-CSW1I2kC.woff2            64.13 kB
+dist/assets/noto-emoji-9-DUPZFmkX.woff2            69.66 kB
+dist/assets/noto-emoji-3-D42Gzc-g.woff2            80.07 kB
+dist/assets/noto-emoji-7-C2tMAGS-.woff2           112.08 kB
+dist/assets/edge-sans-400-CEyhjefA.woff2          869.40 kB
+dist/assets/edge-sans-600-B6-WISjZ.woff2          884.51 kB
+dist/assets/WebConsoleDrawer-C-4-V-N4.css           0.07 kB │ gzip:   0.09 kB
+dist/assets/ChannelTopologyHeatmap-CIe7JSEn.css     0.12 kB │ gzip:   0.13 kB
+dist/assets/MetersView-BSJwHZy2.css                 0.23 kB │ gzip:   0.14 kB
+dist/assets/LogStreamTerminal-DZ8K6TFN.css          0.27 kB │ gzip:   0.15 kB
+dist/assets/FirewallView-yZQMlm43.css               0.37 kB │ gzip:   0.20 kB
+dist/assets/TimeView-BBnMD0ds.css                   0.37 kB │ gzip:   0.20 kB
+dist/assets/CellularView-B-MiFgIb.css               0.39 kB │ gzip:   0.21 kB
+dist/assets/EnergyFlowView-BxG_wA6P.css             0.40 kB │ gzip:   0.19 kB
+dist/assets/NetworkView-k-n1ki6u.css                0.54 kB │ gzip:   0.24 kB
+dist/assets/SessionsView-IPIJcQSP.css               0.54 kB │ gzip:   0.25 kB
+dist/assets/AICopilotDrawer-IpXg3bL3.css            0.55 kB │ gzip:   0.23 kB
+dist/assets/AboutView-Byq_lc3m.css                  0.69 kB │ gzip:   0.30 kB
+dist/assets/ConfigTransactionBar-B3U3L-3t.css       0.72 kB │ gzip:   0.32 kB
+dist/assets/StatusBadge-B3lho4fE.css                0.87 kB │ gzip:   0.35 kB
+dist/assets/NotificationsView-Ap2-hzyW.css          0.89 kB │ gzip:   0.38 kB
+dist/assets/Storage-CfVk5oj8.css                    0.90 kB │ gzip:   0.34 kB
+dist/assets/MetricCard-C6jPZanV.css                 0.96 kB │ gzip:   0.35 kB
+dist/assets/DataTable-CrQOazB1.css                  1.03 kB │ gzip:   0.40 kB
+dist/assets/AuditView-B1lh-Gu1.css                  1.05 kB │ gzip:   0.40 kB
+dist/assets/SchemaForm-C5eHJmeo.css                 1.09 kB │ gzip:   0.40 kB
+dist/assets/AlarmsView-t5-xgWeU.css                 1.25 kB │ gzip:   0.48 kB
+dist/assets/Scheduling-Zjsy5P0T.css                 1.32 kB │ gzip:   0.46 kB
+dist/assets/Dashboard-Dg32Dt7N.css                  1.41 kB │ gzip:   0.50 kB
+dist/assets/UsersView-BSKZ_koY.css                  1.64 kB │ gzip:   0.49 kB
+dist/assets/ControlView-CJ3m2VsI.css                1.99 kB │ gzip:   0.55 kB
+dist/assets/RolesView-kcXFF6JU.css                  2.28 kB │ gzip:   0.64 kB
+dist/assets/AppStore-C73H0IIb.css                  13.64 kB │ gzip:   2.47 kB
+dist/assets/index-DXS3c2su.css                     81.11 kB │ gzip:  19.07 kB
+dist/assets/rolldown-runtime-DK3Fl9T5.js            0.15 kB │ gzip:   0.15 kB
+dist/assets/useLiveFeed-CF5VvyCJ.js                 0.25 kB │ gzip:   0.19 kB
+dist/assets/useAuthz-lE3rqos_.js                    0.50 kB │ gzip:   0.31 kB
+dist/assets/StatusBadge-Dn_q--Mh.js                 0.74 kB │ gzip:   0.50 kB
+dist/assets/chartTheme-CZuVizpD.js                  0.94 kB │ gzip:   0.58 kB
+dist/assets/MetricCard-SzEcSQrB.js                  0.96 kB │ gzip:   0.54 kB
+dist/assets/useDialogA11y-CYsT6qld.js               0.98 kB │ gzip:   0.49 kB
+dist/assets/Storage-Cxd1lvk_.js                     1.13 kB │ gzip:   0.72 kB
+dist/assets/DataTable-DP78Dapn.js                   1.33 kB │ gzip:   0.73 kB
+dist/assets/AboutView-017H27jV.js                   1.46 kB │ gzip:   0.81 kB
+dist/assets/MetersView-Cqix6_LH.js                  1.49 kB │ gzip:   0.97 kB
+dist/assets/Scheduling-DdsOlqCR.js                  1.54 kB │ gzip:   0.96 kB
+dist/assets/CellularView-DGigahGF.js                1.56 kB │ gzip:   0.99 kB
+dist/assets/TimeView-DMCt3LAP.js                    1.62 kB │ gzip:   1.09 kB
+dist/assets/FirewallView-Dsx2F1lQ.js                1.96 kB │ gzip:   1.27 kB
+dist/assets/SystemConfig-HlxlSlqs.js                2.02 kB │ gzip:   1.10 kB
+dist/assets/PipelineList-Dhg9KemM.js                2.54 kB │ gzip:   1.32 kB
+dist/assets/SchemaForm-Cf5xb0aS.js                  2.76 kB │ gzip:   1.10 kB
+dist/assets/NetworkView-P7z4UUUR.js                 3.14 kB │ gzip:   1.76 kB
+dist/assets/SessionsView-CIEHI1zk.js                3.30 kB │ gzip:   1.70 kB
+dist/assets/DeviceList-9Mzx7wr5.js                  3.32 kB │ gzip:   1.59 kB
+dist/assets/ConfigEditor-CRCsUXQZ.js                3.62 kB │ gzip:   1.92 kB
+dist/assets/Dashboard-4YPI37xK.js                   3.71 kB │ gzip:   1.94 kB
+dist/assets/AuditView-BmM09Iem.js                   3.83 kB │ gzip:   2.02 kB
+dist/assets/ConfigTransactionBar-BpHb9FKG.js        4.23 kB │ gzip:   1.97 kB
+dist/assets/NotificationsView-CH28iuAw.js           4.91 kB │ gzip:   2.15 kB
+dist/assets/ControlView-QJGGGf7e.js                 6.11 kB │ gzip:   2.62 kB
+dist/assets/UsersView-Ccrt1Zgc.js                   6.17 kB │ gzip:   2.55 kB
+dist/assets/RolesView-BiY9IhCu.js                   6.24 kB │ gzip:   2.68 kB
+dist/assets/HistoryCurves-Bs3gDzTa.js               6.56 kB │ gzip:   2.95 kB
+dist/assets/AlarmsView-CtkFO25s.js                  7.21 kB │ gzip:   2.93 kB
+dist/assets/DataCurves-Coy-Riex.js                 11.05 kB │ gzip:   4.23 kB
+dist/assets/PacketCapture-rgORYA-e.js              13.69 kB │ gzip:   4.34 kB
+dist/assets/EventStreamHub-ByPexLGz.js             17.03 kB │ gzip:   5.99 kB
+dist/assets/LogStreamTerminal-BOnvLms4.js          17.12 kB │ gzip:   6.52 kB
+dist/assets/AICopilotDrawer-DmdTBWLX.js            18.52 kB │ gzip:   6.63 kB
+dist/assets/AppStore-DtowdsTO.js                   21.01 kB │ gzip:   7.95 kB
+dist/assets/MetricsMatrix-UNReDrrG.js              22.26 kB │ gzip:   6.11 kB
+dist/assets/PowerQuality-DvLjXr4f.js               26.04 kB │ gzip:   7.32 kB
+dist/assets/EnergyFlowView-DdxkTK2N.js             30.43 kB │ gzip:   7.67 kB
+dist/assets/ChannelTopologyHeatmap-CCy_SKZH.js     36.91 kB │ gzip:  10.14 kB
+dist/assets/WebConsoleDrawer-BXXedGBR.js           58.99 kB │ gzip:  18.48 kB
+dist/assets/runtime-core.esm-bundler-M-rpxDl-.js   68.63 kB │ gzip:  26.79 kB
+dist/assets/index-TbG37uT_.js                     197.28 kB │ gzip:  65.39 kB
+dist/assets/echarts-cFGeznsF.js                   528.71 kB │ gzip: 178.20 kB
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 26.61s
+[PLUGIN_TIMINGS] JavaScript callbacks ran for 20.8s of this 25.6s build (81%).
+The slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - plugin vite:vue transform (39%, 9.9s, 148 calls)
+Additional callback time came from the callbacks below and from callbacks under 1s.
+1 callback is listed without a time. Its calls overlapped, so the time inside one call includes work from other calls. To find its cost, profile the build with `node --cpu-prof`:
+  - plugin vite:css transform (39 calls)
+See https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.
+
+[13/42] Linking C executable tests/test_dcu_business_engines
+[14/42] Linking C executable tests/test_dcu_phase1_delivery
+[15/42] Linking C executable products/dcu/bin/dcu
+[16/42] Linking C executable tests/test_dcu_node
+[17/42] Linking C executable tests/test_dcu_698_object_model
+[18/42] Linking C executable tests/test_dcu_runtime_health
+[19/42] Linking C executable tests/test_dcu_698_archive
+[20/42] Linking C executable tests/test_dcu_698_catalog
+[21/42] Linking C executable tests/test_dcu_698_var
+[22/42] Linking C executable tests/test_dcu_698_report
+[23/42] Linking C executable tests/test_dcu_698_record
+[24/42] Linking C executable tests/test_dcu_698_param
+[25/42] Linking C executable tests/test_dcu_698_value_table
+[26/42] Linking C executable tests/test_dcu_698_class22
+[27/42] Linking C executable tests/test_dcu_698_tasks
+[28/42] Linking C executable tests/test_dcu_698_schemes
+[29/42] Linking C executable tests/test_dcu_698_scheme_mgmt
+[30/42] Linking C executable tests/test_dcu_698_rules
+[31/42] Linking C executable tests/test_dcu_runtime_self_exit
+[32/42] Linking C executable tests/test_dcu_698_freeze
+[33/42] Linking C executable tests/test_dcu_heartbeat_stop
+[34/42] Linking C executable tests/test_driver_dlt698
+[35/42] Linking C executable tests/test_dcu_698_appconn
+[36/42] Linking C executable tests/test_dcu_power_quality
+[37/42] Linking C executable tests/test_dcu_scale_benchmark
+[38/42] Linking C executable tests/test_dcu_poller
+[39/42] Linking C executable tests/test_dcu
+[40/42] Linking C executable tests/test_driver_registry_dcu
+[41/42] Linking C executable tests/test_dcu_mutex_marathon
+[42/42] Linking C executable tests/test_dcu_topology_phase_id

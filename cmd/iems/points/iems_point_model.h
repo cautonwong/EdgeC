@@ -3,14 +3,14 @@
  * @brief 点位/设备模型骨架：点键、槽位校验与已知名表 (P1-02)。
  *
  * 一个点由 (device_id, dense_idx) 定位，DataHub 影子槽位是
- * device_id * 16 + dense_idx，合法槽位 [0, 1024)。device_id 上限 63、
- * dense_idx 上限 15 与现有 iems_tag_map_fn 的公式一致；越界直接拒绝，
- * 不回绕，避免落进别的设备或应用槽区
+ * device_id * 16 + dense_idx，合法槽位 [0, 1024)。dense_idx 上限 15
+ * 与 iems_tag_map_fn 的每设备步长一致；本模型把 device_id 限在 63 以内，
+ * 越界直接拒绝，不回绕，避免落进别的设备或应用槽区
  * （见 /home/edge/migration/datahub-capacity.md 的 1,024 槽实测）。
  *
  * 名称表静态只读，无动态分配。条目分两类：
  *   - tag_id != IEMS_POINT_TAG_NONE：EdgeC 14 条元数据短名，名字与 tag
- *     双向可查，dense_idx 与 iems_tag_map_fn 的静态表一致；
+ *     双向可查，dense_idx 与 iems_tag_map_fn 一致；
  *   - tag_id == IEMS_POINT_TAG_NONE：iems_v3 旧名样例，已确认存在但缺
  *     模板/点表输入，按未知名返回 -1；B1-B4 输入到位后再补 tag_id。
  * iems_v3 的 424 个 dev.node 全名与 14 条短名当前 0 匹配

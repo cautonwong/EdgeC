@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "description": "Refutation: .cpp file in edge_stream includes datahub.h by angle bracket.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [
+    {
+      "component": "edge_stream",
+      "header": "datahub.h",
+      "reason": "edge_stream must use its port"
+    }
+  ],
+  "composition_roots": [],
+  "known_skips": []
+}

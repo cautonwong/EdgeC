@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "description": "Refutation: include() cycles become a parse gap, not a hang.",
+  "allowed_layer_edges": [],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

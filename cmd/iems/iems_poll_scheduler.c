@@ -14,6 +14,7 @@
 typedef struct {
     int bus_id;
     uint32_t slave_id;
+    uint32_t device_id;
     uint32_t tag_id;
     int dense_idx;
     char protocol[16];
@@ -28,14 +29,17 @@ static void on_poll_complete(int status, const pipe_msg_t *result, void *user_da
     iems_node_t *node = (iems_node_t *)user_data;
     if (status != 0 || !result || !node) return;
     if (result->type != PIPEMSG_TYPE_SCALAR) return;
-    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。result->ts 是读帧编码
-    // 时刻(采样时刻),不是结果到达时刻 —— 聚合根据此丢弃迟到的旧采样。
-    if (iems_node_ingest_sample(node, result->tag_id, result->payload.val.f, result->ts) != 0) {
+    // 镜像只能由聚合根写;这里只转交采样,不做任何堆分配。result->device_id 是
+    // 请求时带进去的 inventory 身份(不是从站地址),result->ts 是读帧编码
+    // 时刻(采样时刻),不是结果到达时刻 —— 聚合根据 (device, tag) 丢弃迟到的旧采样。
+    if (iems_node_ingest_sample(node, result->device_id, result->tag_id, result->payload.val.f,
+                                result->ts) != 0) {
         static uint64_t last_warn_ns;  // 热路径:失败日志全局限流到 60s 一次
         uint64_t now = uv_hrtime();
         if (now - last_warn_ns > 60ULL * 1000000000ULL) {
             last_warn_ns = now;
-            LOG_WARN(LOG_CAT_CORE, "IEMS ingest failed for tag %u", result->tag_id);
+            LOG_WARN(LOG_CAT_CORE, "IEMS ingest failed for tag %u device %u", result->tag_id,
+                     result->device_id);
         }
     }
 }
@@ -61,9 +65,11 @@ static void on_poll_task_trigger(uv_periodic_t *handle) {
          * 量纲也由产品给。三件事都在这一层做完，驱动不查表、不标定。 */
         uint32_t native_id = iems_driver_adapter_native_id(task->protocol, task->tag_id);
         double scale = iems_driver_adapter_tag_scale(task->protocol, task->tag_id);
-        /* 周期采集是后台任务：低优先级 */
-        edge_api_read_tag_ex(task->bus_id, task->protocol, task->slave_id, native_id, task->tag_id,
-                             scale, NULL, 0, ARBITER_PRIO_LOW, on_poll_complete, task->agg_root);
+        /* 周期采集是后台任务：低优先级。device_id 是控制写/镜像槽的设备身份，
+         * 由请求层原样贴回 result->device_id，回调不再从从站地址反推。 */
+        edge_api_read_tag_ex(task->bus_id, task->protocol, task->slave_id, task->device_id,
+                             native_id, task->tag_id, scale, NULL, 0, ARBITER_PRIO_LOW,
+                             on_poll_complete, task->agg_root);
     }
 }
 
@@ -75,7 +81,7 @@ static void _on_iems_task_loaded(const iems_loaded_task_t *loaded, void *user_da
     uv__queue_foreach(q, &s->tasks) {
         iems_poll_task_t *existing = uv__queue_data(q, iems_poll_task_t, node);
         if (existing->bus_id == loaded->bus_id && existing->slave_id == loaded->slave_id &&
-            existing->tag_id == loaded->tag_id)
+            existing->device_id == loaded->device_id && existing->tag_id == loaded->tag_id)
             return;
     }
 
@@ -83,6 +89,7 @@ static void _on_iems_task_loaded(const iems_loaded_task_t *loaded, void *user_da
     if (!task) return;
     task->bus_id = loaded->bus_id;
     task->slave_id = loaded->slave_id;
+    task->device_id = loaded->device_id;
     task->tag_id = loaded->tag_id;
     task->dense_idx = edge_tag_get_compact_index(loaded->tag_id);
     task->agg_root = s->node;

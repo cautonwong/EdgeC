@@ -1,0 +1,16 @@
+{
+  "Adjpreriod": 5,
+  "EnBmsAlarm": 1,
+  "EnProtectDOD": 1,
+  "K1": 90,
+  "K2": 90,
+  "Pmlmax": 800,
+  "Pset": 5,
+  "SOCmax": 90,
+  "SOCmin": 10,
+  "SleepMode": 1,
+  "SocKeepActiveSOC": 40.0,
+  "SocKeepChargePower": 0.0,
+  "SocKeepMargin": 5.0,
+  "schema_version": "1.0.0"
+}

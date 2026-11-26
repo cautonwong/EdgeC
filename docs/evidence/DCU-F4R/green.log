@@ -1,0 +1,81 @@
+[==========] tests: Running 35 test(s).
+[ RUN      ] test_task_and_scheme_add
+[       OK ] test_task_and_scheme_add
+[ RUN      ] test_add_scheme_bounds
+[       OK ] test_add_scheme_bounds
+[ RUN      ] test_chain_visits_each_meter_once
+[       OK ] test_chain_visits_each_meter_once
+[ RUN      ] test_success_counts_only_due_enabled_tasks
+[       OK ] test_success_counts_only_due_enabled_tasks
+[ RUN      ] test_success_counts_across_non_due_tick
+[       OK ] test_success_counts_across_non_due_tick
+[ RUN      ] test_dedup_overlapping_tasks
+[       OK ] test_dedup_overlapping_tasks
+[ RUN      ] test_submit_failure_does_not_stall
+[       OK ] test_submit_failure_does_not_stall
+[ RUN      ] test_breaker_skips_meter
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 40000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_breaker_skips_meter
+[ RUN      ] test_channels_progress_independently
+[       OK ] test_channels_progress_independently
+[ RUN      ] test_gc_retires_deleted_meter
+[       OK ] test_gc_retires_deleted_meter
+[ RUN      ] test_execution_polls_each_meter_once
+[       OK ] test_execution_polls_each_meter_once
+[ RUN      ] test_pending_capacity_starves_second_task
+[       OK ] test_pending_capacity_starves_second_task
+[ RUN      ] test_shared_tag_dedup_across_batches
+[       OK ] test_shared_tag_dedup_across_batches
+[ RUN      ] test_capacity_batches_across_steps
+[       OK ] test_capacity_batches_across_steps
+[ RUN      ] test_capacity_batch_failure_fails_whole_meter
+[       OK ] test_capacity_batch_failure_fails_whole_meter
+[ RUN      ] test_transient_disable_does_not_reload
+[       OK ] test_transient_disable_does_not_reload
+[ RUN      ] test_reopen_drops_stale_pending
+[       OK ] test_reopen_drops_stale_pending
+[ RUN      ] test_mixed_visit_does_not_count_success
+[       OK ] test_mixed_visit_does_not_count_success
+[ RUN      ] test_breaker_cooldown_half_open
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 85000001 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_breaker_cooldown_half_open
+[ RUN      ] test_breaker_cooldown_probe_failure_rearms
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 85000002 (ch 1) circuit breaker OPEN (fails: 6 >= threshold: 5)
+[       OK ] test_breaker_cooldown_probe_failure_rearms
+[ RUN      ] test_reopen_resnapshots_and_ignores_stale_callbacks
+[       OK ] test_reopen_resnapshots_and_ignores_stale_callbacks
+[ RUN      ] test_mask_change_reopens_execution
+[       OK ] test_mask_change_reopens_execution
+[ RUN      ] test_overlapping_tasks_settle_on_shared_visit
+[       OK ] test_overlapping_tasks_settle_on_shared_visit
+[ RUN      ] test_reset_circuit_breaker_closes
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_reset_circuit_breaker_closes
+[ RUN      ] test_reopen_late_callback_wrong_address
+[       OK ] test_reopen_late_callback_wrong_address
+[ RUN      ] test_late_callback_uses_submit_protocol_for_scale
+[       OK ] test_late_callback_uses_submit_protocol_for_scale
+[ RUN      ] test_late_failure_does_not_retry_shifted_index
+[SRC-ERR] reason=read-fail meter=0 tag=20000200 extra=-2
+[       OK ] test_late_failure_does_not_retry_shifted_index
+[ RUN      ] test_late_callback_before_revision_observed
+[       OK ] test_late_callback_before_revision_observed
+[ RUN      ] test_late_callback_shift_does_not_fail_meter
+[       OK ] test_late_callback_shift_does_not_fail_meter
+[ RUN      ] test_spare_retry_dropped_after_slot_reuse
+[       OK ] test_spare_retry_dropped_after_slot_reuse
+[ RUN      ] test_spare_retry_allowed_when_revision_unchanged
+[SRC-ERR] reason=spare-retry meter=0 tag=20000200 extra=57005
+[       OK ] test_spare_retry_allowed_when_revision_unchanged
+[ RUN      ] test_scheme_change_mid_batch_reopens_execution
+[       OK ] test_scheme_change_mid_batch_reopens_execution
+[ RUN      ] test_scheme_content_change_reopens_referencing_execution
+[       OK ] test_scheme_content_change_reopens_referencing_execution
+[ RUN      ] test_new_exec_mid_batch_failure_not_tainted
+[       OK ] test_new_exec_mid_batch_failure_not_tainted
+[ RUN      ] test_batched_visit_breaker_settles_once_per_round
+[2026-11-26 11:52:53][ERROR][IO] 🚨 [DCU-Poller] Meter 86000005 (ch 1) circuit breaker OPEN (fails: 5 >= threshold: 5)
+[       OK ] test_batched_visit_breaker_settles_once_per_round
+[==========] tests: 35 test(s) run.
+[  PASSED  ] 35 test(s).

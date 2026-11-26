@@ -5,6 +5,8 @@
 
 #include "dcu_discovery.h"
 #include "dcu_poller.h"
+#include "dcu_698_rules.h"
+#include "dcu_scheme_store.h"
 #include "dlt698_codec.h"
 #include "edge_log.h"
 
@@ -46,6 +48,52 @@ int dcu_698_acq_6014_execute(const dcu_698_object_t *obj, uint8_t method_id, con
     const router_sink_ops_t *sink = dcu_698_internal_sink_ops();
     if (!sink || !sink->scheme_apply) return EDGE_SLAVE_SRC_TEMPORARY;
     return sink->scheme_apply(sink->ctx, poller, op);
+}
+
+int dcu_698_acq_6016_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result) {
+    (void)obj;
+    (void)result;
+    const dcu_event_scheme_op_t *op = (const dcu_event_scheme_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return dcu_scheme_store_event_apply(op);
+}
+
+int dcu_698_acq_6018_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result) {
+    (void)obj;
+    (void)result;
+    const dcu_transparent_op_t *op = (const dcu_transparent_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return dcu_scheme_store_transparent_apply(op);
+}
+
+int dcu_698_acq_601C_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result) {
+    (void)obj;
+    (void)result;
+    const dcu_report_op_t *op = (const dcu_report_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return dcu_scheme_store_report_apply(op);
+}
+
+int dcu_698_acq_601E_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                             void *result) {
+    (void)obj;
+    (void)result;
+    const dcu_rule_op_t *op = (const dcu_rule_op_t *)param;
+    if (!op || op->method != method_id) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    int rc = dcu_698_rules_apply(op);
+    if (rc == 0) {
+        /* 规则重配后从干净状态开始：清掉遗留的表级熔断（含冷却中的探测状态）。 */
+        const dcu_698_object_t *sched = dcu_698_find(OI_TASK_SCHEDULER);
+        dcu_poller_t *poller = sched ? (dcu_poller_t *)sched->instance : NULL;
+        if (poller) {
+            for (uint32_t ch = 0; ch < DCU_MAX_CHANNELS; ch++)
+                (void)dcu_poller_reset_circuit_breaker(poller, ch);
+        }
+    }
+    return rc;
 }
 
 int dcu_698_acq_6002_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
@@ -317,26 +365,37 @@ int dcu_698_acq_6000_execute(const dcu_698_object_t *obj, uint8_t method_id, con
             if (op->unit_count != 1) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             const production_meter_t *old = dcu_inventory_by_seq(inv, op->config_seq);
             if (!old) return EDGE_SLAVE_SRC_NOT_FOUND;
-            char old_address[MAX_ADDR_LEN];
-            strncpy(old_address, old->address, sizeof(old_address) - 1);
-            old_address[sizeof(old_address) - 1] = '\0';
+            production_meter_t snapshot = *old;
+            uint32_t revision = inv->revision;
             int rc = dcu_inventory_update_basic(inv, op->config_seq, &op->units[0]);
             if (rc == -2) return EDGE_SLAVE_SRC_DENIED;
             if (rc != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
             const production_meter_t *m = dcu_inventory_by_seq(inv, op->config_seq);
             int save = _save_unit(sink, m);
-            if (save != 0) return save;
-            if (strcmp(old_address, m->address) != 0) _delete_addr(sink, old_address);
+            if (save != 0) {
+                dcu_inventory_restore_unit(inv, &snapshot, revision);
+                return save;
+            }
+            if (strcmp(snapshot.address, m->address) != 0) _delete_addr(sink, snapshot.address);
             return 0;
         }
         case 130: {
             if (op->unit_count != 1) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+            const production_meter_t *old = dcu_inventory_by_seq(inv, op->config_seq);
+            if (!old) return EDGE_SLAVE_SRC_NOT_FOUND;
+            production_meter_t snapshot = *old;
+            uint32_t revision = inv->revision;
             int rc = dcu_inventory_update_extended(inv, op->config_seq, &op->units[0],
                                                    op->has_annex);
             if (rc == -1) return EDGE_SLAVE_SRC_NOT_FOUND;
             if (rc == -2) return EDGE_SLAVE_SRC_TEMPORARY;
             if (rc != 0) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            return _save_unit(sink, dcu_inventory_by_seq(inv, op->config_seq));
+            int save = _save_unit(sink, dcu_inventory_by_seq(inv, op->config_seq));
+            if (save != 0) {
+                dcu_inventory_restore_unit(inv, &snapshot, revision);
+                return save;
+            }
+            return 0;
         }
         case 131: {
             const production_meter_t *m = dcu_inventory_by_seq(inv, op->config_seq);

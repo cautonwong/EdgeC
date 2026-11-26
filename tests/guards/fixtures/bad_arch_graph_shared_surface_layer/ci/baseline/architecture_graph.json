@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "description": "Positive fixture: every edge is declared.",
+  "allowed_layer_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "adapters",
+      "to_layer": "modules",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "modules",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "cmd",
+      "to_layer": "adapters",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "foundation",
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "tests",
+      "to_layer": "modules",
+      "reason": "fixture"
+    }
+  ],
+  "allowed_component_edges": [
+    {
+      "from_component": "beta",
+      "to_component": "alpha",
+      "reason": "fixture: beta consumes alpha's public header",
+      "from_layer": "modules",
+      "to_layer": "modules",
+      "kinds": [
+        "include",
+        "link"
+      ]
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "ROOT",
+      "to_layer": "modules",
+      "to_component": "alpha",
+      "kinds": [
+        "include"
+      ],
+      "reason": "fixture"
+    },
+    {
+      "from_layer": "modules",
+      "from_component": "alpha",
+      "to_layer": "modules",
+      "to_component": "ROOT",
+      "kinds": [
+        "include"
+      ],
+      "reason": "fixture"
+    }
+  ],
+  "forbidden_edges": [
+    {
+      "from_layer": "foundation",
+      "to_layer": "modules",
+      "reason": "fixture"
+    }
+  ],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

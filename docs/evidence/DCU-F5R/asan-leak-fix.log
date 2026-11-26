@@ -1,0 +1,142 @@
+# DCU-F5R: free temporary stage descriptors in tests/test_dcu_advanced_modules.c
+
+Baseline: 39cc8d26 (dcu/F5-device-identity), unmodified test file.
+Build (both): cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_ASAN=ON -DCOVERAGE=OFF
+
+## RED: Debug+ASAN, detect_leaks=1, unmodified baseline
+$ ASAN_OPTIONS=detect_leaks=1 ./build-asan/tests/test_dcu_advanced_modules
+exit: 1
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 12:20:17][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+[2026-11-26 12:20:17][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 12:20:17][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 12:20:17][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000004) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 0 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000004)！记录更新。
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+=================================================================
+==43326==ERROR: LeakSanitizer: detected memory leaks
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d6531 in stage_event_logger_create /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:282
+    #2 0x5e853b576a3a in test_dcu_advanced_features_dispatch /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:275
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d6e2b in stage_periodic_freeze_create_ex /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:363
+    #2 0x5e853b577c67 in test_dcu_advanced_features_dispatch /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:385
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d500d in stage_event_monitor_create /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:144
+    #2 0x5e853b5790cf in test_event_and_freeze_keep_slot_identity_after_archive_shift /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:510
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d6531 in stage_event_logger_create /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:282
+    #2 0x5e853b5791d2 in test_event_and_freeze_keep_slot_identity_after_archive_shift /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:514
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d6e2b in stage_periodic_freeze_create_ex /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:363
+    #2 0x5e853b579932 in test_event_and_freeze_keep_slot_identity_after_archive_shift /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:553
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+Direct leak of 2496 byte(s) in 1 object(s) allocated from:
+    #0 0x71f0457aca57 in __interceptor_calloc ../../../../src/libsanitizer/asan/asan_malloc_linux.cpp:154
+    #1 0x5e853b5d500d in stage_event_monitor_create /tmp/edgec-land/f5-device-identity/cmd/dcu/dcu_event_monitor.c:144
+    #2 0x5e853b57690d in test_dcu_advanced_features_dispatch /tmp/edgec-land/f5-device-identity/tests/test_dcu_advanced_modules.c:267
+    #3 0x5e853b5979b6 in cmocka_run_one_test_or_fixture (/tmp/edgec-land/f5-device-identity/build-asan/tests/test_dcu_advanced_modules+0x469b6)
+
+SUMMARY: AddressSanitizer: 14976 byte(s) leaked in 6 allocation(s).
+
+## GREEN: Debug+ASAN, detect_leaks=1, after fix
+
+$ ASAN_OPTIONS=detect_leaks=1 ./build-asan/tests/test_dcu_advanced_modules
+
+exit: 0
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 12:20:38][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+[2026-11-26 12:20:38][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 12:20:38][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 12:20:38][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000004) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 0 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000004)！记录更新。
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).
+
+## GREEN: Release, after fix
+
+$ ./build/tests/test_dcu_advanced_modules
+
+exit: 0
+[==========] tests: Running 2 test(s).
+[ RUN      ] test_dcu_advanced_features_dispatch
+[2026-11-26 12:20:44][INFO][BUS] Sealed memfd Ring created (FD: 9, Size: 68 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+🔐 [ESAM] 接收到随机质询！身份鉴权成功，动态会话密钥协商完成。
+✅ [ESAM] 报文签名 MAC 验证成功，指令合法准予执行。
+❌ [ESAM] 报文签名校验失败！检测到非法包篡改，拒绝执行指令。
+[2026-11-26 12:20:44][INFO][CORE] WASM: Secure Runtime initialized
+⚠️ [MONITOR] Dev 0: Voltage 150.0V < 176.0V. Starting 5s countdown...
+🚨🚨🚨 [ALARM TRIGGER] Dev 0 (TSA: 10000001) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000001)！抓取 1 项关联快照并入库。
+💚 [RECOVER] Dev 0: Voltage Restored to 220.5V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[       OK ] test_dcu_advanced_features_dispatch
+[ RUN      ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[2026-11-26 12:20:44][INFO][BUS] Sealed memfd Ring created (FD: 13, Size: 68 KB)
+[2026-11-26 12:20:44][INFO][CORE] WASM: Secure Runtime initialized
+🚨🚨🚨 [ALARM TRIGGER] Dev 3 (TSA: 10000004) Voltage 150.0V below threshold! Writing to DB...
+📝 [SNAPSHOT] 事件 3000 触发 (表: 10000004)！抓取 0 项关联快照并入库。
+💚 [RECOVER] Dev 3: Voltage Restored to 220.0V.
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000004)！记录更新。
+[       OK ] test_event_and_freeze_keep_slot_identity_after_archive_shift
+[==========] tests: 2 test(s) run.
+[  PASSED  ] 2 test(s).

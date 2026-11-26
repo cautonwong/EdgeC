@@ -2,10 +2,14 @@
 """Replay a JSONL trace through a replaceable target and report field-level divergence."""
 
 import argparse
+import contextlib
 import hashlib
+import io
 import json
+import math
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 TRACE_VERSION = 1
@@ -13,6 +17,8 @@ KINDS = ("point", "alarm", "command")
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_REPORT = BASE_DIR / "reports" / "replay.report.json"
 EDGEC_TARGET_BIN = BASE_DIR / "edgec_target" / "edgec_modbus_target"
+# Pinned golden hash of samples/sample_trace.jsonl; update only with a deliberate trace change.
+SAMPLE_TRACE_SHA256 = "32de3467bb747e751954575e2d12dd56ae80540771335cad9eb09f688463fa29"
 
 
 class TraceError(Exception):
@@ -100,6 +106,31 @@ def _reject_constant(name):
     raise ValueError(f"non-finite number {name}")
 
 
+def _reject_nonfinite_floats(value, where, path="value"):
+    """A literal like 1e999 overflows to inf without parse_constant firing."""
+    if isinstance(value, float) and not math.isfinite(value):
+        raise TraceError(f"{where}: non-finite number at {path}")
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_nonfinite_floats(item, where, f"{path}[{index}]")
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            _reject_nonfinite_floats(item, where, f"{path}.{key}")
+
+
+def _sha256_file(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _verify_trace_sha256(path, expected):
+    actual = _sha256_file(path)
+    expected = expected.strip().lower()
+    if actual != expected:
+        raise TraceError(
+            f"{path}: trace SHA256 mismatch: expected {expected} actual {actual}"
+        )
+
+
 def load_trace(path):
     records = []
     last_t_ms = -1
@@ -141,6 +172,7 @@ def _parse_record(raw, path, lineno, last_t_ms):
         raise TraceError(f"{where}: kind must be one of {', '.join(KINDS)}")
     if not isinstance(raw["key"], str) or not raw["key"]:
         raise TraceError(f"{where}: key must be a non-empty string")
+    _reject_nonfinite_floats(raw["value"], where)
     # Unknown fields are dropped so a v1 reader can ignore additions from later writers.
     return {
         "v": TRACE_VERSION,
@@ -270,7 +302,7 @@ def run_replay(trace_path, target):
             close()
     report = compare(expected, actual)
     report["trace"] = str(trace_path)
-    report["trace_sha256"] = hashlib.sha256(Path(trace_path).read_bytes()).hexdigest()
+    report["trace_sha256"] = _sha256_file(trace_path)
     report["target"] = target.name
     return report
 
@@ -307,6 +339,15 @@ def _check(condition, message):
         raise SystemExit(1)
 
 
+def _run_cli(argv):
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(stderr):
+            return main(argv), stderr.getvalue()
+    except SystemExit as exc:
+        return exc.code, stderr.getvalue()
+
+
 class _CorruptingTarget(MockTarget):
     name = "corrupt"
 
@@ -336,7 +377,7 @@ def _cmd_selftest():
     _check(mirror["mismatches"] == 0, "identical replay must have no mismatched records")
     _check(mirror["first_divergence"] is None, "identical replay must have no first divergence")
     print(
-        f"selftest 1/4 ok: identical replay, expected={mirror['expected_records']},"
+        f"selftest 1/10 ok: identical replay, expected={mirror['expected_records']},"
         f" actual={mirror['actual_records']}, report={mirror_path}"
     )
 
@@ -390,7 +431,7 @@ def _cmd_selftest():
     _check(exit_code == 1, "replay with a difference must exit 1")
 
     print(
-        f"selftest 2/4 ok: corrupted {first['kind']} {first['key']},"
+        f"selftest 2/10 ok: corrupted {first['kind']} {first['key']},"
         f" first divergence t_ms={first['t_ms']}, exit={exit_code}, report={corrupt_path}"
     )
 
@@ -411,7 +452,7 @@ def _cmd_selftest():
         "real EdgeC codec replay must return all 14 sample records",
     )
     print(
-        f"selftest 3/4 ok: real EdgeC Modbus RTU codec, expected=14, actual=14,"
+        f"selftest 3/10 ok: real EdgeC Modbus RTU codec, expected=14, actual=14,"
         f" report={edgec_path}"
     )
 
@@ -453,10 +494,148 @@ def _cmd_selftest():
     _check(exit_code == 1, "replay with a corrupted EdgeC register must exit 1")
 
     print(
-        f"selftest 4/4 ok: corrupted register {corrupt_key},"
+        f"selftest 4/10 ok: corrupted register {corrupt_key},"
         f" first divergence t_ms={edgec_first['t_ms']}, exit={exit_code},"
         f" report={edgec_corrupt_path}"
     )
+
+    golden = SAMPLE_TRACE_SHA256
+    _check(
+        _sha256_file(trace_path) == golden,
+        "pinned golden hash must match samples/sample_trace.jsonl;"
+        " update SAMPLE_TRACE_SHA256 only with a deliberate trace change",
+    )
+    ok_path = reports_dir / "selftest_sha256_ok.json"
+    exit_code, stderr = _run_cli(
+        [
+            "replay",
+            "--trace",
+            str(trace_path),
+            "--target",
+            "mock",
+            "--trace-sha256",
+            golden,
+            "--report",
+            str(ok_path),
+        ]
+    )
+    _check(exit_code == 0, f"replay with the pinned trace hash must exit 0: {stderr}")
+    print(
+        f"selftest 5/10 ok: pinned trace SHA256 accepted, exit={exit_code}, report={ok_path}"
+    )
+
+    with tempfile.TemporaryDirectory(prefix="parity-selftest-") as temp_dir:
+        temp = Path(temp_dir)
+        raw = [
+            json.loads(line)
+            for line in trace_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
+        def write_variant(name, records):
+            path = temp / name
+            path.write_text(
+                "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+                encoding="utf-8",
+            )
+            return path
+
+        tampered = write_variant("tampered.jsonl", [dict(raw[0], value=999.0), *raw[1:]])
+        tampered_hash = _sha256_file(tampered)
+        _check(tampered_hash != golden, "tampered trace must not keep the pinned hash")
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(tampered),
+                "--target",
+                "edgec-modbus",
+                "--trace-sha256",
+                golden,
+                "--report",
+                str(temp / "tampered.report.json"),
+            ]
+        )
+        _check(exit_code != 0, "replay with a mismatched trace hash must exit non-zero")
+        _check(
+            golden in stderr and tampered_hash in stderr,
+            f"hash mismatch error must show expected and actual hashes: {stderr}",
+        )
+        print(
+            f"selftest 6/10 ok: tampered trace rejected before replay,"
+            f" exit={exit_code}, actual={tampered_hash}"
+        )
+
+        missing_field = [dict(record) for record in raw]
+        del missing_field[2]["key"]
+        malformed = (
+            (
+                "missing field",
+                write_variant("missing_field.jsonl", missing_field),
+                "missing field",
+            ),
+            (
+                "bad version",
+                write_variant("bad_version.jsonl", [dict(raw[0], v=2), *raw[1:]]),
+                "unsupported v",
+            ),
+            (
+                "out of order",
+                write_variant("out_of_order.jsonl", [raw[0], raw[2], raw[1], *raw[3:]]),
+                "before the previous record",
+            ),
+        )
+        for index, (label, path, reason) in enumerate(malformed, 7):
+            exit_code, stderr = _run_cli(
+                [
+                    "replay",
+                    "--trace",
+                    str(path),
+                    "--target",
+                    "mock",
+                    "--trace-sha256",
+                    _sha256_file(path),
+                    "--report",
+                    str(temp / f"{path.stem}.report.json"),
+                ]
+            )
+            _check(
+                exit_code != 0,
+                f"malformed trace ({label}) must exit non-zero even with a matching hash",
+            )
+            _check(
+                reason in stderr,
+                f"malformed trace ({label}) must be rejected for {reason!r}: {stderr}",
+            )
+            print(f"selftest {index}/10 ok: {label} rejected, exit={exit_code}")
+
+        nonfinite = temp / "nonfinite.jsonl"
+        nonfinite.write_text(
+            '{"v": 1, "t_ms": 0, "source": "selftest", "kind": "point",'
+            ' "key": "selftest.nonfinite", "value": 1e999}\n',
+            encoding="utf-8",
+        )
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(nonfinite),
+                "--target",
+                "mock",
+                "--trace-sha256",
+                _sha256_file(nonfinite),
+                "--report",
+                str(temp / "nonfinite.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"non-finite value must exit 2: {stderr}")
+        _check(
+            "non-finite number at value" in stderr,
+            f"non-finite value must be rejected by the loader: {stderr}",
+        )
+        _check("Traceback" not in stderr, f"non-finite value must not traceback: {stderr}")
+        print(f"selftest 10/10 ok: non-finite value rejected, exit={exit_code}")
+
     print("SELFTEST PASS")
     return 0
 
@@ -472,12 +651,19 @@ def main(argv=None):
     replay.add_argument("--trace", required=True, type=Path)
     replay.add_argument("--target", choices=sorted(TARGETS), default="mock")
     replay.add_argument("--report", type=Path, default=DEFAULT_REPORT)
+    replay.add_argument(
+        "--trace-sha256",
+        metavar="HEX",
+        help="expected SHA256 of the raw trace file; abort before replay if it does not match",
+    )
 
     args = parser.parse_args(argv)
     try:
         if args.command == "selftest":
             return _cmd_selftest()
 
+        if args.trace_sha256 is not None:
+            _verify_trace_sha256(args.trace, args.trace_sha256)
         report = run_replay(args.trace, TARGETS[args.target]())
         write_report(report, args.report)
         print(

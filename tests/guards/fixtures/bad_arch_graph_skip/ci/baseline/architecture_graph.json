@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "description": "Refutation fixture: an unregistered CMake parse gap must fail.",
+  "allowed_layer_edges": [
+    {
+      "from_layer": "cmd",
+      "to_layer": "cmd",
+      "reason": "fixture"
+    }
+  ],
+  "allowed_component_edges": [],
+  "forbidden_edges": [],
+  "forbidden_headers": [],
+  "composition_roots": [],
+  "known_skips": []
+}

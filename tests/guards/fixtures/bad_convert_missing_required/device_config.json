@@ -1,0 +1,15 @@
+{
+  "dev_class": [
+    {
+      "type": "METER",
+      "devs": [
+        {
+          "no": "M1",
+          "name": "meter1",
+          "template": "METER.json",
+          "protocol": "modbus_rtu"
+        }
+      ]
+    }
+  ]
+}

@@ -3,6 +3,7 @@
 #include <stdint.h>
 
 #include "dcu_inventory.h"
+#include "dcu_relay_map.h"
 #include "edge_log.h"
 #include "edge_slave_plane.h"
 
@@ -41,11 +42,20 @@ int dcu_698_control_execute(const dcu_698_object_t *obj, uint8_t method_id, cons
         }
         if (!param) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         const dcu_action_param_t *p = (const dcu_action_param_t *)param;
+        const dcu_relay_entry_t *target =
+            dcu_relay_map_find(dcu_relay_map_active(), p->relay_oad);
+        if (!target) {
+            LOG_WARN(LOG_CAT_CORE,
+                     "OI 8000 method %u: 参数已解码（%u 项，继电器 OAD=0x%08X），产品点位表"
+                     "没有该继电器 OAD→表地址/DO 映射，拒绝执行",
+                     method_id, p->count, p->relay_oad);
+            return EDGE_SLAVE_SRC_TEMPORARY;
+        }
         LOG_WARN(LOG_CAT_CORE,
-                 "OI 8000 method %u: 参数已解码（%u 项，继电器 OAD=0x%08X），但产品没有"
-                 "继电器 OAD→电表地址映射，拒绝执行",
-                 method_id, p->count, p->relay_oad);
-        return EDGE_SLAVE_SRC_TEMPORARY;
+                 "OI 8000 method %u: 继电器 OAD=0x%08X 已解析到表 %s DO 通道 %u，但产品未接"
+                 "真实 DO 执行，拒绝执行",
+                 method_id, p->relay_oad, target->meter_addr, (unsigned)target->do_channel);
+        return EDGE_SLAVE_SRC_CLASS_MISMATCH;
     }
 
     return EDGE_SLAVE_SRC_CLASS_MISMATCH;

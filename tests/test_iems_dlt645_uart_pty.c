@@ -293,7 +293,7 @@ static void test_dlt645_read_over_uart_pty(void **state) {
     pty_ctx_t *c = (pty_ctx_t *)*state;
 
     assert_int_equal(
-        edge_api_read_tag_ex(0, "DLT645", 0, METER_DI, METER_TAG, METER_SCALE, NULL, 0,
+        edge_api_read_tag_ex(0, "DLT645", 0, 0, METER_DI, METER_TAG, METER_SCALE, NULL, 0,
                              ARBITER_PRIO_NORMAL, _on_read_done, c),
         0);
     c->submitted = true;
@@ -321,10 +321,10 @@ static void test_dlt645_write_over_uart_pty(void **state) {
 
     iems_execution_port_t port = iems_execution_port_create(NULL);
     assert_non_null(port.write_tag);
-    assert_int_equal(port.write_tag(port.ctx, 0, 0, METER_TAG, 220.1, "DLT645"), 0);
+    assert_int_equal(port.write_tag(port.ctx, 0, 0, METER_TAG, 220.1, "DLT645", NULL, NULL), 0);
     c->submitted = true;
     /* 同一总线上的读作为屏障：写事务结算后才轮到它，循环在回调里停 */
-    assert_int_equal(edge_api_read_tag_ex(0, "DLT645", 0, METER_DI, METER_TAG, METER_SCALE,
+    assert_int_equal(edge_api_read_tag_ex(0, "DLT645", 0, 0, METER_DI, METER_TAG, METER_SCALE,
                                           NULL, 0, ARBITER_PRIO_NORMAL, _on_read_done, c),
                      0);
 
@@ -351,7 +351,8 @@ static void test_dlt645_write_rejects_unknown_width(void **state) {
 
     iems_execution_port_t port = iems_execution_port_create(NULL);
     assert_non_null(port.write_tag);
-    assert_int_equal(port.write_tag(port.ctx, 0, 0, IEMS_TAG_GRID_POWER, 12.3, "DLT645"), -1);
+    assert_int_equal(port.write_tag(port.ctx, 0, 0, IEMS_TAG_GRID_POWER, 12.3, "DLT645", NULL, NULL),
+                     -1);
     assert_int_equal(c->write_frames, 0);
     assert_int_equal(c->req_frames, 0);
 }

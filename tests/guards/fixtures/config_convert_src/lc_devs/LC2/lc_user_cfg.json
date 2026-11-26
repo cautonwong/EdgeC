@@ -1,0 +1,12 @@
+[
+  {
+    "type": 1,
+    "name": "PowerLimit",
+    "double_value": 80
+  },
+  {
+    "type": 1,
+    "name": "Installedcab_coeff",
+    "double_value": 80
+  }
+]

@@ -1,0 +1,20 @@
+{
+  "Pmlmax": 800,
+  "K1": 90,
+  "K2": 90,
+  "pv_mode": 0,
+  "EnProtectDOD": 1,
+  "EnBmsAlarm": 1,
+  "SOCmax": 90,
+  "SOCmin": 10,
+  "Pset": 5,
+  "cab_power": 80,
+  "Adjpreriod": 5,
+  "EnPcsRpComp": 0,
+  "SleepMode": 1,
+  "SetPcsPowerFactor": 0.99,
+  "EnSocKeepMode": 0,
+  "SocKeepActiveSOC": 40.0,
+  "SocKeepMargin": 5.0,
+  "SocKeepChargePower": 0.0
+}

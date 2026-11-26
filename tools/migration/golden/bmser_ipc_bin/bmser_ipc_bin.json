@@ -1,0 +1,29 @@
+{
+  "dev": [
+    {
+      "blocks": [
+        {
+          "block_id": "0x0100",
+          "cycle": 1000,
+          "sub_id": [
+            {
+              "name": "voltage",
+              "scale": 0.1,
+              "tag": "SITEA.VOLTAGE",
+              "type": "U16"
+            },
+            {
+              "scale": 1,
+              "tag": "SITEA.POWER",
+              "type": "S32"
+            }
+          ]
+        }
+      ],
+      "dev_id": "siteA",
+      "module": "ems",
+      "type": "emsctrl"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

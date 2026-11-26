@@ -1,0 +1,38 @@
+== test commit 5dcbe1a3 ==
+5dcbe1a3 test(DCU-D4-07): pin Class 21 ESAM honest DAR and read-only ACL
+ tests/test_dcu_698_appconn.c      | 22 ++++++++++-
+ tests/test_dcu_698_axdr.c         | 39 +++++++++++++++++++
+ tests/test_dcu_698_object_model.c | 10 +++--
+ tests/test_dcu_698_scheme_mgmt.c  |  2 +-
+ tests/test_dcu_advanced_modules.c |  9 +++--
+ tests/test_driver_dlt698.c        | 80 ++++++++++++++++++++++++++++++++++++---
+ 6 files changed, 148 insertions(+), 14 deletions(-)
+
+== fix commit d335de15 ==
+d335de15 feat(DCU-D4-07): expose F100 as an honest read-only Class 21 skeleton
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/CMakeLists.txt              |  1 -
+ cmd/dcu/dcu_698_appconn.c           |  7 +++++++
+ cmd/dcu/dcu_698_class_security.c    | 22 ----------------------
+ cmd/dcu/dcu_698_object_internal.h   |  3 ---
+ cmd/dcu/dcu_698_object_model.c      |  8 +++-----
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 21 ++++++++++++---------
+ 8 files changed, 24 insertions(+), 40 deletions(-)
+
+== branch vs base 88e1e550 ==
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/CMakeLists.txt              |  1 -
+ cmd/dcu/dcu_698_appconn.c           |  7 ++++
+ cmd/dcu/dcu_698_class_security.c    | 22 ----------
+ cmd/dcu/dcu_698_object_internal.h   |  3 --
+ cmd/dcu/dcu_698_object_model.c      |  8 ++--
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md | 21 +++++-----
+ tests/test_dcu_698_appconn.c        | 22 +++++++++-
+ tests/test_dcu_698_axdr.c           | 39 ++++++++++++++++++
+ tests/test_dcu_698_object_model.c   | 10 +++--
+ tests/test_dcu_698_scheme_mgmt.c    |  2 +-
+ tests/test_dcu_advanced_modules.c   |  9 +++--
+ tests/test_driver_dlt698.c          | 80 ++++++++++++++++++++++++++++++++++---
+ 14 files changed, 172 insertions(+), 54 deletions(-)

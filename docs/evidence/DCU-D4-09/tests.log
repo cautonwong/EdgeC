@@ -1,0 +1,54 @@
+== RED on cd4adcd0 (test commit only) ==
+[==========] tests: Running 23 test(s).
+[  ERROR   ] --- 120 != 128
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_object_model.c:107: error: Failure!
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  ERROR   ] --- (nil) == (nil)
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_object_model.c:703: error: Failure!
+[  FAILED  ] test_class23_group_rows_are_empty
+[==========] tests: 23 test(s) run.
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_all_ois_resolvable_with_class_and_mask
+[  FAILED  ] test_class23_group_rows_are_empty
+ 2 FAILED TEST(S)
+[==========] tests: Running 59 test(s).
+[  ERROR   ] --- -20 != -21
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_axdr.c:723: error: Failure!
+[  FAILED  ] test_product_class23_group_dar
+[==========] tests: 59 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_product_class23_group_dar
+ 1 FAILED TEST(S)
+[==========] tests: Running 21 test(s).
+[  ERROR   ] --- 107 != 115
+[   LINE   ] --- /tmp/edgec-land/d4-09-group/tests/test_dcu_698_scheme_mgmt.c:1320: error: Failure!
+[  FAILED  ] test_object_list_advertises_new_ois
+[==========] tests: 21 test(s) run.
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_object_list_advertises_new_ois
+ 1 FAILED TEST(S)
+[==========] tests: Running 30 test(s).
+[  ERROR   ] --- 107 != 115
+
+== GREEN at HEAD 009e8fa1 (clean build) ==
+100% tests passed, 0 tests failed out of 45
+
+Total Test time (real) =  32.31 sec
+
+== new cases ==
+== test_dcu_698_object_model::test_class23_group_rows_are_empty
+[ RUN      ] test_class23_group_rows_are_empty
+[       OK ] test_class23_group_rows_are_empty
+[  PASSED  ] 1 test(s).
+== test_dcu_698_appconn::test_class23_group_acl_is_read_only
+[ RUN      ] test_class23_group_acl_is_read_only
+[       OK ] test_class23_group_acl_is_read_only
+[  PASSED  ] 1 test(s).
+== test_dcu_698_axdr::test_product_class23_group_dar
+[ RUN      ] test_product_class23_group_dar
+[       OK ] test_product_class23_group_dar
+[  PASSED  ] 1 test(s).
+== test_driver_dlt698::test_slave_class23_group_dar
+[ RUN      ] test_slave_class23_group_dar
+[       OK ] test_slave_class23_group_dar
+[  PASSED  ] 1 test(s).

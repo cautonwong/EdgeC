@@ -1,0 +1,2 @@
+cmd/dcu/dcu_comm_info.c:112: ‘%s’ directive output may be truncated writing up to 255 bytes into a region of size 64 [-Wformat-truncation=]
+❌ [FANALYZER] 1 finding(s) outside the ledger

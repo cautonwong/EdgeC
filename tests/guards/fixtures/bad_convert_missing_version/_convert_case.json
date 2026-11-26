@@ -1,0 +1,6 @@
+{
+  "family": "device",
+  "mode": "check",
+  "out": "expected",
+  "description": "expected artifact has no schema_version"
+}

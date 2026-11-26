@@ -1,0 +1,33 @@
+Command: python3 ci/scripts/check_architecture_graph.py --root . --compile-commands build/compile_commands.json
+Configure: cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON (existing Release/Ninja cache)
+Exit: 0
+Wall time: 0m17.329s
+
+✅ [ARCHITECTURE_GRAPH] clean parsed subgraph: 132 CMake target(s), 588 first-party link edge(s), 0 target cycle(s); 1142 include file(s), 124 component edge(s), 0 component cycle(s); 4 known parse gap(s), 433 external/imported link(s) ignored, 1 external CMake module include(s), 34 quoted and 4824 angle include(s) outside the owner map; matrix ci/baseline/architecture_graph.json
+ℹ️  [ARCHITECTURE_GRAPH] strong mode: 744 first-party TU(s) preprocessed, 0 failure(s); 2 preprocessor-only edge(s), 20 text-only edge(s) (non-TU files and uncompiled branches, kept fail-closed); 3057 dependency(ies) outside the owner map ignored.
+ℹ️  [ARCHITECTURE_GRAPH] folded out of the parsed subgraph: 272 macro-generated target call(s) (add_edge_test etc.) and cmake/ helper macros; File API reports the full configure-time graph.
+ℹ️  [ARCHITECTURE_GRAPH] shared-surface mutual include(s) outside cycle nodes by design: modules/edge_infra <-> root/ROOT, modules/edge_io <-> root/ROOT
+
+Counts:
+  first-party TUs: 744 of 836 compile_commands entries (excluded: third-party/build/sdk/tools/fuzz/examples/services)
+  preprocess failures: 0
+  component edges: text 122, preprocessor 104, union 124
+  preprocessor-only edges: 2 (text-only: 20, from non-TU files and uncompiled branches)
+  dependency paths outside the owner map ignored: 3057 (third-party/build/contracts/sdk/services generated headers)
+
+Edges the text scan missed (by component pair):
+  modules/edge_api -> foundation/FOUNDATION: 3 site(s); allowed layer edge; closure attribution
+  modules/edge_api -> modules/edge_core: 1 site(s); arbiter.h via edge_io/bus_orchestrator.h; ledger include kind marked sources: [preprocessor_closure]
+
+The first pair is already allowed by the modules -> foundation layer edge.
+The second is the real arbiter.h dependency that text mode could not see; it is
+now declared in ci/baseline/architecture_graph.json with the include kind and
+the preprocessor_closure provenance marker.
+
+Text mode is an approximation and stays one: C++ raw strings and macro-generated
+includes can still confuse its comment/include scan. For compiled first-party TUs,
+strong mode removes that class of bypass (shim, umbrella header, .inc payload,
+angle-bracket first-party header, '..' path, symlinked header) because the closure
+comes from the real preprocessor. Commands that would divert the closure to a depfile
+(-MD/-MMD/-MF/-MT/-MQ) are stripped, and a closure without the TU source itself
+fails closed. Text-only edges stay fail-closed.

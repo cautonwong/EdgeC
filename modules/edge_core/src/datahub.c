@@ -143,17 +143,23 @@ int datahub_write_shadow_idx(datahub_t *hub, int idx, const pipe_msg_t *msg) {
     
     // 💡 [WAL] Write to Write-Ahead Log if enabled
     if (hub->wal_fd >= 0) {
-        ssize_t written = write(hub->wal_fd, msg, sizeof(pipe_msg_t));
+        ssize_t written;
+        do {
+            written = write(hub->wal_fd, msg, sizeof(pipe_msg_t));
+        } while (written < 0 && errno == EINTR);
         if (written != (ssize_t)sizeof(pipe_msg_t)) {
-            int err = errno;
-            uint64_t failures =
-                atomic_fetch_add_explicit(&hub->wal_write_failures, 1, memory_order_relaxed) + 1;
-            if (failures == 1) {
-                LOG_WARN(LOG_CAT_CORE,
-                         "DataHub WAL write failed (%zd/%zu bytes: %s); later failures only counted",
-                         written, sizeof(pipe_msg_t),
-                         written < 0 ? strerror(err) : "short write");
-            }
+            int err = (written < 0) ? errno : 0;
+            atomic_fetch_add_explicit(&hub->wal_write_failures, 1, memory_order_relaxed);
+            /* A failed write loses durability; retrying the same fd can keep
+             * hitting a broken target (EPIPE/full disk), so disable it now.
+             * The lock already held here also guards enable/disable. */
+            LOG_WARN(LOG_CAT_CORE,
+                     "DataHub WAL write failed (%zd/%zu bytes: %s); disabling WAL: %s",
+                     written, sizeof(pipe_msg_t),
+                     written < 0 ? strerror(err) : "short write",
+                     hub->wal_path[0] ? hub->wal_path : "(unnamed)");
+            close(hub->wal_fd);
+            hub->wal_fd = -1;
         }
     }
     if (hub->shadow_fd >= 0) flock(hub->shadow_fd, LOCK_UN);

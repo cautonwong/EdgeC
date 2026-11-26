@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "convert_secret_fixture",
+  "description": "Minimal device schema with one x-secret field, used only by the converter fixture.",
+  "x-schema-version": "1.0.0",
+  "type": "object",
+  "required": [
+    "dev_class"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "dev_class": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "password": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "x-secret": [
+    "password"
+  ]
+}

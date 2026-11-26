@@ -15,6 +15,7 @@
 #include "contract_data_types.h"
 #include "edge_log.h"
 #include "iec_asdu.h"
+#include "iems_point_model.h"
 #include "modbus_codec.h"
 
 /* 外部协议驱动模板声明 */
@@ -24,6 +25,7 @@ extern const edge_driver_t modbus_tcp_driver;
 extern const edge_driver_t iec104_driver;
 extern const edge_driver_t can_driver;
 extern const edge_driver_t dlt645_driver;
+extern const edge_driver_t ydt1363_driver;
 
 /* ==============================================================================
  * 1. IEMS 专属静态驱动注册表 (替代生成的 edge_driver_registry.c)
@@ -35,6 +37,7 @@ static const edge_driver_reg_entry_t s_iems_driver_registry[] = {
     EDGE_DRIVER_ENTRY("IEC104", iec104_driver),
     EDGE_DRIVER_ENTRY("CAN", can_driver),
     EDGE_DRIVER_ENTRY("DLT645", dlt645_driver),
+    EDGE_DRIVER_ENTRY("YDT1363", ydt1363_driver),
 };
 
 static const size_t s_iems_driver_registry_count =
@@ -60,6 +63,8 @@ int iems_driver_protocol_canonical(const char *raw, char out[16]) {
         {"ModbusTCP", "ModbusTCP"},  {"IEC104", "IEC104"},
         {"CAN", "CAN"},              {"DLT645", "DLT645"},
         {"DLT645-2007", "DLT645"},
+        {"YDT1363", "YDT1363"},      {"ydt1363_2014", "YDT1363"},
+        {"YDT1363-2014", "YDT1363"},
     };
     if (!raw || !out) return -1;
 
@@ -75,6 +80,26 @@ int iems_driver_protocol_canonical(const char *raw, char out[16]) {
         if (strcasecmp(trimmed, aliases[i].alias) == 0) {
             strcpy(out, aliases[i].canonical);
             return 0;
+        }
+    }
+    return -1;
+}
+
+/* 配置族的 protocol 是 schema 枚举，不是驱动别名；映射后仍由 canonical 收口。 */
+int iems_driver_protocol_from_config(const char *token, char out[16]) {
+    static const struct {
+        const char *token;
+        const char *alias;
+    } tokens[] = {
+        {"modbus_rtu", "modbus_rtu"},         {"modbus_rtu_rcrc", "modbus_rtu_rcrc"},
+        {"modbus_tcp", "ModbusTCP"},          {"dlt645_2007", "DLT645-2007"},
+        {"can_raw", "CAN"},                   {"iec104", "IEC104"},
+        {"ydt1363_2014", "YDT1363-2014"},
+    };
+    if (!token || !out) return -1;
+    for (size_t i = 0; i < sizeof(tokens) / sizeof(tokens[0]); i++) {
+        if (strcmp(token, tokens[i].token) == 0) {
+            return iems_driver_protocol_canonical(tokens[i].alias, out);
         }
     }
     return -1;
@@ -219,7 +244,7 @@ static const modbus_map_t s_can_points[] = {
 };
 static const size_t s_can_points_count = sizeof(s_can_points) / sizeof(s_can_points[0]);
 
-static const void *iems_lookup_can_by_tag(uint32_t tag_id) {
+const void *iems_lookup_can_by_tag(uint32_t tag_id) {
     for (size_t i = 0; i < s_can_points_count; i++) {
         if (s_can_points[i].tag_id == tag_id) {
             return &s_can_points[i];
@@ -307,46 +332,45 @@ static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_d
  * ============================================================================== */
 
 /* ==============================================================================
- * 7. IEMS 本地测点到 DataHub 影子槽位与轮询周期 (OCP 表驱动映射)
+ * 7. IEMS 本地测点轮询周期 (OCP 表驱动)；槽位映射委托 iems_point_model
  * ============================================================================== */
 typedef struct {
     uint32_t tag_id;
-    uint32_t offset;
     uint32_t poll_interval_ms;
-} iems_tag_slot_map_t;
+} iems_tag_poll_t;
 
-static const iems_tag_slot_map_t s_iems_tag_slots[] = {
-    {IEMS_TAG_VOLTAGE_PHASE_A,   0,  1000},
-    {IEMS_TAG_CURRENT_PHASE_A,   1,  1000},
-    {IEMS_TAG_GRID_POWER,        2,  1000},
-    {IEMS_TAG_GRID_FREQUENCY,    3,  1000},
-    {IEMS_TAG_ADC_RAW_DATA,      4,  10},
-    {IEMS_TAG_ADC_VOLTAGE_RMS,   5,  100},
-    {IEMS_TAG_ENERGY_ACTIVE_IMP, 6,  10000},
-    {IEMS_TAG_BATTERY_SOC,       7,  1000},
-    {IEMS_TAG_BATTERY_CURRENT,   8,  1000},
-    {IEMS_TAG_BATTERY_POWER,     9,  1000},
-    {IEMS_TAG_SOLAR_POWER,       10, 1000},
-    {IEMS_TAG_SOLAR_VOLTS,       11, 1000},
-    {IEMS_TAG_SOLAR_RELAY,       12, 1000},
-    {IEMS_TAG_PCS_CONTROL,       13, 1000},
+static const iems_tag_poll_t s_iems_tag_polls[] = {
+    {IEMS_TAG_VOLTAGE_PHASE_A,   1000},
+    {IEMS_TAG_CURRENT_PHASE_A,   1000},
+    {IEMS_TAG_GRID_POWER,        1000},
+    {IEMS_TAG_GRID_FREQUENCY,    1000},
+    {IEMS_TAG_ADC_RAW_DATA,      10},
+    {IEMS_TAG_ADC_VOLTAGE_RMS,   100},
+    {IEMS_TAG_ENERGY_ACTIVE_IMP, 10000},
+    {IEMS_TAG_BATTERY_SOC,       1000},
+    {IEMS_TAG_BATTERY_CURRENT,   1000},
+    {IEMS_TAG_BATTERY_POWER,     1000},
+    {IEMS_TAG_SOLAR_POWER,       1000},
+    {IEMS_TAG_SOLAR_VOLTS,       1000},
+    {IEMS_TAG_SOLAR_RELAY,       1000},
+    {IEMS_TAG_PCS_CONTROL,       1000},
 };
-static const size_t s_iems_tag_slots_count = sizeof(s_iems_tag_slots) / sizeof(s_iems_tag_slots[0]);
+static const size_t s_iems_tag_polls_count = sizeof(s_iems_tag_polls) / sizeof(s_iems_tag_polls[0]);
 
+/* 产品侧 device_id 可到 8191，不能用把设备上限卡在 63 的 iems_point_key_slot。 */
 int iems_tag_map_fn(uint32_t tag_id, uint32_t device_id) {
-    for (size_t i = 0; i < s_iems_tag_slots_count; i++) {
-        if (s_iems_tag_slots[i].tag_id == tag_id) {
-            return (int)(device_id * 16 + s_iems_tag_slots[i].offset);
-        }
+    uint32_t dense = 0;
+    if (iems_point_slot(tag_id, &dense) == 0) {
+        return (int)(device_id * IEMS_POINT_DENSE_PER_DEVICE + dense);
     }
     if (tag_id < 64) return (int)tag_id;
     return -1;
 }
 
 uint32_t iems_get_tag_poll_interval_ms(uint32_t tag_id) {
-    for (size_t i = 0; i < s_iems_tag_slots_count; i++) {
-        if (s_iems_tag_slots[i].tag_id == tag_id) {
-            return s_iems_tag_slots[i].poll_interval_ms;
+    for (size_t i = 0; i < s_iems_tag_polls_count; i++) {
+        if (s_iems_tag_polls[i].tag_id == tag_id) {
+            return s_iems_tag_polls[i].poll_interval_ms;
         }
     }
     return 1000;
@@ -477,6 +501,11 @@ static const edge_tag_meta_t s_iems_tag_metadata[] = {
     { .id = 8003, .name = "SOLAR_VOLTS",       .type = "FLOAT",  .unit = "V",   .category = "SOLAR",    .min = 0,    .max = 1000,    .persist = false, .upload = true,  .poll_interval_ms = 1000 },
     { .id = 8004, .name = "SOLAR_RELAY",       .type = "INT32",  .unit = "",    .category = "SOLAR",    .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
     { .id = 8005, .name = "PCS_CONTROL",       .type = "FLOAT",  .unit = "kW",  .category = "PCS",      .min = -500, .max = 500,     .persist = false, .upload = true,  .poll_interval_ms = 1000 },
+    { .id = 9001, .name = "EMS_POWER",         .type = "INT32",  .unit = "",    .category = "HEALTH",   .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
+    { .id = 9002, .name = "EMS_CPU_HIGH",      .type = "INT32",  .unit = "",    .category = "HEALTH",   .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
+    { .id = 9003, .name = "EMS_MEM_HIGH",      .type = "INT32",  .unit = "",    .category = "HEALTH",   .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
+    { .id = 9004, .name = "EMS_EMMC_HIGH",     .type = "INT32",  .unit = "",    .category = "HEALTH",   .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
+    { .id = 9005, .name = "EMS_SSD_HIGH",      .type = "INT32",  .unit = "",    .category = "HEALTH",   .min = 0,    .max = 1,       .persist = false, .upload = true,  .poll_interval_ms = 1000 },
 };
 
 const edge_tag_meta_t *g_tag_metadata = s_iems_tag_metadata;

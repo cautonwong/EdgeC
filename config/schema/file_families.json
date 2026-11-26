@@ -1,0 +1,137 @@
+{
+  "families": [
+    {
+      "name": "device",
+      "schema": "device.schema.json",
+      "patterns": [
+        "device_config.json",
+        "def_device_config.json",
+        "lc/device_config.json",
+        "lc_devs/*/device_config.json"
+      ]
+    },
+    {
+      "name": "port",
+      "schema": "port.schema.json",
+      "patterns": [
+        "port_config.json"
+      ]
+    },
+    {
+      "name": "ems_lc_list",
+      "schema": "ems_lc_list.schema.json",
+      "patterns": [
+        "ems_lc_list.json"
+      ]
+    },
+    {
+      "name": "system",
+      "schema": "system.schema.json",
+      "patterns": [
+        "system_cfg.json"
+      ]
+    },
+    {
+      "name": "ems",
+      "schema": "ems.schema.json",
+      "patterns": [
+        "ems_cfg.json"
+      ]
+    },
+    {
+      "name": "lc",
+      "schema": "lc.schema.json",
+      "patterns": [
+        "lc/lc_cfg.json",
+        "lc_devs/*/lc_user_cfg.json"
+      ]
+    },
+    {
+      "name": "dev_group",
+      "schema": "dev_group.schema.json",
+      "patterns": [
+        "dev_group_cfg.json"
+      ]
+    },
+    {
+      "name": "automatic_control",
+      "schema": "automatic_control.schema.json",
+      "patterns": [
+        "automatic_control.json",
+        "lc/automatic_control.json",
+        "lc_devs/*/automatic_control.json"
+      ]
+    },
+    {
+      "name": "mqtt_emms2",
+      "schema": "mqtt_emms2.schema.json",
+      "patterns": [
+        "HXD610.json",
+        "stactrl_mqtt.json"
+      ]
+    },
+    {
+      "name": "mqtt_north_cfg",
+      "schema": "mqtt_north_cfg.schema.json",
+      "patterns": [
+        "north/mqtt_north_cfg.json"
+      ]
+    },
+    {
+      "name": "bmser_ipc_bin",
+      "schema": "bmser_ipc_bin.schema.json",
+      "patterns": [
+        "bmser_ipc_bin.json"
+      ]
+    },
+    {
+      "name": "mqtt_pub_dev_list",
+      "schema": "mqtt_pub_dev_list.schema.json",
+      "patterns": [
+        "mqtt_pub_dev_list.json"
+      ]
+    },
+    {
+      "name": "proto_sys",
+      "schema": "proto_sys.schema.json",
+      "patterns": [
+        "proto_sys.json"
+      ]
+    },
+    {
+      "name": "north_map",
+      "schema": "north_map.schema.json",
+      "patterns": [
+        "tag_addr_map.json"
+      ]
+    },
+    {
+      "name": "rate_fig",
+      "schema": "rate_fig.schema.json",
+      "patterns": [
+        "rate_fig.json"
+      ]
+    },
+    {
+      "name": "price",
+      "schema": "price.schema.json",
+      "patterns": [
+        "price.json"
+      ]
+    },
+    {
+      "name": "proto_trigger",
+      "schema": "proto_trigger.schema.json",
+      "patterns": [
+        "proto_trigger_cfg.json"
+      ]
+    },
+    {
+      "name": "iec104_legacy",
+      "schema": "iec104_legacy.schema.json",
+      "patterns": [
+        "iec104_config.json"
+      ]
+    }
+  ]
+}

@@ -8,9 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <strings.h>
 
 #include "contract_data_types.h"
 #include "edge_api.h"
+#include "dcu_698_rules.h"
 #include "dcu_inventory.h"
 #include "dcu_router.h"
 #include "modbus_codec.h"
@@ -36,50 +38,6 @@ int dcu_driver_registry_init(const edge_driver_registry_port_t *registry) {
     if (!registry || !registry->register_table) return -1;
     return registry->register_table(registry->ctx, s_dcu_driver_registry, s_dcu_driver_registry_count);
 }
-
-/* ==============================================================================
- * 2. DL/T 698.45 静态测点映射表 (以 32-bit OAD 为核心，tag_id 即 oad)
- * ============================================================================== */
-static const modbus_map_t s_dlt698_points[] = {
-    {.key = OAD_VOLTAGE,              .tag_id = OAD_VOLTAGE,              .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = OAD_VOLTAGE_B_ELEM,       .tag_id = TAG_VOLTAGE_B,            .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = OAD_VOLTAGE_C_ELEM,       .tag_id = TAG_VOLTAGE_C,            .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = OAD_CURRENT,              .tag_id = OAD_CURRENT,              .scaler = 0.01f,   .length = 3, .access = 0x01},
-    {.key = OAD_CURRENT_B_ELEM,       .tag_id = TAG_CURRENT_B,            .scaler = 0.01f,   .length = 3, .access = 0x01},
-    {.key = OAD_CURRENT_C_ELEM,       .tag_id = TAG_CURRENT_C,            .scaler = 0.01f,   .length = 3, .access = 0x01},
-    {.key = OAD_ACTIVE_ENERGY,        .tag_id = OAD_ACTIVE_ENERGY,        .scaler = 0.01f,   .length = 4, .access = 0x01},
-    {.key = OAD_REACTIVE_ENERGY,      .tag_id = OAD_REACTIVE_ENERGY,      .scaler = 0.01f,   .length = 4, .access = 0x01},
-    {.key = OAD_ACTIVE_POWER_TOTAL,   .tag_id = OAD_ACTIVE_POWER_TOTAL,   .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = OAD_ACTIVE_POWER_A_ELEM,  .tag_id = TAG_ACTIVE_POWER_A,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = OAD_ACTIVE_POWER_B_ELEM,  .tag_id = TAG_ACTIVE_POWER_B,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = OAD_ACTIVE_POWER_C_ELEM,  .tag_id = TAG_ACTIVE_POWER_C,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = OAD_REACTIVE_POWER_TOTAL, .tag_id = OAD_REACTIVE_POWER_TOTAL, .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = OAD_POWER_FACTOR_TOTAL,   .tag_id = OAD_POWER_FACTOR_TOTAL,   .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = OAD_GRID_FREQUENCY,       .tag_id = OAD_GRID_FREQUENCY,       .scaler = 0.01f,   .length = 2, .access = 0x01},
-    {.key = OAD_ZERO_SEQ_CURRENT,     .tag_id = OAD_ZERO_SEQ_CURRENT,     .scaler = 0.01f,   .length = 3, .access = 0x01},
-};
-
-/* ==============================================================================
- * 3. DL/T 645-2007 静态测点映射表 (DI 直接映射至对应 698 OAD)
- * ============================================================================== */
-static const dlt645_map_t s_dlt645_points[] = {
-    {.key = 0x02010100, .tag_id = OAD_VOLTAGE,              .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = 0x02010200, .tag_id = TAG_VOLTAGE_B,            .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = 0x02010300, .tag_id = TAG_VOLTAGE_C,            .scaler = 0.1f,    .length = 2, .access = 0x01},
-    {.key = 0x02020100, .tag_id = OAD_CURRENT,              .scaler = 0.001f,  .length = 3, .access = 0x01},
-    {.key = 0x02020200, .tag_id = TAG_CURRENT_B,            .scaler = 0.001f,  .length = 3, .access = 0x01},
-    {.key = 0x02020300, .tag_id = TAG_CURRENT_C,            .scaler = 0.001f,  .length = 3, .access = 0x01},
-    {.key = 0x00010000, .tag_id = OAD_ACTIVE_ENERGY,        .scaler = 0.01f,   .length = 4, .access = 0x01},
-    {.key = 0x00020000, .tag_id = OAD_REACTIVE_ENERGY,      .scaler = 0.01f,   .length = 4, .access = 0x01},
-    {.key = 0x02030000, .tag_id = OAD_ACTIVE_POWER_TOTAL,   .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = 0x02030100, .tag_id = TAG_ACTIVE_POWER_A,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = 0x02030200, .tag_id = TAG_ACTIVE_POWER_B,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = 0x02030300, .tag_id = TAG_ACTIVE_POWER_C,       .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = 0x02040000, .tag_id = OAD_REACTIVE_POWER_TOTAL, .scaler = 0.0001f, .length = 3, .access = 0x01},
-    {.key = 0x02060000, .tag_id = OAD_POWER_FACTOR_TOTAL,   .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 0x02800002, .tag_id = OAD_GRID_FREQUENCY,       .scaler = 0.01f,   .length = 2, .access = 0x01},
-};
-static const size_t s_dlt645_points_count = sizeof(s_dlt645_points) / sizeof(s_dlt645_points[0]);
 
 /* 台架/现场表地址 (6 字节 BCD, 低字节先), 按 device_id 索引。由 main 从 inventory 填充。 */
 static uint8_t s_meter_addr_bcd[MAX_METERS][6];
@@ -113,93 +71,41 @@ void dcu_driver_adapter_set_meters(const production_meter_t *meters, uint32_t co
     edge_api_set_protocol_meta("DLT645", s_meter_addr_bcd, count);
 }
 
-/* ==============================================================================
- * 4. Modbus RTU 静态测点映射表
- * ============================================================================== */
-static const modbus_map_t s_modbus_points[] = {
-    {.key = 0,  .tag_id = OAD_VOLTAGE,              .scaler = 0.1f,    .length = 1, .access = 0x01},
-    {.key = 1,  .tag_id = TAG_VOLTAGE_B,            .scaler = 0.1f,    .length = 1, .access = 0x01},
-    {.key = 2,  .tag_id = TAG_VOLTAGE_C,            .scaler = 0.1f,    .length = 1, .access = 0x01},
-    {.key = 6,  .tag_id = OAD_CURRENT,              .scaler = 0.01f,   .length = 2, .access = 0x01},
-    {.key = 7,  .tag_id = TAG_CURRENT_B,            .scaler = 0.01f,   .length = 2, .access = 0x01},
-    {.key = 8,  .tag_id = TAG_CURRENT_C,            .scaler = 0.01f,   .length = 2, .access = 0x01},
-    {.key = 12, .tag_id = OAD_ACTIVE_POWER_TOTAL,   .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 13, .tag_id = TAG_ACTIVE_POWER_A,       .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 14, .tag_id = TAG_ACTIVE_POWER_B,       .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 15, .tag_id = TAG_ACTIVE_POWER_C,       .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 18, .tag_id = OAD_REACTIVE_POWER_TOTAL, .scaler = 0.001f,  .length = 2, .access = 0x01},
-    {.key = 24, .tag_id = OAD_POWER_FACTOR_TOTAL,   .scaler = 0.001f,  .length = 1, .access = 0x01},
-    {.key = 28, .tag_id = OAD_GRID_FREQUENCY,       .scaler = 0.01f,   .length = 1, .access = 0x01},
-    {.key = 52, .tag_id = OAD_ACTIVE_ENERGY,        .scaler = 0.01f,   .length = 2, .access = 0x01},
-    {.key = 56, .tag_id = OAD_REACTIVE_ENERGY,      .scaler = 0.01f,   .length = 2, .access = 0x01},
-};
-
-/* ---- 消费侧 OAD <-> 线上协议号 的映射：都在 cmd 层，驱动不认识 OAD ----
- * shortcut: 三种协议各写了三段同构循环（约 90 行）。点表结构体类型不同没法直接复用；
- * 等点位再增或出现第四种协议时，抽成一张统一的 (key, tag_id, scaler) 只读视图。 */
-uint32_t dcu_driver_adapter_oad_to_proto(const char *proto, uint32_t oad) {
-    if (!proto) return 0;
-    if (strcasecmp(proto, "DLT645") == 0) {
-        for (size_t i = 0; i < s_dlt645_points_count; i++)
-            if (s_dlt645_points[i].tag_id == oad) return (uint32_t)s_dlt645_points[i].key;
-        return 0;
-    }
-    if (strcasecmp(proto, "DLT698") == 0) {
-        for (size_t i = 0; i < sizeof(s_dlt698_points) / sizeof(s_dlt698_points[0]); i++)
-            if (s_dlt698_points[i].tag_id == oad) return (uint32_t)s_dlt698_points[i].key;
-        return 0;
-    }
+static uint8_t _proto_of(const char *proto) {
+    if (strcasecmp(proto, "DLT645") == 0) return DCU_RULE_DLT645_2007;
+    if (strcasecmp(proto, "DLT698") == 0) return DCU_RULE_DLT698;
     if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
-        /* [ADR-002] Modbus 的点位标识 = 地址 + 寄存器个数，驱动只认这个。
-         * 长度不能丢：电流/功率/电量都是 2 个寄存器的 32 位量。 */
-        for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].tag_id == oad)
-                return MODBUS_NATIVE(s_modbus_points[i].key,
-                                     s_modbus_points[i].length ? s_modbus_points[i].length : 1);
-        return 0;
+        return DCU_RULE_MODBUS;
     }
     return 0;
+}
+
+uint32_t dcu_driver_adapter_oad_to_proto(const char *proto, uint32_t oad) {
+    if (!proto) return 0;
+    uint8_t p = _proto_of(proto);
+    if (!p) return 0;
+    dcu_rule_row_t row;
+    if (dcu_698_rules_find_by_oad(p, oad, &row) != 0) return 0;
+    if (p == DCU_RULE_MODBUS) return MODBUS_NATIVE(row.protocol_id, row.length ? row.length : 1);
+    return row.protocol_id;
 }
 
 uint32_t dcu_driver_adapter_proto_to_oad(const char *proto, uint32_t proto_id) {
     if (!proto) return 0;
-    if (strcasecmp(proto, "DLT645") == 0) {
-        for (size_t i = 0; i < s_dlt645_points_count; i++)
-            if (s_dlt645_points[i].key == proto_id) return (uint32_t)s_dlt645_points[i].tag_id;
-        return 0;
-    }
-    if (strcasecmp(proto, "DLT698") == 0) {
-        for (size_t i = 0; i < sizeof(s_dlt698_points) / sizeof(s_dlt698_points[0]); i++)
-            if (s_dlt698_points[i].key == proto_id) return (uint32_t)s_dlt698_points[i].tag_id;
-        return 0;
-    }
-    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
-        uint16_t maddr = MODBUS_NATIVE_ADDR(proto_id);
-        for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].key == maddr) return (uint32_t)s_modbus_points[i].tag_id;
-        return 0;
-    }
-    return 0;
+    uint8_t p = _proto_of(proto);
+    if (!p) return 0;
+    if (p == DCU_RULE_MODBUS) proto_id = MODBUS_NATIVE_ADDR(proto_id);
+    dcu_rule_row_t row;
+    if (dcu_698_rules_find_by_proto(p, proto_id, &row) != 0) return 0;
+    return row.oad;
 }
 
 double dcu_driver_adapter_scale(const char *proto, uint32_t proto_id) {
     if (!proto) return 0.0;
-    if (strcasecmp(proto, "DLT645") == 0) {
-        for (size_t i = 0; i < s_dlt645_points_count; i++)
-            if (s_dlt645_points[i].key == proto_id) return (double)s_dlt645_points[i].scaler;
-        return 0.0;
-    }
-    if (strcasecmp(proto, "DLT698") == 0) {
-        for (size_t i = 0; i < sizeof(s_dlt698_points) / sizeof(s_dlt698_points[0]); i++)
-            if (s_dlt698_points[i].key == proto_id) return (double)s_dlt698_points[i].scaler;
-        return 0.0;
-    }
-    if (strcasecmp(proto, "ModbusRTU") == 0 || strcasecmp(proto, "Modbus") == 0) {
-        uint16_t saddr = MODBUS_NATIVE_ADDR(proto_id);
-        for (size_t i = 0; i < sizeof(s_modbus_points) / sizeof(s_modbus_points[0]); i++)
-            if (s_modbus_points[i].key == saddr) return (double)s_modbus_points[i].scaler;
-        return 0.0;
-    }
-    return 0.0;
+    uint8_t p = _proto_of(proto);
+    if (!p) return 0.0;
+    if (p == DCU_RULE_MODBUS) proto_id = MODBUS_NATIVE_ADDR(proto_id);
+    dcu_rule_row_t row;
+    if (dcu_698_rules_find_by_proto(p, proto_id, &row) != 0) return 0.0;
+    return (double)row.scale;
 }
-

@@ -1,0 +1,17 @@
+✅ [FORMAL-NEGATIVE] 1 mutation script(s) rejected, 2 TLA+ invariant(s) violated with counterexamples, 0 skipped, 4s
+
+real	0m3.572s
+user	0m4.279s
+sys	0m0.396s
+RC=0
+
+=== negative artifacts
+6041 ArbiterCrosstalk.LateResponseNotAssignedToNext.log
+5578 ArbiterNoRecovery.NoDispatchInRecovery.log
+151562 modbus_guard_mutation.log
+=== TLA negative hits
+Error: Invariant NoDispatchInRecovery is violated.
+Error: Invariant LateResponseNotAssignedToNext is violated.
+Error: The behavior up to this point is:
+=== mutation hit
+[_get_crc.pointer_dereference.16] line 56 dereference failure: pointer outside object bounds in p[(signed long int)(frame_len - (unsigned long int)2)]: FAILURE

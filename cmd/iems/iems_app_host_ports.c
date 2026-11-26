@@ -194,11 +194,13 @@ static int host_subscribe(void *ctx, uint32_t handle, app_host_event_cb_t on_eve
     record->on_event = on_event;
     record->event_ctx = event_ctx;
 
+    /* 每笔样本只投一条 tag 级视图事件：per-device 影子写（write_shadow_idx）
+     * 也会分发订阅，通配设备会收到两条。北向/UI/CLI 的 tag 语义读视图。 */
     datahub_sub_filter_t filter = {
         .tag_id = handle,
         .tag_mask = 0,
         .domain_mask = 0,
-        .device_id = EDGE_DEVICE_ANY,
+        .device_id = 0,
         .notify_on_change_only = false,
         .deadband = 0.0,
     };

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/wait.h>
 #include <unistd.h>
 #include <uv.h>
 
@@ -94,12 +95,12 @@ static void test_v3_upgrade_preserves_edge_settings(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 18);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM edge_settings;"), 2);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_grant;"), 0);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_task;"), 0);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 17);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 18);
     assert_int_equal(_scalar_int(db,
                                  "SELECT COUNT(*) FROM pragma_table_info('app_registry') "
                                  "WHERE name IN ('prev_version','prev_manifest_json',"
@@ -136,7 +137,7 @@ static void test_v4_upgrade_preserves_app_registry(void **state) {
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
 
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 18);
     assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM app_registry;"), 1);
     assert_int_equal(_scalar_int(db, "SELECT trigger_tag FROM app_registry WHERE id='demo';"), 42);
     assert_int_equal(_scalar_int(db, "SELECT tick_ms FROM app_registry WHERE id='demo';"), 0);
@@ -161,7 +162,7 @@ static void test_too_new_schema_rejected(void **state) {
     _exec(raw,
           "CREATE TABLE canary (v INT);"
           "INSERT INTO canary VALUES (7);"
-          "PRAGMA user_version=18;");
+          "PRAGMA user_version=19;");
     sqlite3_close(raw);
 
     sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
@@ -172,7 +173,7 @@ static void test_too_new_schema_rejected(void **state) {
     assert_null(sqlite_svc_create(loop, &cfg));
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 18);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 19);
     assert_int_equal(_scalar_int(raw, "SELECT v FROM canary;"), 7);
     assert_int_equal(_scalar_int(raw,
                                  "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
@@ -192,7 +193,7 @@ static void test_checksum_mismatch_rejected(void **state) {
     sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
     sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
-    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 17);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM schema_migration;"), 18);
     sqlite_svc_destroy(svc);
 
     sqlite3 *raw = NULL;
@@ -206,7 +207,7 @@ static void test_checksum_mismatch_rejected(void **state) {
     assert_int_equal(err, -1);
 
     assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
-    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 17);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 18);
     sqlite3_close(raw);
     unlink(path);
 }
@@ -238,7 +239,7 @@ static void test_v16_upgrade_adds_app_settings(void **state) {
     svc = sqlite_svc_create(loop, &cfg);
     assert_non_null(svc);
     db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
-    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 17);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 18);
     assert_int_equal(
         _scalar_int(db,
                     "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN "
@@ -250,11 +251,284 @@ static void test_v16_upgrade_adds_app_settings(void **state) {
     unlink(path);
 }
 
-int main(void) {
+/* 回归：v17 旧 telemetry（主键 ts）升级到 v18 时按墙钟主键重建。
+ * 旧库无 shipped 数据，迁移按裁决丢弃旧行；ts 列保留供排障。 */
+static void test_v17_upgrade_rebuilds_telemetry_wall_key(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_migration_v17.db";
+    unlink(path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    _exec(db,
+          "DROP TABLE telemetry;"
+          "CREATE TABLE telemetry (ts INT, tag_id INT, val REAL, q INT, synced INT DEFAULT 0, "
+          "PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
+          "INSERT INTO telemetry (ts, tag_id, val, q) VALUES (111, 7, 1.0, 0);"
+          "DELETE FROM schema_migration WHERE version=18;"
+          "PRAGMA user_version=17;");
+    sqlite_svc_destroy(svc);
+
+    svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 18);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM telemetry;"), 0);
+    assert_int_equal(_scalar_int(db,
+                                 "SELECT COUNT(*) FROM pragma_table_info('telemetry') "
+                                 "WHERE name='wall_ts_us';"),
+                     1);
+
+    PipeMsg m = {.ts = 42, .tag_id = 7, .quality = 0, .type = PIPEMSG_TYPE_SCALAR};
+    assert_int_equal(sqlite_svc_insert_at(svc, &m, 1600000000000000ULL), 0);
+    assert_int_equal(_scalar_int(db,
+                                 "SELECT COUNT(*) FROM telemetry WHERE wall_ts_us = "
+                                 "1600000000000000 AND tag_id = 7;"),
+                     1);
+
+    sqlite_svc_destroy(svc);
+    unlink(path);
+}
+
+/* 子进程模式：打开同一 DB。用于并发迁移与 TOCTOU 回归。 */
+static int _open_probe(const char *path, const char *ready_file) {
+    if (ready_file) {
+        FILE *f = fopen(ready_file, "w");
+        if (f) fclose(f);
+    }
+    uv_loop_t *loop = uv_default_loop();
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
+    int err = 0;
+    sqlite_svc_t *svc = sqlite_svc_create_ex(loop, &cfg, &err);
+    if (!svc) return 3;
+    sqlite_svc_destroy(svc);
+    return 0;
+}
+
+static bool _wait_ready(const char *ready_file) {
+    for (int i = 0; i < 200; i++) {
+        if (access(ready_file, F_OK) == 0) return true;
+        usleep(10000);
+    }
+    return false;
+}
+
+/**
+ * TOCTOU 回归：B 在事务外读到 v17，A 随后提交 v18 并留下新行，B 再进入迁移。
+ * 迁移必须在 BEGIN IMMEDIATE 后重读版本，跳过已应用的 v18，不能 DROP 掉 A 的行。
+ *
+ * 用父进程持写锁制造确定性交错：B 读到 17 后卡在 BEGIN IMMEDIATE；父进程在锁内
+ * 把 user_version 改成 18 再提交；B 获得锁后必须看到 18。
+ */
+static void test_concurrent_migration_preserves_committed_row(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_migration_toctou.db";
+    const char *ready = "test_sqlite_migration_toctou.ready";
+    unlink(path);
+    unlink(ready);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    PipeMsg marker = {.ts = 7, .tag_id = 0x77, .payload.val.f = 1.5};
+    marker.type = PIPEMSG_TYPE_SCALAR;
+    assert_int_equal(sqlite_svc_insert_at(svc, &marker, 1600000000000123ULL), 0);
+    sqlite_svc_destroy(svc);
+
+    /* 伪装成 v17：B 的快照会读到 17，但表里已有 A 的行。 */
+    sqlite3 *raw = NULL;
+    assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
+    _exec(raw, "DELETE FROM schema_migration WHERE version=18; PRAGMA user_version=17;");
+    _exec(raw, "BEGIN IMMEDIATE;");
+
+    pid_t pid = fork();
+    assert_true(pid >= 0);
+    if (pid == 0) {
+        execl("/proc/self/exe", "test_sqlite_migration", "--open-probe", path, ready,
+              (char *)NULL);
+        _exit(127);
+    }
+    assert_true(_wait_ready(ready));
+    usleep(300000); /* 让子进程先读 17 并卡在 BEGIN IMMEDIATE */
+
+    _exec(raw, "PRAGMA user_version=18;");
+    _exec(raw, "COMMIT;");
+
+    int status = 0;
+    assert_int_equal(waitpid(pid, &status, 0), pid);
+    assert_true(WIFEXITED(status));
+    assert_int_equal(WEXITSTATUS(status), 0);
+
+    assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 18);
+    assert_int_equal(_scalar_int(raw, "SELECT COUNT(*) FROM telemetry WHERE tag_id = 0x77;"), 1);
+    assert_int_equal(_scalar_int(raw, "SELECT COUNT(*) FROM schema_migration;"), 18);
+    sqlite3_close(raw);
+    unlink(path);
+    unlink(ready);
+}
+
+/* 两个 opener 同时迁移一个全新库：都必须成功，且只应用一遍。 */
+static void test_concurrent_fresh_open_both_succeed(void **state) {
+    (void)state;
+    const char *path = "test_sqlite_migration_fresh_race.db";
+    unlink(path);
+
+    pid_t a = fork();
+    assert_true(a >= 0);
+    if (a == 0) {
+        execl("/proc/self/exe", "test_sqlite_migration", "--open-probe", path, (char *)NULL);
+        _exit(127);
+    }
+    pid_t b = fork();
+    assert_true(b >= 0);
+    if (b == 0) {
+        execl("/proc/self/exe", "test_sqlite_migration", "--open-probe", path, (char *)NULL);
+        _exit(127);
+    }
+
+    int status_a = 0;
+    int status_b = 0;
+    assert_int_equal(waitpid(a, &status_a, 0), a);
+    assert_int_equal(waitpid(b, &status_b, 0), b);
+    assert_true(WIFEXITED(status_a));
+    assert_true(WIFEXITED(status_b));
+    assert_int_equal(WEXITSTATUS(status_a), 0);
+    assert_int_equal(WEXITSTATUS(status_b), 0);
+
+    sqlite3 *raw = NULL;
+    assert_int_equal(sqlite3_open(path, &raw), SQLITE_OK);
+    assert_int_equal(_scalar_int(raw, "PRAGMA user_version;"), 18);
+    assert_int_equal(_scalar_int(raw, "SELECT COUNT(*) FROM schema_migration;"), 18);
+    sqlite3_close(raw);
+    unlink(path);
+}
+
+/* 回归：v17 库里的旧形状分表 telemetry_YYYYMM 在 v18 升级时也要重建，
+ * 否则 SHARDING 写入会因缺 wall_ts_us 静默丢失。 */
+static void test_v17_shard_upgrade_rebuilds_and_writes(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_migration_shard.db";
+    unlink(path);
+
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = path};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    _exec(db,
+          "CREATE TABLE telemetry_197001 (ts INT, tag_id INT, val REAL, q INT, "
+          "synced INT DEFAULT 0, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;"
+          "INSERT INTO telemetry_197001 (ts, tag_id, val, q) VALUES (1, 9, 1.0, 0);"
+          "DELETE FROM schema_migration WHERE version=18;"
+          "PRAGMA user_version=17;");
+    sqlite_svc_destroy(svc);
+
+    /* v18 升级：基表与分表一起重建。 */
+    svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    assert_int_equal(_scalar_int(db, "PRAGMA user_version;"), 18);
+    assert_int_equal(_scalar_int(db,
+                                 "SELECT COUNT(*) FROM pragma_table_info('telemetry_197001') "
+                                 "WHERE name='wall_ts_us';"),
+                     1);
+    assert_int_equal(_scalar_int(db, "SELECT COUNT(*) FROM telemetry_197001;"), 0);
+    sqlite_svc_destroy(svc);
+
+    /* SHARDING 写入必须落库：wall_ts_us=1600000000000123 µs 属于 2020-09。 */
+    sqlite_config_t shard_cfg = {
+        .strategy = STRATEGY_SHARDING, .db_path = path, .batch_size = 8, .flush_interval_ms = 60000};
+    svc = sqlite_svc_create(loop, &shard_cfg);
+    assert_non_null(svc);
+    PipeMsg m = {.ts = 42, .tag_id = 11, .payload.val.f = 3.5, .type = PIPEMSG_TYPE_SCALAR};
+    assert_int_equal(sqlite_svc_insert_at(svc, &m, 1600000000000123ULL), 0);
+    assert_int_equal(sqlite_svc_flush_sync(svc), 0);
+
+    db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    assert_int_equal(_scalar_int(db,
+                                 "SELECT COUNT(*) FROM telemetry_202009 WHERE wall_ts_us = "
+                                 "1600000000000123 AND tag_id = 11;"),
+                     1);
+    sqlite_svc_destroy(svc);
+    unlink(path);
+}
+
+/* 旧形状分表若绕过迁移直接存在，flush 必须 fail closed 并保留批次，不能静默丢行。 */
+static void test_sharding_flush_fails_closed_on_stale_shard(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_stale_shard.db";
+    unlink(path);
+
+    sqlite_config_t cfg = {
+        .strategy = STRATEGY_SHARDING, .db_path = path, .batch_size = 8, .flush_interval_ms = 60000};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    _exec(db,
+          "CREATE TABLE telemetry_202009 (ts INT, tag_id INT, val REAL, q INT, "
+          "synced INT DEFAULT 0, PRIMARY KEY(ts, tag_id)) WITHOUT ROWID;");
+
+    PipeMsg m = {.ts = 43, .tag_id = 12, .payload.val.f = 4.5, .type = PIPEMSG_TYPE_SCALAR};
+    assert_int_equal(sqlite_svc_insert_at(svc, &m, 1600000000000123ULL), 0);
+    assert_int_equal(sqlite_svc_flush_sync(svc), -1); /* stale shard -> fail closed */
+
+    /* 删除旧表后重试：新形状建表并落库，证明失败可恢复且没有丢批次。 */
+    _exec(db, "DROP TABLE telemetry_202009;");
+    assert_int_equal(sqlite_svc_flush_sync(svc), 0);
+    assert_int_equal(_scalar_int(db,
+                                 "SELECT COUNT(*) FROM telemetry_202009 WHERE wall_ts_us = "
+                                 "1600000000000123 AND tag_id = 12;"),
+                     1);
+    sqlite_svc_destroy(svc);
+    unlink(path);
+}
+
+/* 分表存在但列不全时，prepare 失败必须让 flush_sync 返回失败，不能 COMMIT 假成功。 */
+static void test_sharding_flush_reports_prepare_failure(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    const char *path = "test_sqlite_bad_shard.db";
+    unlink(path);
+
+    sqlite_config_t cfg = {
+        .strategy = STRATEGY_SHARDING, .db_path = path, .batch_size = 8, .flush_interval_ms = 60000};
+    sqlite_svc_t *svc = sqlite_svc_create(loop, &cfg);
+    assert_non_null(svc);
+    sqlite3 *db = (sqlite3 *)sqlite_svc_get_db_handle(svc);
+    /* 有 wall_ts_us，但缺 val：_ensure_shard_exists 会放行，prepare 必须失败。 */
+    _exec(db,
+          "CREATE TABLE telemetry_202010 (wall_ts_us INTEGER NOT NULL, tag_id INT, ts INT, "
+          "q INT, synced INT DEFAULT 0, PRIMARY KEY(wall_ts_us, tag_id)) WITHOUT ROWID;");
+
+    PipeMsg m = {.ts = 44, .tag_id = 13, .payload.val.f = 5.5, .type = PIPEMSG_TYPE_SCALAR};
+    assert_int_equal(sqlite_svc_insert_at(svc, &m, 1601600000000000ULL), 0);
+    assert_int_equal(sqlite_svc_flush_sync(svc), -1);
+    sqlite_svc_destroy(svc);
+    unlink(path);
+}
+
+int main(int argc, char **argv) {
+    if (argc >= 3 && strcmp(argv[1], "--open-probe") == 0) {
+        return _open_probe(argv[2], argc >= 4 ? argv[3] : NULL);
+    }
+
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_v3_upgrade_preserves_edge_settings, setup, teardown),
         cmocka_unit_test_setup_teardown(test_v4_upgrade_preserves_app_registry, setup, teardown),
         cmocka_unit_test_setup_teardown(test_v16_upgrade_adds_app_settings, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_v17_upgrade_rebuilds_telemetry_wall_key, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_v17_shard_upgrade_rebuilds_and_writes, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_sharding_flush_fails_closed_on_stale_shard, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_sharding_flush_reports_prepare_failure, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_concurrent_migration_preserves_committed_row,
+                                        setup, teardown),
+        cmocka_unit_test_setup_teardown(test_concurrent_fresh_open_both_succeed, setup,
+                                        teardown),
         cmocka_unit_test_setup_teardown(test_too_new_schema_rejected, setup, teardown),
         cmocka_unit_test_setup_teardown(test_checksum_mismatch_rejected, setup, teardown),
     };

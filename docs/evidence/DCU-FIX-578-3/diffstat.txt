@@ -1,0 +1,3 @@
+ cmd/dcu/dcu_scheme_store.c   |  8 +++++---
+ tests/test_dcu_698_schemes.c | 17 +++++++++++++++--
+ 2 files changed, 20 insertions(+), 5 deletions(-)

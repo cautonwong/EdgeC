@@ -1,0 +1,6 @@
+✅ [FORMAL-SYNC] 4 row(s) in 1 shard(s), 0 warning(s)
+SYNC_RC=0
+✅ [FORMAL-ISOLATION] product build graph and sources are clean.
+ISOLATION_RC=0
+✅ [CI_GATE_PARITY] local runner matches CI (18 arch gates, 4 formal gates)
+PARITY_RC=0

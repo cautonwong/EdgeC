@@ -17,6 +17,15 @@ typedef struct sqlite_svc_s sqlite_svc_t;
 int app_settings_schema_save(sqlite_svc_t *db, const char *app_id, const char *schema_json);
 
 /**
+ * Check new_schema_json against the stored schema before an app upgrade.
+ * new_schema_json NULL means the manifest declares no settings, which only
+ * fits a stored schema with no fields. Returns 0 when compatible or no schema
+ * is stored, -1 with a field-level reason otherwise.
+ */
+int app_settings_upgrade_check(sqlite_svc_t *db, const char *app_id, const char *new_schema_json,
+                               char *reason, size_t reason_size);
+
+/**
  * Validate value_json against the stored schema and persist it.
  * Returns 0, or -1 with a code in reason: invalid, no_schema, unknown_key,
  * readonly, type_mismatch, out_of_range, invalid_value, store_error.

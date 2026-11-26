@@ -54,6 +54,15 @@ bool dcu_698_var_is_oi(uint16_t oi);
  */
 int dcu_698_var_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
 
+/**
+ * @brief 按显式 device_id（稳定 slot 身份）编码变量属性；事件 A2/A6 快照使用。
+ *
+ * OAD 低字节仍只作属性/元素选择，不能当设备身份。其余语义与
+ * dcu_698_var_encode_axdr 相同。
+ */
+int dcu_698_var_encode_axdr_device(uint32_t oad, uint32_t device_id, uint8_t *buf, size_t cap,
+                                   size_t *len);
+
 /** @brief 变量类数组用到的全部影子 tag（采集方案从这里派生，避免两处漂移）。 */
 size_t dcu_698_var_poll_tags(uint32_t *out, size_t cap);
 

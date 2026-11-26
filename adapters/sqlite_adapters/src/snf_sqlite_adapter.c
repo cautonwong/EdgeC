@@ -17,21 +17,29 @@ static int _ensure_schema(void *ctx) {
     sqlite3 *db = _db(ctx);
     if (!db) return -1;
 
+    bool has_synced = false;
+    bool has_wall = false;
     sqlite3_stmt *check_stmt = NULL;
-    bool needs_alter = true;
     if (sqlite3_prepare_v2(db, "PRAGMA table_info(telemetry);", -1, &check_stmt, NULL) ==
         SQLITE_OK) {
         while (sqlite3_step(check_stmt) == SQLITE_ROW) {
             const char *col_name = (const char *)sqlite3_column_text(check_stmt, 1);
-            if (col_name && strcmp(col_name, "synced") == 0) {
-                needs_alter = false;
-                break;
-            }
+            if (!col_name) continue;
+            if (strcmp(col_name, "synced") == 0) has_synced = true;
+            if (strcmp(col_name, "wall_ts_us") == 0) has_wall = true;
         }
         sqlite3_finalize(check_stmt);
     }
 
-    if (needs_alter) {
+    /* v18 迁移重建了 telemetry；没有 wall_ts_us 说明库形不对，不能退回单调键。 */
+    if (!has_wall) {
+        LOG_ERROR(LOG_CAT_NB,
+                  "SnF: telemetry has no wall_ts_us column (schema v18 not applied); "
+                  "rebuild the database (no shipped data)");
+        return -1;
+    }
+
+    if (!has_synced) {
         if (sqlite3_exec(db, "ALTER TABLE telemetry ADD COLUMN synced INT DEFAULT 0;", NULL, NULL,
                          NULL) != SQLITE_OK) {
             LOG_ERROR(LOG_CAT_NB, "SnF: Failed to ALTER TABLE telemetry: %s", sqlite3_errmsg(db));
@@ -77,8 +85,8 @@ static int _read_unsynced(void *ctx, uint32_t limit, snf_record_t *out, uint32_t
 
     sqlite3_stmt *stmt = NULL;
     if (sqlite3_prepare_v2(db,
-                           "SELECT ts, tag_id, val, q FROM telemetry WHERE synced = 0 "
-                           "ORDER BY ts ASC LIMIT ?;",
+                           "SELECT wall_ts_us, ts, tag_id, val, q FROM telemetry "
+                           "WHERE synced = 0 ORDER BY wall_ts_us ASC, tag_id ASC LIMIT ?;",
                            -1, &stmt, NULL) != SQLITE_OK) {
         LOG_ERROR(LOG_CAT_NB, "SnF: Failed to prepare sync query: %s", sqlite3_errmsg(db));
         return -1;
@@ -87,10 +95,11 @@ static int _read_unsynced(void *ctx, uint32_t limit, snf_record_t *out, uint32_t
 
     uint32_t count = 0;
     while (count < cap && sqlite3_step(stmt) == SQLITE_ROW) {
-        out[count].ts = (uint64_t)sqlite3_column_int64(stmt, 0);
-        out[count].tag_id = (uint32_t)sqlite3_column_int(stmt, 1);
-        out[count].value = sqlite3_column_double(stmt, 2);
-        out[count].quality = (uint16_t)sqlite3_column_int(stmt, 3);
+        out[count].wall_ts_us = (uint64_t)sqlite3_column_int64(stmt, 0);
+        out[count].ts = (uint64_t)sqlite3_column_int64(stmt, 1);
+        out[count].tag_id = (uint32_t)sqlite3_column_int(stmt, 2);
+        out[count].value = sqlite3_column_double(stmt, 3);
+        out[count].quality = (uint16_t)sqlite3_column_int(stmt, 4);
         count++;
     }
     sqlite3_finalize(stmt);
@@ -104,15 +113,17 @@ static int _mark_synced(void *ctx, const snf_record_t *records, uint32_t count) 
     if (!db) return -1;
 
     sqlite3_stmt *upd = NULL;
-    if (sqlite3_prepare_v2(db, "UPDATE telemetry SET synced = 1 WHERE ts = ? AND tag_id = ?;", -1,
-                           &upd, NULL) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db,
+                           "UPDATE telemetry SET synced = 1 "
+                           "WHERE wall_ts_us = ? AND tag_id = ?;",
+                           -1, &upd, NULL) != SQLITE_OK) {
         LOG_ERROR(LOG_CAT_NB, "SnF: Failed to prepare confirm statement: %s", sqlite3_errmsg(db));
         return -1;
     }
 
     int confirmed = 0;
     for (uint32_t i = 0; i < count; i++) {
-        sqlite3_bind_int64(upd, 1, (sqlite3_int64)records[i].ts);
+        sqlite3_bind_int64(upd, 1, (sqlite3_int64)records[i].wall_ts_us);
         sqlite3_bind_int(upd, 2, (int)records[i].tag_id);
         if (sqlite3_step(upd) == SQLITE_DONE) confirmed++;
         sqlite3_reset(upd);
@@ -122,8 +133,8 @@ static int _mark_synced(void *ctx, const snf_record_t *records, uint32_t count) 
     return 0;
 }
 
-static int _insert(void *ctx, const PipeMsg *msg) {
-    return sqlite_svc_insert((sqlite_svc_t *)ctx, msg);
+static int _insert(void *ctx, const PipeMsg *msg, uint64_t wall_ts_us) {
+    return sqlite_svc_insert_at((sqlite_svc_t *)ctx, msg, wall_ts_us);
 }
 
 snf_store_port_t snf_sqlite_store_port(sqlite_svc_t *db) {

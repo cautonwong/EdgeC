@@ -1,0 +1,319 @@
+{
+  "dev_cfg": {
+    "uart": {
+      "attr": [
+        {
+          "name": "RS485_1",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_2",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_3",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_4",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_5",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_6",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_7",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        },
+        {
+          "name": "RS485_8",
+          "baud": 9600,
+          "data_bit": 8,
+          "stop_bit": 1,
+          "parity": "N"
+        }
+      ]
+    },
+    "lan": {
+      "attr": [
+        {
+          "name": "lan",
+          "type": "static",
+          "ip": "10.0.0.254",
+          "mask": "255.255.255.0"
+        }
+      ]
+    },
+    "wan": {
+      "attr": [
+        {
+          "name": "wan1",
+          "type": "static",
+          "ip": "10.0.0.37",
+          "gateway": "10.0.0.2",
+          "mask": "255.255.255.0",
+          "metric": "100"
+        },
+        {
+          "name": "wan2",
+          "type": "dhcp",
+          "ip": "10.0.0.36",
+          "gateway": "10.0.0.1",
+          "mask": "255.255.255.0",
+          "metric": "80"
+        }
+      ]
+    },
+    "can": {
+      "attr": [
+        {
+          "name": "CAN0",
+          "baud": 500000,
+          "filter": [
+            {
+              "id": "0x019901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x029901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x039901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x049901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x059901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x069901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x079901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x089901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x099901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x129901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x00000001",
+              "mask": "0x00000000"
+            }
+          ]
+        },
+        {
+          "name": "CAN1",
+          "baud": 500000,
+          "filter": [
+            {
+              "id": "0x019901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x029901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x039901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x049901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x059901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x069901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x079901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x089901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x099901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x129901",
+              "mask": "0x00000000"
+            },
+            {
+              "id": "0x00000001",
+              "mask": "0x00000000"
+            }
+          ]
+        }
+      ]
+    },
+    "di": {
+      "attr": [
+        {
+          "name": "DI1",
+          "disp_name": "DI1",
+          "ncno": 0
+        },
+        {
+          "name": "DI2",
+          "disp_name": "DI2",
+          "ncno": 0
+        },
+        {
+          "name": "DI3",
+          "disp_name": "DI3",
+          "ncno": 0
+        },
+        {
+          "name": "DI4",
+          "disp_name": "DI4",
+          "ncno": 0
+        },
+        {
+          "name": "DI5",
+          "disp_name": "DI5",
+          "ncno": 0
+        },
+        {
+          "name": "DI6",
+          "disp_name": "DI6",
+          "ncno": 0
+        },
+        {
+          "name": "DI7",
+          "disp_name": "DI7",
+          "ncno": 0
+        },
+        {
+          "name": "DI8",
+          "disp_name": "DI8",
+          "ncno": 0
+        },
+        {
+          "name": "DI9",
+          "disp_name": "DI9",
+          "ncno": 0
+        },
+        {
+          "name": "DI10",
+          "disp_name": "DI10",
+          "ncno": 0
+        },
+        {
+          "name": "DI11",
+          "disp_name": "DI11",
+          "ncno": 0
+        },
+        {
+          "name": "DI12",
+          "disp_name": "DI12",
+          "ncno": 0
+        },
+        {
+          "name": "DI13",
+          "disp_name": "DI13",
+          "ncno": 0
+        },
+        {
+          "name": "DI14",
+          "disp_name": "DI14",
+          "ncno": 0
+        },
+        {
+          "name": "DI15",
+          "disp_name": "DI15",
+          "ncno": 0
+        },
+        {
+          "name": "DI16",
+          "disp_name": "DI16",
+          "ncno": 0
+        }
+      ]
+    },
+    "do": {
+      "attr": [
+        {
+          "name": "DO1",
+          "disp_name": "DO1"
+        },
+        {
+          "name": "DO2",
+          "disp_name": "DO2"
+        },
+        {
+          "name": "DO3",
+          "disp_name": "DO3"
+        },
+        {
+          "name": "DO4",
+          "disp_name": "DO4"
+        },
+        {
+          "name": "DO5",
+          "disp_name": "DO5"
+        },
+        {
+          "name": "DO6",
+          "disp_name": "DO6"
+        },
+        {
+          "name": "NC1",
+          "disp_name": "NC1"
+        },
+        {
+          "name": "NC2",
+          "disp_name": "NC2"
+        }
+      ]
+    }
+  },
+  "ver": "0.1"
+}
