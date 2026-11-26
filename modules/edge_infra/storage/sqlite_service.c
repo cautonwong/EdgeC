@@ -167,7 +167,8 @@ static bool _table_has_wall_us(sqlite3 *db, const char *table_name) {
 }
 
 /* 旧形状分表不能静默复用：迁移没跑到或库被降级时 fail closed，让调用方看到失败。 */
-static int _ensure_shard_exists(sqlite3 *db, const char *table_name, char *current_shard) {
+static int _ensure_shard_exists(sqlite3 *db, const char *table_name, char *current_shard,
+                                size_t current_shard_size) {
     if (strcmp(table_name, current_shard) == 0) return 0;
     if (_table_exists(db, table_name)) {
         if (!_table_has_wall_us(db, table_name)) {
@@ -176,7 +177,7 @@ static int _ensure_shard_exists(sqlite3 *db, const char *table_name, char *curre
                       table_name);
             return -1;
         }
-        strcpy(current_shard, table_name);
+        snprintf(current_shard, current_shard_size, "%s", table_name);
         return 0;
     }
     char sql[320];
@@ -189,7 +190,7 @@ static int _ensure_shard_exists(sqlite3 *db, const char *table_name, char *curre
         LOG_ERROR(LOG_CAT_CORE, "DB: cannot create shard %s: %s", table_name, sqlite3_errmsg(db));
         return -1;
     }
-    strcpy(current_shard, table_name);
+    snprintf(current_shard, current_shard_size, "%s", table_name);
     return 0;
 }
 
@@ -634,7 +635,8 @@ static int _flush_batch_internal(sqlite_svc_t *svc, sqlite3 *db, data_batch_t *b
         char shard_name[64];
         if (svc->config.strategy == STRATEGY_SHARDING) {
             _get_shard_table_us(wall_ts_us, shard_name);
-            if (_ensure_shard_exists(db, shard_name, svc->current_shard) != 0) {
+            if (_ensure_shard_exists(db, shard_name, svc->current_shard,
+                                     sizeof(svc->current_shard)) != 0) {
                 rc = -1;
                 break;
             }

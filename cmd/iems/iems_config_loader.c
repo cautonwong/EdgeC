@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <sqlite3.h>
 #include <stdbool.h>
@@ -21,6 +22,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <cjson/cJSON.h>
 
@@ -167,46 +169,49 @@ static iems_config_source_rc_t _fs_read(void *ctx, const char *relative_path, ch
         return _source_fail(err, err_size, "UNSAFE_PATH", relative_path,
                             "resolves outside config root");
     }
-    struct stat st;
-    if (stat(resolved, &st) != 0) {
-        return _source_fail(err, err_size, "SOURCE_ERROR", relative_path, strerror(errno));
-    }
-    if (S_ISDIR(st.st_mode)) {
-        return _source_fail(err, err_size, "READ_FAILED", relative_path, "is a directory");
-    }
-
-    FILE *f = fopen(resolved, "rb");
-    if (!f) {
+    int fd = open(resolved, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
         return _source_fail(err, err_size, "READ_FAILED", relative_path, strerror(errno));
     }
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fclose(f);
-        return _source_fail(err, err_size, "READ_FAILED", relative_path, "seek failed");
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        int saved = errno;
+        close(fd);
+        return _source_fail(err, err_size, "SOURCE_ERROR", relative_path, strerror(saved));
     }
-    long size = ftell(f);
-    if (size < 0) {
-        fclose(f);
+    if (S_ISDIR(st.st_mode)) {
+        close(fd);
+        return _source_fail(err, err_size, "READ_FAILED", relative_path, "is a directory");
+    }
+    if (!S_ISREG(st.st_mode) || st.st_size < 0) {
+        close(fd);
         return _source_fail(err, err_size, "READ_FAILED", relative_path, "size unavailable");
     }
-    if ((unsigned long)size > IEMS_CONFIG_MAX_FILE_BYTES) {
-        fclose(f);
+    if ((unsigned long)st.st_size > IEMS_CONFIG_MAX_FILE_BYTES) {
+        close(fd);
         return _source_fail(err, err_size, "READ_FAILED", relative_path, "file exceeds 1 MiB");
     }
-    rewind(f);
-    char *buf = malloc((size_t)size + 1);
+    FILE *f = fdopen(fd, "rb");
+    if (!f) {
+        int saved = errno;
+        close(fd);
+        return _source_fail(err, err_size, "READ_FAILED", relative_path, strerror(saved));
+    }
+    size_t size = (size_t)st.st_size;
+    char *buf = malloc(size + 1);
     if (!buf) {
         fclose(f);
         return _source_fail(err, err_size, "READ_FAILED", relative_path, "out of memory");
     }
-    size_t got = fread(buf, 1, (size_t)size, f);
+    size_t got = fread(buf, 1, size, f);
     fclose(f);
-    if (got != (size_t)size) {
+    if (got != size) {
         free(buf);
         return _source_fail(err, err_size, "READ_FAILED", relative_path, "short read");
     }
     buf[size] = '\0';
     *data = buf;
-    if (len) *len = (size_t)size;
+    if (len) *len = size;
     return IEMS_CONFIG_SOURCE_OK;
 }
 

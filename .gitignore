@@ -38,7 +38,7 @@ web/core/test-build/
 # Logs
 *.log
 logs/
-!docs/evidence/**/tests.log
+!docs/evidence/**/*.log
 !web/core/src/modules/logs/
 !tests/guards/fixtures/**/*.log
 
