@@ -12,7 +12,7 @@
     "pinia": "^4.1.0",
     "vue-router": "^5.5.1",
     "axios": "^1.21.1",
-    "js-yaml": "^5.5.0",
+    "js-yaml": "^4.3.2",
     "echarts": "^6.1.0"
   },
   "devDependencies": {
@@ -20,7 +20,7 @@
     "pinia": "^4.1.0",
     "vue-router": "^5.5.1",
     "axios": "^1.21.1",
-    "js-yaml": "^5.5.0",
+    "js-yaml": "^4.3.2",
     "echarts": "^6.1.0",
     "typescript": "^7.0.2"
   }
