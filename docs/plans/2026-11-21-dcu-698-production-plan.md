@@ -961,6 +961,9 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 2026-11-27 | P3-13 | 已合并 feat/dcu | `docs/evidence/DCU-P3-13/` | 合并 `22fdfffc`；3006 注释订正、4 脚本 `0x20020200` 改为电压相角、`OAD_REACTIVE_ENERGY` 偏差登记、`test_dcu_698_rules.c` `strcpy→snprintf`；pytest 2/2、ctest 380/380、warning 0 |
 | 2026-11-27 | D4-02b | 已合并 feat/dcu | `docs/evidence/DCU-D4-02b/` | 合并 `63bfc8a5`；A.9 8 个控制/参数 OI 只读进入 Class 20 ACL（126 对象 / 6150 B）；GET 诚实回 DAR 2、SET 回 DAR 3；变异守卫 `DCU-D4-02b-class13-acl` 红(rc=8)/绿(rc=0) |
 | 2026-11-27 | FORMAL-01 | 已合并 feat/dcu | `docs/evidence/DCU-FORMAL-01/` | 合并 `461a0ee0`；建立 `formal/manifest/dcu.tsv` + `formal/cbmc/dlt698_decode.c`（2740 属性 0 失败、`cover` 满足、`fcs_reject` 通过）+ 负向变异脚本 `dlt698_guard_mutation.sh` 捕获越界 |
+| 2026-11-27 | D3-08b | 已合并 feat/dcu | `docs/evidence/DCU-D3-08b/` | 合并 `4fe8beba`；注册 4 个真 Class 7 (`IC_EVENT`) 对象（`3009`/`300C`/`3011`/`3013`）空掩码骨架与只读 Class 20 ACL（130 对象触发两字节长格式 `0x81 0x82`、6435 B）；GET 诚实回 DAR 5、SET 回 DAR 3；变异守卫红/绿 |
+| 2026-11-27 | D5-07 | 已合并 feat/dcu | `docs/evidence/DCU-D5-07/` | 合并 `9887fceb`；同步 `cmd/dcu/CONTEXT.md`、`CONTEXT-MAP.md`、`DOMAIN_CONTEXT_MAP.md`、`PUBLIC_STRUCT_AUDIT.md` 至当前代码事实；`check_doc_references.py` 与 `run_guard_selftest.py` 全绿 |
+| 2026-11-27 | FORMAL-02 | 已合并 feat/dcu | `docs/evidence/DCU-FORMAL-02/` | 合并 `797f03a6`；扩展 `formal/manifest/dcu.tsv`，为 `dlt698_decode_get_record_request` 增 CBMC 边界证明（2734 属性 0 失败、`cover` 满足、`selector_reject` 通过）+ 负向变异脚本捕获 `_read_be32` 越界 |
 
 ### 12.4 并行工作树
 
@@ -994,7 +997,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | D3-02 秒冻结写放大 | 5001 秒冻结按标准每秒写 40 表 × 3 源 = 120 行；本单只用虚拟时钟跨 1 个零点、未做秒级长跑 | 生产启用 5001 会持续写放大 | P6 性能评估：批量/降采样/存储层合并；D3-02 证据已记录 |
 | D3-03b 属性 3 完整语义 | 2026-11-24 由 D3-03b 收口：每 (OI, 条目) 独立周期、方法 3 延时触发、按深度裁剪、超上限 DAR 3 整单回滚、历史截断诊断 | 剩余限制：pending 池容量 8 是产品常量；同一 OAD 多方案（属性特征 0..7）未建模；属性 3 无 RSD（标准只对属性 2 记录定义）；历史超限行只诊断不迁移 | 更大池或按方案建模时另立任务 |
 | D4-02a Class 13 只读边界 | 已收口（2026-11-27，D4-02b，`63bfc8a5`）：8001、8100–8103、810E–8110 已只读加入 Class 20 对象列表/ACL（126 对象 / 6150 B）；GET 诚实回 DAR 2、SET 回 DAR 3 | 真实继电器/功控执行来源与 129/130/131 执行仍未接线 | ACL/Class 20 广告已收口（证据 `docs/evidence/DCU-D4-02b/`）；真实控制执行另立任务 |
-| D3-08 Class 7 事件对象缺口 | 产品对象表无 `IC_EVENT`(7) 实例，事件全部按 `IC_SUB_EVENT`(24) 建模；3009/300C/3011/3013/300B 的 GET 回 DAR 6 | D3-05 的 Class 7 覆盖与 D3-07 停电/停上电上报未实现 | 按 A.8 建 Class 7 对象并接事件引擎后另立任务 |
+| D3-08 Class 7 事件对象缺口 | 部分收口（2026-11-27，D3-08b，`4fe8beba`）：4 个真 Class 7 (`IC_EVENT`) 对象（`3009`/`300C`/`3011`/`3013`）已建空掩码骨架并加入只读 Class 20 ACL（GET 诚实回 DAR 5，不再 DAR 6）；`300B` 经表 A.4 核实为 Class 24 (`IC_SUB_EVENT`) 留待后续 | 真实事件记录引擎与停电/停上电上报（D3-05b/D3-07）仍未接线 | 骨架与 ACL 已收口（证据 `docs/evidence/DCU-D3-08b/`）；真实事件引擎与上报待 ADR-0017 另立任务 |
 | Class 12 表157/表158 冲突 | 标准内部 16/17 归属相反（`698_parsed.md:4365-4366` vs `:4423-4425`）；D5-04 按类定义表157 登记 2401，ACL 只放属性 1..15，16/17 不广告 | 16/17 的映射仍未由 PDF 所有者裁决 | HOLD；裁决后 16 可进 ACL，17 仍超 schema | PDF 所有者裁决后写死并加对拍 |
 | Class 12 2402-2408 与脉冲 producer | 2401 对象行/ACL 已就绪（D5-04）；2402-2408 未注册，无脉冲输入/电能示值来源 | 除 2401 外的脉冲计量对象不可读；2401 值回 DAR 5 | 有脉冲 producer 后补对象行、mask、resolver 编码与验收值 | 另立任务 |
 | 4000 A2 SET 失败 DAR | 已收口（2026-11-27，P3-12，`56c3ca51`）：实现、单测、北向验收 `D_00_00_02_000022` 与 `DCU_698_OBJECT_MODEL.md` §8.1 统一为 0/2/7/3 契约 | 文档/代码/合同已一致，不回退假 RAM 时钟 | 已完成；证据 `docs/evidence/DCU-P3-12/`；变异守卫 `DCU-P3-12-4000-set-dar` |
