@@ -1,0 +1,8 @@
+ docs/evidence/DCU-FORMAL-01/comments.md       |  15 ++++
+ docs/evidence/DCU-FORMAL-01/spec.md           |  50 ++++++++++++
+ docs/evidence/DCU-FORMAL-01/summary.md        |  23 ++++++
+ docs/evidence/DCU-FORMAL-01/tests.log         | 111 ++++++++++++++++++++++++++
+ formal/cbmc/dlt698_decode.c                   |  65 +++++++++++++++
+ formal/cbmc/negative/dlt698_guard_mutation.sh |  44 ++++++++++
+ formal/manifest/dcu.tsv                       |   4 +
+ 7 files changed, 312 insertions(+)
