@@ -98,8 +98,14 @@ void dcu_heartbeat_tick(dcu_heartbeat_t *hb) {
 void dcu_heartbeat_control_tick(dcu_heartbeat_t *hb) {
     if (!hb || !hb->demo_mode) return;
     hb->control_triggers++;
-    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering demo relay control for Meter 10000001...");
-    dcu_698_control_legacy_action(0, 1);
+    dcu_inventory_t *inv = hb->node ? dcu_node_get_inventory(hb->node) : NULL;
+    if (!inv || inv->count == 0) {
+        LOG_WARN(LOG_CAT_BUS, "demo control: 档案为空，跳过");
+        return;
+    }
+    const production_meter_t *meter = &inv->meters[0];
+    LOG_INFO(LOG_CAT_BUS, "🏁 [TEST] Triggering demo relay control for Meter %s...", meter->address);
+    dcu_698_control_legacy_action(meter->slot_id, 1);
 }
 
 static void _freeze_trigger_cb(uv_timer_t *handle) {

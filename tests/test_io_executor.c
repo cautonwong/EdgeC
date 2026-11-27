@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include <cmocka.h>
+#include <curl/curl.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -418,6 +419,260 @@ static void test_io_write_hard_error_releases_pending_tx(void** state) {
     signal(SIGPIPE, prev_sigpipe);
 }
 
+/* UDP 的 write_async 在成功后必须自持一份引用直到发送完成：调用方按契约
+ * 在返回后立即 unref，驱动若不持引用就会在异步发送期间读已归还池子的内存。 */
+static void test_io_udp_write_async_holds_ref_until_send_done(void** state) {
+    (void)state;
+
+    int rfd = socket(AF_INET, SOCK_DGRAM, 0);
+    assert_true(rfd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert_int_equal(bind(rfd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(rfd, (struct sockaddr*)&addr, &addr_len), 0);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+
+    io_config_t cfg = {.type = IO_TYPE_UDP};
+    strncpy(cfg.params.udp.remote_ip, "127.0.0.1", sizeof(cfg.params.udp.remote_ip) - 1);
+    cfg.params.udp.remote_port = ntohs(addr.sin_port);
+    io_handle_t* h = io_executor_create(&loop, &cfg, pool);
+    assert_non_null(h);
+
+    io_test_ctx_t ctx = {.loop = &loop};
+    h->cb = on_io_event;
+    h->user_data = &ctx;
+
+    net_buf_pool_stats_t stats;
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    net_buf_t* tx = net_buf_alloc(pool, 0);
+    assert_non_null(tx);
+    const uint8_t payload[] = {0xAA, 0xBB, 0xCC, 0xDD};
+    memcpy(tx->b.data, payload, sizeof(payload));
+    tx->b.len = sizeof(payload);
+    assert_int_equal(h->ops->write_async(h, tx), 0);
+    net_buf_unref(tx);
+
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 3); /* 驱动自持一份，直到发送完成 */
+
+    run_loop_bounded(&loop, 1000);
+    assert_int_equal(ctx.tx_done, 1);
+    assert_false(ctx.error);
+
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    uint8_t got[8];
+    ssize_t n = recv(rfd, got, sizeof(got), 0);
+    assert_int_equal(n, (ssize_t)sizeof(payload));
+    assert_memory_equal(got, payload, sizeof(payload));
+
+    h->ops->destroy(h);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    close(rfd);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+/* HTTP 的 write_async 把缓冲交给 libcurl 异步传输：成功后必须自持一份引用，
+ * 直到 CURLMSG_DONE；调用方返回后立即 unref 不得导致传输期间 use-after-free。 */
+static void test_io_http_write_async_holds_ref_until_complete(void** state) {
+    (void)state;
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    int probe_fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(probe_fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert_int_equal(bind(probe_fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(probe_fd, (struct sockaddr*)&addr, &addr_len), 0);
+    uint16_t port = ntohs(addr.sin_port);
+    close(probe_fd); /* 让连接被拒绝：传输立即进入完成（错误）路径 */
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+
+    io_config_t cfg = {.type = IO_TYPE_HTTP};
+    snprintf(cfg.params.http.url, sizeof(cfg.params.http.url), "http://127.0.0.1:%u/",
+             (unsigned)port);
+    strncpy(cfg.params.http.method, "POST", sizeof(cfg.params.http.method) - 1);
+    io_handle_t* h = io_executor_create(&loop, &cfg, pool);
+    assert_non_null(h);
+
+    io_test_ctx_t ctx = {.loop = &loop};
+    h->cb = on_io_event;
+    h->user_data = &ctx;
+
+    net_buf_pool_stats_t stats;
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    net_buf_t* tx = net_buf_alloc(pool, 0);
+    assert_non_null(tx);
+    memcpy(tx->b.data, "ping", 4);
+    tx->b.len = 4;
+    assert_int_equal(h->ops->write_async(h, tx), 0);
+    net_buf_unref(tx);
+
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 3); /* 驱动自持一份，直到 curl 传输结束 */
+
+    run_loop_bounded(&loop, 3000);
+    assert_true(ctx.error || ctx.tx_done);
+
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    h->ops->destroy(h);
+    io_executor_cleanup();
+    for (int i = 0; i < 50; i++) uv_run(&loop, UV_RUN_NOWAIT);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+typedef struct {
+    uv_loop_t* loop;
+    int destroyed;
+} destroy_in_cb_ctx_t;
+
+static void on_destroy_event(io_handle_t* h, io_event_t evt, void* payload, void* user_data) {
+    (void)payload;
+    destroy_in_cb_ctx_t* ctx = (destroy_in_cb_ctx_t*)user_data;
+    if (evt == IO_EVENT_TX_DONE || evt == IO_EVENT_ERROR) {
+        h->ops->destroy(h);
+        ctx->destroyed = 1;
+        uv_stop(ctx->loop);
+    }
+}
+
+/* 完成回调里 destroy 句柄后，_on_curl_poll 不得再读 impl 或二次 unref pending。 */
+static void test_io_http_callback_destroy_keeps_pending_ref_count(void** state) {
+    (void)state;
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    int probe_fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(probe_fd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert_int_equal(bind(probe_fd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(probe_fd, (struct sockaddr*)&addr, &addr_len), 0);
+    uint16_t port = ntohs(addr.sin_port);
+    close(probe_fd);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+
+    io_config_t cfg = {.type = IO_TYPE_HTTP};
+    snprintf(cfg.params.http.url, sizeof(cfg.params.http.url), "http://127.0.0.1:%u/",
+             (unsigned)port);
+    strncpy(cfg.params.http.method, "POST", sizeof(cfg.params.http.method) - 1);
+    io_handle_t* h = io_executor_create(&loop, &cfg, pool);
+    assert_non_null(h);
+
+    destroy_in_cb_ctx_t ctx = {.loop = &loop};
+    h->cb = on_destroy_event;
+    h->user_data = &ctx;
+
+    net_buf_t* tx = net_buf_alloc(pool, 0);
+    assert_non_null(tx);
+    memcpy(tx->b.data, "ping", 4);
+    tx->b.len = 4;
+    assert_int_equal(h->ops->write_async(h, tx), 0);
+    net_buf_unref(tx);
+
+    net_buf_pool_stats_t stats;
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 3);
+
+    run_loop_bounded(&loop, 3000);
+    assert_true(ctx.destroyed);
+
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    io_executor_cleanup();
+    for (int i = 0; i < 50; i++) uv_run(&loop, UV_RUN_NOWAIT);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
+/* enable_read 已把句柄加入 multi：write_async 的 ADDED_ALREADY 必须当成功，
+ * 帧引用保留到完成回调，而不是同步失败后仍被传输使用。 */
+static void test_io_http_write_after_enable_read_keeps_ref(void** state) {
+    (void)state;
+    curl_global_init(CURL_GLOBAL_ALL);
+
+    int lfd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(lfd >= 0);
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert_int_equal(bind(lfd, (struct sockaddr*)&addr, sizeof(addr)), 0);
+    assert_int_equal(listen(lfd, 1), 0);
+    socklen_t addr_len = sizeof(addr);
+    assert_int_equal(getsockname(lfd, (struct sockaddr*)&addr, &addr_len), 0);
+    uint16_t port = ntohs(addr.sin_port);
+
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+    net_buf_pool_t* pool = net_buf_pool_new(4, 256, 0);
+    assert_non_null(pool);
+
+    io_config_t cfg = {.type = IO_TYPE_HTTP};
+    snprintf(cfg.params.http.url, sizeof(cfg.params.http.url), "http://127.0.0.1:%u/",
+             (unsigned)port);
+    strncpy(cfg.params.http.method, "POST", sizeof(cfg.params.http.method) - 1);
+    io_handle_t* h = io_executor_create(&loop, &cfg, pool);
+    assert_non_null(h);
+
+    io_test_ctx_t ctx = {.loop = &loop};
+    h->cb = on_io_event;
+    h->user_data = &ctx;
+
+    assert_int_equal(h->ops->enable_read(h, true), 0);
+
+    net_buf_t* tx = net_buf_alloc(pool, 0);
+    assert_non_null(tx);
+    memcpy(tx->b.data, "ping", 4);
+    tx->b.len = 4;
+    assert_int_equal(h->ops->write_async(h, tx), 0);
+    net_buf_unref(tx);
+
+    net_buf_pool_stats_t stats;
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 3);
+
+    h->ops->destroy(h);
+    net_buf_pool_audit(pool, 600000, &stats);
+    assert_int_equal(stats.free_count, 4);
+
+    close(lfd);
+    io_executor_cleanup();
+    for (int i = 0; i < 50; i++) uv_run(&loop, UV_RUN_NOWAIT);
+    net_buf_pool_destroy(pool);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 static void test_io_tcp_keepalive_defaults(void** state) {
     (void)state;
 
@@ -744,6 +999,10 @@ int main(void) {
         cmocka_unit_test(test_io_tcp_link_cb_reports_error_after_data_cb),
         cmocka_unit_test(test_io_tcp_refused),
         cmocka_unit_test(test_io_write_hard_error_releases_pending_tx),
+        cmocka_unit_test(test_io_udp_write_async_holds_ref_until_send_done),
+        cmocka_unit_test(test_io_http_write_async_holds_ref_until_complete),
+        cmocka_unit_test(test_io_http_callback_destroy_keeps_pending_ref_count),
+        cmocka_unit_test(test_io_http_write_after_enable_read_keeps_ref),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

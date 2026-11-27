@@ -539,11 +539,11 @@ int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, siz
     return 0;
 }
 
-/* 区间值只接受 date_time（0x19）与 date_time_s（0x1C）。 */
+/* 区间值只接受 DLT698_TAG_DATE_TIME 与 DLT698_TAG_DATE_TIME_S。 */
 static int _record_date_data(const uint8_t *p, size_t avail, size_t *out_len) {
     if (avail == 0) return -1;
     size_t need = 0;
-    if (p[0] == 0x19) { /* date_time：无 DLT698_TAG_* 常量 */
+    if (p[0] == DLT698_TAG_DATE_TIME) {
         need = 11;
     } else if (p[0] == DLT698_TAG_DATE_TIME_S) {
         need = 8;

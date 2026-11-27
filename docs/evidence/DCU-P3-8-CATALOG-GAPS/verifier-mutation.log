@@ -1,0 +1,10 @@
+=== Mutation guards: 1 entries, build /tmp/edgec-land/p3-8-catalog-gaps/build ===
+
+[MUTATION] DCU-P3-8-method-sets-max-mask (scripts/extract_dcu_698_catalog.py)
+  [mutate] scripts/extract_dcu_698_catalog.py: 1 occurrence replaced
+  [mutated] build rc=0, test rc=1
+  [restore] scripts/extract_dcu_698_catalog.py: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-8-method-sets-max-mask: red under mutation (rc=1), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

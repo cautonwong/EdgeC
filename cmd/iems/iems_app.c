@@ -75,6 +75,7 @@ struct iems_app_s {
     uv_loop_t* loop;
     iems_node_t* node;
     iems_node_storage_t node_storage;
+    iems_execution_config_t exec_config;
     service_t* svc;
     datahub_t* hub;
     arbiter_t* arb;
@@ -105,6 +106,9 @@ struct iems_app_s {
 
     /* P2-02a: 转换后的 PCS/EMS 设置（启动期加载，只读 getter 暴露） */
     iems_pcs_settings_t pcs_settings;
+
+    /* P1-07a: per-LC 点位覆盖（与 device/port 同一个 EDGE_CONFIG_DIR） */
+    iems_lc_user_cfgs_t lc_user_cfgs;
 
     bool buses_attempted;
     iems_bus_wiring_t wiring;
@@ -190,6 +194,25 @@ static void _on_reconcile_timer(uv_timer_t* timer) {
 static bool _iems_production_env(void) {
     const char *env = getenv("EDGE_ENV");
     return env && (strcmp(env, "production") == 0 || strcmp(env, "prod") == 0);
+}
+
+int iems_app_shadow_mode_parse(const char *raw, bool *out_shadow) {
+    if (!out_shadow) return -1;
+    if (!raw || strcmp(raw, "0") == 0) {
+        *out_shadow = false;
+        return 0;
+    }
+    if (strcmp(raw, "1") == 0) {
+        *out_shadow = true;
+        return 0;
+    }
+    return -1;
+}
+
+int iems_app_rest_raw_io_parse(const char *raw, bool *out_enabled) {
+    if (!out_enabled) return -1;
+    *out_enabled = raw != NULL && strcmp(raw, "1") == 0;
+    return 0;
 }
 
 /* 北向控制写的取数与路由都在产品侧：driver 不认识点位模型。 */
@@ -327,6 +350,41 @@ static int _load_pcs_settings(iems_app_t *app, const char *config_dir, char *err
     return iems_pcs_settings_load(&pcs_port, &app->pcs_settings, err, err_size);
 }
 
+/* P1-07a: per-LC 点位覆盖同样从 EDGE_CONFIG_DIR 读；坏文件拒启，缺失继续。 */
+static int _load_lc_user_cfgs(iems_app_t *app, const char *config_dir, char *err,
+                              size_t err_size) {
+    iems_config_file_source_t lc_source;
+    iems_config_file_source_init(&lc_source, config_dir);
+    iems_config_source_t lc_port = iems_config_file_source_port(&lc_source);
+    return iems_lc_user_cfgs_load(&lc_port, &app->lc_user_cfgs, err, err_size);
+}
+
+/* P6-04b/P2-02a/P1-07a: an explicit EDGE_CONFIG_DIR is fail-closed; any loader
+ * error aborts boot so control writes never route from a half-loaded config. */
+static int _load_startup_configs(iems_app_t* app, const char* config_dir) {
+    char config_err[256];
+    if (iems_config_load_apply(config_dir, app->db_service, config_err, sizeof(config_err)) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "IEMS config load failed at %s: %s; boot aborted", config_dir,
+                  config_err);
+        return -1;
+    }
+    /* P2-02a: 转换后的 ems/lc 设置；坏文件与 device/port 一样拒启。 */
+    char pcs_err[256];
+    if (_load_pcs_settings(app, config_dir, pcs_err, sizeof(pcs_err)) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "IEMS pcs settings load failed at %s: %s; boot aborted",
+                  config_dir, pcs_err);
+        return -1;
+    }
+    /* P1-07a: per-LC 点位覆盖；坏文件与 device/port 一样拒启。 */
+    char lc_err[256];
+    if (_load_lc_user_cfgs(app, config_dir, lc_err, sizeof(lc_err)) != 0) {
+        LOG_ERROR(LOG_CAT_CORE, "IEMS lc user cfg load failed at %s: %s; boot aborted",
+                  config_dir, lc_err);
+        return -1;
+    }
+    return 0;
+}
+
 iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     if (!loop) return NULL;
 
@@ -335,6 +393,11 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     app->loop = loop;
     loop->data = app;
+
+    app->exec_config.shadow_mode = cfg && cfg->shadow_mode;
+    LOG_INFO(LOG_CAT_CORE, "IEMS startup: shadow mode %s (downlink control writes %s)",
+             app->exec_config.shadow_mode ? "ON" : "OFF",
+             app->exec_config.shadow_mode ? "DENIED" : "enabled");
 
     // =========================================================================
     // Phase 1: 实例化 IEMS 聚合根 (Aggregate Root)
@@ -359,7 +422,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
     app->north_adapter.submit_control = iems_control_submit;
     app->north_adapter.submit_ctx = app->node;
     iems_north_results_reset(&app->north_adapter);
-    iems_node_set_execution_port(app->node, iems_execution_port_create(app));
+    iems_node_set_execution_port(app->node, iems_execution_port_create(&app->exec_config));
 
     // =========================================================================
     // Phase 2: DataHub 高可靠服务 (Metrics, WAL, Snapshots, Compaction)
@@ -411,19 +474,7 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
 
     /* P6-04b: 显式配置了 EDGE_CONFIG_DIR 就 fail closed: 错误路由会把控制写落到错误从站。 */
     if (cfg && cfg->config_dir && cfg->config_dir[0]) {
-        char config_err[256];
-        if (iems_config_load_apply(cfg->config_dir, app->db_service, config_err,
-                                   sizeof(config_err)) != 0) {
-            LOG_ERROR(LOG_CAT_CORE, "IEMS config load failed at %s: %s; boot aborted",
-                      cfg->config_dir, config_err);
-            iems_app_destroy(app);
-            return NULL;
-        }
-        /* P2-02a: 转换后的 ems/lc 设置；坏文件与 device/port 一样拒启。 */
-        char pcs_err[256];
-        if (_load_pcs_settings(app, cfg->config_dir, pcs_err, sizeof(pcs_err)) != 0) {
-            LOG_ERROR(LOG_CAT_CORE, "IEMS pcs settings load failed at %s: %s; boot aborted",
-                      cfg->config_dir, pcs_err);
+        if (_load_startup_configs(app, cfg->config_dir) != 0) {
             iems_app_destroy(app);
             return NULL;
         }
@@ -450,6 +501,9 @@ iems_app_t* iems_app_assemble(uv_loop_t* loop, const iems_app_config_t* cfg) {
                                            &app->app_mgr_mem);
     iems_control_port_init(&app->control, &app->control_ctx, app->app_mgr,
                            app->stream_eng, app->db_service);
+    /* REST 下行写策略由组合根在这里注入；适配器只问端口。 */
+    app->control_ctx.shadow_mode = app->exec_config.shadow_mode;
+    app->control_ctx.rest_raw_io_enabled = cfg && cfg->rest_raw_io_enabled;
     service_set_control_port(app->svc, &app->control);
 
     uint32_t app_tag_count = 0;
@@ -629,4 +683,8 @@ iems_node_t* iems_app_get_node(iems_app_t* app) {
 
 const iems_pcs_settings_t *iems_app_get_pcs_settings(iems_app_t *app) {
     return app ? &app->pcs_settings : NULL;
+}
+
+const iems_lc_user_cfgs_t *iems_app_get_lc_user_cfgs(iems_app_t *app) {
+    return app ? &app->lc_user_cfgs : NULL;
 }

@@ -1,0 +1,13 @@
+ ci/mutation_guards.tsv                             |   1 +
+ cmd/dcu/dcu_event_monitor.c                        |  35 ++-
+ cmd/dcu/dcu_router.h                               |   1 +
+ docs/evidence/DCU-P3-4-EVENT-START/comments.md     |   7 +
+ docs/evidence/DCU-P3-4-EVENT-START/diffstat.txt    |  16 +
+ docs/evidence/DCU-P3-4-EVENT-START/red.log         |  57 ++++
+ docs/evidence/DCU-P3-4-EVENT-START/summary.md      | 114 +++++++
+ docs/evidence/DCU-P3-4-EVENT-START/tests.log       | 105 +++++++
+ .../verifier/acceptance-tasks.status               |   2 +
+ .../verifier/mutation-guard.log                    |  10 +
+ docs/evidence/DCU-P3-4-EVENT-START/verify.md       |  26 ++
+ tests/test_dcu_advanced_modules.c                  | 336 +++++++++++++++++++++
+ 12 files changed, 703 insertions(+), 7 deletions(-)

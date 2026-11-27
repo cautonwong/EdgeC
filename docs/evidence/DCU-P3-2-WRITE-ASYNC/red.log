@@ -1,0 +1,152 @@
+$ ctest --test-dir build -R '^(test_io_executor|test_passthrough)$' --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 49: test_passthrough
+1/2 Test #49: test_passthrough .................***Failed    3.72 sec
+[==========] tests: Running 3 test(s).
+[ RUN      ] test_passthrough_basic
+[2026-11-27 11:11:12][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 8 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-27 11:11:12][INFO][IO] Registered Protocol Template: DLT698
+[NETBUF][INFO] NetBufPool 0x5727dda63540: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5727dda63540: Ref (1 -> 2)
+🔗 [ORCHESTRATOR] Bus 0: Early-Attached IO 0x7ffc0980fec0 to Engine 0x5727dda635e0
+[2026-11-27 11:11:12][INFO][BUS] Bus 0: Physical I/O attached (Type: 0)
+[2026-11-27 11:11:12][INFO][BUS] Passthrough: Listening on port 29988 for Bus 0
+[2026-11-27 11:11:12][INFO][BUS] Passthrough: New connection for Bus 0. Attempting exclusive hold...
+[2026-11-27 11:11:12][INFO][BUS] Passthrough: Exclusive hold acquired. Tunnel active.
+[NETBUF][INFO] NetBufPool 0x5727dda63540: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x5727dda63540: Unref (3 -> 2)
+[2026-11-27 11:11:13][INFO][BUS] Passthrough: Session closed on Bus 0. Regular polling resumed.
+[       OK ] test_passthrough_basic
+[ RUN      ] test_passthrough_write_async_delayed_completion_ownership
+[2026-11-27 11:11:13][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 8 KB)
+[2026-11-27 11:11:13][INFO][IO] Registered Protocol Template: DLT698
+[NETBUF][INFO] NetBufPool 0x5727dda638a0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5727dda638a0: Ref (1 -> 2)
+🔗 [ORCHESTRATOR] Bus 0: Early-Attached IO 0x7ffc0980fee0 to Engine 0x5727dda63940
+[2026-11-27 11:11:13][INFO][BUS] Bus 0: Physical I/O attached (Type: 0)
+[2026-11-27 11:11:13][INFO][BUS] Passthrough: Listening on port 44841 for Bus 0
+[2026-11-27 11:11:13][INFO][BUS] Passthrough: New connection for Bus 0. Attempting exclusive hold...
+[2026-11-27 11:11:13][INFO][BUS] Passthrough: Exclusive hold acquired. Tunnel active.
+[NETBUF][INFO] NetBufPool 0x5727dda638a0: Ref (2 -> 3)
+[  ERROR   ] --- 9 != 10
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_passthrough.c:279: error: Failure!
+[  FAILED  ] test_passthrough_write_async_delayed_completion_ownership
+[ RUN      ] test_passthrough_write_async_sync_failure_ownership
+[2026-11-27 11:11:15][INFO][BUS] Sealed memfd Ring created (FD: 17, Size: 8 KB)
+[2026-11-27 11:11:15][INFO][IO] Registered Protocol Template: DLT698
+[NETBUF][INFO] NetBufPool 0x5727dda63b60: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5727dda63b60: Ref (1 -> 2)
+🔗 [ORCHESTRATOR] Bus 0: Early-Attached IO 0x7ffc0980fee0 to Engine 0x5727dda63c00
+[2026-11-27 11:11:15][INFO][BUS] Bus 0: Physical I/O attached (Type: 0)
+[2026-11-27 11:11:15][INFO][BUS] Passthrough: Listening on port 39195 for Bus 0
+[2026-11-27 11:11:15][INFO][BUS] Passthrough: New connection for Bus 0. Attempting exclusive hold...
+[2026-11-27 11:11:15][INFO][BUS] Passthrough: Exclusive hold acquired. Tunnel active.
+[NETBUF][INFO] NetBufPool 0x5727dda63b60: Ref (2 -> 3)
+[  ERROR   ] --- 9 != 10
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_passthrough.c:272: error: Failure!
+[  FAILED  ] test_passthrough_write_async_sync_failure_ownership
+[==========] tests: 3 test(s) run.
+[  PASSED  ] 1 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_passthrough_write_async_delayed_completion_ownership
+[  FAILED  ] test_passthrough_write_async_sync_failure_ownership
+
+ 2 FAILED TEST(S)
+
+    Start 97: test_io_executor
+2/2 Test #97: test_io_executor .................***Failed    0.34 sec
+[==========] tests: Running 15 test(s).
+[ RUN      ] test_io_create_uart
+[       OK ] test_io_create_uart
+[ RUN      ] test_io_uart_pty
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Ref (1 -> 2)
+[IO-TX] FD:15 Sent 3 bytes SUCCESS
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1ec50: Unref (1 -> 0)
+[       OK ] test_io_uart_pty
+[ RUN      ] test_io_uart_unsupported_baud
+[NETBUF][INFO] NetBufPool 0x5aa65da1efd0: Created (Refs: 1)
+[2026-11-27 11:11:16][ERROR][IO] io_executor: unsupported UART baud 1234 for /dev/pts/8
+[NETBUF][INFO] NetBufPool 0x5aa65da1efd0: Unref (1 -> 0)
+[       OK ] test_io_uart_unsupported_baud
+[ RUN      ] test_io_tcp_loopback
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Ref (1 -> 2)
+[IO-TX] FD:15 Sent 8 bytes SUCCESS
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1f8b0: Unref (1 -> 0)
+[       OK ] test_io_tcp_loopback
+[ RUN      ] test_io_tcp_keepalive_defaults
+[NETBUF][INFO] NetBufPool 0x5aa65da1fe00: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da1fe00: Unref (1 -> 0)
+[       OK ] test_io_tcp_keepalive_defaults
+[ RUN      ] test_io_tcp_connect_async_success
+[NETBUF][INFO] NetBufPool 0x5aa65da20540: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da20540: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da20540: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da20540: Unref (1 -> 0)
+[       OK ] test_io_tcp_connect_async_success
+[ RUN      ] test_io_tcp_connect_async_refused
+[       OK ] test_io_tcp_connect_async_refused
+[ RUN      ] test_io_tcp_connect_async_cancel
+[       OK ] test_io_tcp_connect_async_cancel
+[ RUN      ] test_io_tcp_connect_async_keepalive_defaults
+[       OK ] test_io_tcp_connect_async_keepalive_defaults
+[ RUN      ] test_io_tcp_connect_async_is_async
+[       OK ] test_io_tcp_connect_async_is_async
+[ RUN      ] test_io_tcp_link_cb_reports_error_after_data_cb
+[NETBUF][INFO] NetBufPool 0x5aa65da21530: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da21530: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da21530: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da21530: Unref (1 -> 0)
+[       OK ] test_io_tcp_link_cb_reports_error_after_data_cb
+[ RUN      ] test_io_tcp_refused
+[       OK ] test_io_tcp_refused
+[ RUN      ] test_io_write_hard_error_releases_pending_tx
+[NETBUF][INFO] NetBufPool 0x5aa65da215d0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da215d0: Ref (1 -> 2)
+[IO-TX-ERR] FD:10 Write Failed: Broken pipe
+[NETBUF][INFO] NetBufPool 0x5aa65da215d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da215d0: Unref (1 -> 0)
+[       OK ] test_io_write_hard_error_releases_pending_tx
+[ RUN      ] test_io_udp_write_async_holds_ref_until_send_done
+[NETBUF][INFO] NetBufPool 0x5aa65da21670: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da21670: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da21670: Unref (2 -> 1)
+[  ERROR   ] --- 4 != 3
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_io_executor.c:465: error: Failure!
+[  FAILED  ] test_io_udp_write_async_holds_ref_until_send_done
+[ RUN      ] test_io_http_write_async_holds_ref_until_complete
+[NETBUF][INFO] NetBufPool 0x5aa65da22150: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5aa65da22150: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5aa65da22150: Unref (2 -> 1)
+[  ERROR   ] --- 4 != 3
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_io_executor.c:532: error: Failure!
+[  FAILED  ] test_io_http_write_async_holds_ref_until_complete
+[==========] tests: 15 test(s) run.
+[  PASSED  ] 13 test(s).
+[  FAILED  ] tests: 2 test(s), listed below:
+[  FAILED  ] test_io_udp_write_async_holds_ref_until_send_done
+[  FAILED  ] test_io_http_write_async_holds_ref_until_complete
+
+ 2 FAILED TEST(S)
+
+
+0% tests passed, 2 tests failed out of 2
+
+Total Test time (real) =   4.11 sec
+
+The following tests FAILED:
+	 49 - test_passthrough (Failed)
+	 97 - test_io_executor (Failed)
+Errors while running CTest
+ctest exit=8

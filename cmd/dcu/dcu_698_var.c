@@ -343,7 +343,10 @@ int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
     if (!desc) {
         /* 属性存在但没有标量表示（数组/结构）时明确拒绝，不截断。 */
         if (!obj) return EDGE_SLAVE_SRC_NOT_FOUND;
-        if (dcu_mask_test(obj->attr_mask, attr_id)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        if (dcu_mask_test(obj->attr_mask, attr_id)) {
+            if (oi == OI_ETHERNET_COMM_FIRST && attr_id == 5) return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
         return _unadvertised_attr_rc(obj, attr_id);
     }
     if (obj && !dcu_mask_test(obj->attr_mask, attr_id)) return _unadvertised_attr_rc(obj, attr_id);

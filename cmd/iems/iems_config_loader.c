@@ -572,6 +572,10 @@ static int _check_structure(cJSON *node, const char *path, unsigned depth, char 
 int iems_config_strict_parse(const char *data, size_t len, const char *rel, cJSON **out, char *err,
                          size_t err_size) {
     *out = NULL;
+    if (!data || data[len] != '\0') {
+        return iems_config_fail(err, err_size, "INVALID_JSON", rel,
+                     "input length does not end at NUL");
+    }
     const unsigned char *raw = (const unsigned char *)data;
     if (len >= 3 && raw[0] == 0xEF && raw[1] == 0xBB && raw[2] == 0xBF) {
         return iems_config_fail(err, err_size, "INVALID_JSON", rel, "UTF-8 BOM is not accepted");

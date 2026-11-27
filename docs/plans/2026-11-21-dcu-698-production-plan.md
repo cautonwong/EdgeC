@@ -641,12 +641,15 @@ issue 正文直接复制该任务行，再补四块：
 每个任务提交时附带：
 
 ```text
+docs/evidence/DCU-<ID>/spec.md        # 五栏规格：业务规则/不变量/可观测输出/验收判据/非目标
 docs/evidence/DCU-<ID>/summary.md     # 改了什么、为什么、完成定义逐项勾选
 docs/evidence/DCU-<ID>/tests.log      # 构建与目标测试输出
 docs/evidence/DCU-<ID>/runtime.log    # 验收或模拟主站抓包
 docs/evidence/DCU-<ID>/diffstat.txt   # git show --stat
 docs/evidence/DCU-<ID>/comments.md    # /no-comments 审查结果：删除、保留、HOLD
 ```
+
+每个单元先写 `spec.md` 五栏规格；verifier 的 `verify.md` 至少独立推导一条期望值并写推导过程。规则见 `AGENTS.md` 的「验证强度」。
 
 证据要求按任务类型：
 
@@ -741,7 +744,7 @@ B1 到 B5 都不是标准模糊。标准把结构写清楚了，缺的是代码�
 
 ## 12. 执行状态
 
-> 最后更新：2026-11-26
+> 最后更新：2026-11-27
 > 状态枚举：未开始、进行中、待验收、已合并、阻塞、失败。
 > 一个任务只有构建、目标测试、验收证据齐全才记为已合并。合并后回填分支与 HEAD。
 
@@ -765,6 +768,8 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 队列调整理由：B1 到 B5 已由 D1-12 到 D1-17 解除；B6 不再阻塞，因为 P2 到 P5 的产品逻辑先在 `cmd/dcu` 内按端口实现，迁移登记见 §12.6。这样并行度取决于类族边界，而不是公共组件的排期。
 
 ### 12.2 任务状态
+
+> 谱系说明（2026-11-27）：表中「已合并 feat/dcu」指已合入集成分支并经批次验收。2026-11-26 夜间批次（merge `656731ab`）经 edgec-verifier 验收后进入 main；远端以单进口提交 `a253c4db` 把它带入新谱系，随后 PR #591 的 CI 修复与 dependabot 更新进入 `origin/main`（`8d9bc384`）。批次验收明细见 `.audit/dcu-plan-night.tsv` 的 `batch-accepted` 行；旧本地历史保留在 `backup/local-main-656731ab`。2026-11-27 起 `feat/dcu` 重建到 `8d9bc384`（旧 tip 归档在 `archive/feat-dcu-656731ab`）并已 ff 到 main；新任务从最新 `feat/dcu` 开 worktree。
 
 | 任务 | 状态 | 分支 | HEAD | 证据 | 备注 |
 | --- | --- | --- | --- | --- | --- |
@@ -865,6 +870,15 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
 | D6 | 未开始 | - | - | - | 随各阶段并行；D6-08 已完成 |
+| P3-4 | 已合并 feat/dcu | `dcu/P3-4-event-start-time` | `0fe4adca`（merge f02ed19e） | `docs/evidence/DCU-P3-4-EVENT-START/` | 恢复记录按 slot_id 匹配同表发生记录取 start_time；A14 仍每 OI；发生记录被窗口挤出时丢弃恢复并只更新 last_end_time；verifier 红 `2001000000000 != 1001000000000`→绿 45/45、验收 3 连绿、变异守卫 2 条（start-slot / archive-start）红/绿、ASAN 5/5、对抗评审两轮无功能性 finding 并补 archive/eviction 守卫；合并树 373/373、fanalyzer 5 known/0 new |
+| P3-7 | 已合并 feat/dcu | `dcu/P3-7-date-time-tag` | `169c4946`（merge 4ce21c74） | `docs/evidence/DCU-P3-7-DATE-TIME-TAG/` | 新增 `DLT698_TAG_DATE_TIME = 25`；codec/axdr/class_event 的 date_time/date_time_s 标签字面量全部换常量；codec 对象 sha256 前后一致 `eaa6b7c4…`；45/45、验收 3 连绿；纯等价清理无对抗评审 |
+| P3-9 | 已合并 feat/dcu | `dcu/P3-9-heartbeat-demo-slot` | `7877146e`（merge 04baf768） | `docs/evidence/DCU-P3-9-HEARTBEAT-DEMO-SLOT/` | demo 控制 tick 改为档案第一只表的稳定 slot_id，空档案跳过；首版按地址 10000001 被验收 3/3 红打回（台架表 000000000001），重做后红 `0 != 1`→绿 45/45、验收 3 连绿、变异守卫 1 条红/绿；合并树 373/373 |
+| P3-8 | 已合并 feat/dcu | `dcu/P3-8-catalog-gaps` | `7da6226e`（merge eb3312e6） | `docs/evidence/DCU-P3-8-CATALOG-GAPS/` | 生成器按 7.3 真实方法集合校验（Class 7/24 无 3、Class 9 无 6），OI 方法 <127 必须属于类集合或 F001 {9,10} 例外；缺号/多号/重复/越界退 1；真实源生成物逐字节一致；新测试注册进 guard selftest；变异守卫 1 条红/绿；运行时 max 语义另立 |
+| P3-1 | 已合并 feat/dcu | `dcu/P3-1-acl-cap` | `fb96cfef`（merge a33af605） | `docs/evidence/DCU-P3-1-ACL-CAP/` | 每对象 ACL 16→12 B、attr 1..18/5 B、方法 12/对象、会话 1024 B 方法池 fail closed；Class 18 F001 9/10、Class 19 4307-09 127-129、Class 21 F100 9-12、Class 23 2301-08 A17/A18 已广告并走 resolver DAR 5；预算会话 3752、对象列表 6014，224/10240/4096 未抬高；对抗评审抓出池溢出测试假绿，已修测试并补池界变异守卫；合并树 373/373、ASAN 32/32、fanalyzer 5 known/0 new |
+| P3-2 | 已合并 feat/dcu | `dcu/P3-2-write-async` | `c741091e`（merge 894c038e） | `docs/evidence/DCU-P3-2-WRITE-ASYNC/` | 统一 write_async 契约：调用方返回后立即 unref；poll/UDP/HTTP 成功时自持引用到完成/失败/destroy；同步消费不持；rc<0 不接管；对抗评审抓出 HTTP 完成回调 destroy 的 UAF/二次释放与 CURLM_ADDED_ALREADY 正 rc，均已修并补测试/守卫；ASAN 17/17；合并树 373/373 |
+| P3-5 | 已合并 feat/dcu | `dcu/P3-5-var-4510` | `607eedb4`（merge 9c45f835） | `docs/evidence/DCU-P3-5-VAR-4510/` | 标量端口 `dcu_value_t` 无 octet-string，4510 A5 按 DEVIATIONS 无来源口径回 DAR 5（旧 DAR 7）；主站 GET 仍 octet-string(6)+MAC；红 `-22 != -21`→绿 45/45；验收 3 连绿；变异守卫 1 条；合并树 373/373、ASAN 103 测试无报告 |
+| P3-9 | 已合并 feat/dcu | `dcu/P3-9-runtime-methods` | `c0449106`（merge 21c84480） | `docs/evidence/DCU-P3-9-RUNTIME-METHODS/` | 运行时类方法集合改为真实 7.3 集合（Class 7/24 无 3、Class 9 无 6）；`absent_methods` 位图 + `dcu_698_class_defines_method`；未定义方法 resolver DAR 4，ACL 先 DAR 3；appconn 零 diff；红编译/断言→绿 45/45、object_model 26/26、catalog 5/5；变异守卫 1 条；合并树 373/373 |
+| P3-6 | 已合并 feat/dcu | `dcu/P3-6-zero-seq-oi` | `cbc416b8`（merge 2415aebf） | `docs/evidence/DCU-P3-6-ZERO-SEQ-OI/` | 删除错误别名 `OAD_ZERO_SEQ_CURRENT` 与唯一种子行（标准 A.3/表204 的 OI 2002 是电压相角，全文无零序 OI；2001 A4 是零线电流）；pytest 守卫注册 guard selftest；删前红/删后绿；45/45；生成物零变化；验收 3 连绿 |
 
 ### 12.3 本轮验收记录
 
@@ -930,6 +944,17 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 2026-11-26 | CLEANUP-CODEC | 已合并 feat/dcu | `docs/evidence/DCU-CLEANUP-CODEC/` | 9 处标签字面量换常量，对象码 sha256 前后一致，targeted ctest 7/7；合并树门禁见证据；详见 §12.2 CLEANUP-CODEC |
 | 2026-11-26 | D4-09 | 已合并 feat/dcu | `docs/evidence/DCU-D4-09/` | 红 5/45→绿 45/45；变异守卫 1/1；验收 3 连绿（2/2，3+35 passed）；对抗评审 NO FINDINGS；对象 128/ACL 115/列表 5551 B；详见 §12.2 D4-09 |
 | 2026-11-26 | D4-06 | 已合并 feat/dcu | `docs/evidence/DCU-D4-06/` | 红 5/45→绿 45/45；变异守卫 1/1；验收 3 连绿（2/2，3+35 passed）；对抗评审 NO FINDINGS；对象 131/ACL 118/列表 5806 B；详见 §12.2 D4-06 |
+| 2026-11-26 | 夜间批次收尾（12 单元及同批） | 已合并 main（经 `656731ab`） | `.audit/dcu-plan-night.tsv` 的 `batch-accepted` 行 | edgec-verifier 验收：Release 373/373、验收 11/11（19/19 任务，COVERAGE=ON）、守卫 287/287、mutation 15/15、formal 1073 属性/84083 状态；最终 tip ASAN 4 目标绿、无报告；UBSAN/trimmed/arm64 未跑（operator 提前停止） |
+| 2026-11-27 | 谱系切换 | 已同步 | `origin/main` `8d9bc384`；进口提交 `a253c4db` | 本地 main 由 reflog 记录 reset 到 origin/main；DCU 路径与新 main 内容一致，全树仅 19 个非 DCU 文件不同；旧本地历史保留在 `backup/local-main-656731ab`；feat/dcu 已重建到 `8d9bc384`（旧 tip 归档在 `archive/feat-dcu-656731ab`）并已 ff 到 main；后续任务从最新 feat/dcu 开 worktree，不复用旧构建缓存；新 main 本地复验（edgec-verifier 报告）：构建警告 0、ctest 373/373、formal 1073/84083、守卫 287/287、验收 11/11、fanalyzer 5 known/0 new |
+| 2026-11-27 | P3-4 | 已合并 feat/dcu | `docs/evidence/DCU-P3-4-EVENT-START/` | 红 `2001000000000 != 1001000000000`→绿 45/45；验收 3 连绿（2/2，35 passed，22.93/22.92/22.75s）；变异守卫 2 条红/绿；ASAN 5/5；对抗评审两轮无功能性 finding，补 archive/eviction 守卫；合并树 ctest 373/373、fanalyzer 5 known/0 new |
+| 2026-11-27 | P3-7 | 已合并 feat/dcu | `docs/evidence/DCU-P3-7-DATE-TIME-TAG/` | codec 对象 sha256 `eaa6b7c4…` 前后一致；`cmd/dcu` 标签路径无裸 0x19/0x1C；45/45；验收 3 连绿（2/2，35 passed，22.66/22.69/22.58s） |
+| 2026-11-27 | P3-9 | 已合并 feat/dcu | `docs/evidence/DCU-P3-9-HEARTBEAT-DEMO-SLOT/` | 首版 acceptance 3/3 红（trip 帧缺失）已打回；重做后红 `0 != 1`→绿 45/45；验收 3 连绿（2/2，35 passed，22.74/17.85/17.97s）；变异守卫红/绿 |
+| 2026-11-27 | P3-8 | 已合并 feat/dcu | `docs/evidence/DCU-P3-8-CATALOG-GAPS/` | 红（旧码）三条断言退 1；绿 5/5、source_window 6/6、--check 0、catalog matches；生成物 sha256 前后一致；变异守卫红 rc=1/绿 rc=0；guard selftest 注册通过；工具单不改产品代码 |
+| 2026-11-27 | P3-1 | 已合并 feat/dcu | `docs/evidence/DCU-P3-1-ACL-CAP/` | 红 5 个用例（四类 DAR `3 != 5`、对象列表 `5828 != 6014`）→绿 45/45；验收 3 连绿（2/2，35 passed，22.42/27.83/21.63s）；变异守卫 4 条（含池界）红/绿；对抗评审 1 finding（假绿测试）已修；OBJECT_MODEL/DEVIATIONS 同步 |
+| 2026-11-27 | P3-2 | 已合并 feat/dcu | `docs/evidence/DCU-P3-2-WRITE-ASYNC/` | 红 4 条失败→绿 45/45；验收 3 连绿（2/2，35 passed，17.49/27.58/18.19s）；ASAN 17/17；变异守卫 3 条红/绿；对抗评审 2 finding（HTTP 回调 UAF、ADDED_ALREADY 正 rc）已修并对原 repro 复跑 |
+| 2026-11-27 | P3-5 | 已合并 feat/dcu | `docs/evidence/DCU-P3-5-VAR-4510/` | 红 `-22 != -21`→绿 45/45；验收 3 连绿（2/2，35 passed，21.56/16.87/22.22s）；变异守卫红/绿；主站 GET 不回归 |
+| 2026-11-27 | P3-9 | 已合并 feat/dcu | `docs/evidence/DCU-P3-9-RUNTIME-METHODS/` | 红（编译/断言）→绿 45/45；验收 3 连绿（2/2，35 passed，22.51/22.02/17.00s）；变异守卫红/绿；集合与 P3-8 CLASS_METHODS 对齐 |
+| 2026-11-27 | P3-6 | 已合并 feat/dcu | `docs/evidence/DCU-P3-6-ZERO-SEQ-OI/` | pytest 删前红/删后绿；45/45；guard selftest 全绿；生成物 sha256 一致；验收 3 连绿（2/2，35 passed，22.43/17.15/17.27s） |
 
 ### 12.4 并行工作树
 
@@ -947,12 +972,12 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | --- | --- | --- | --- |
 | F200 属性语义 | 产品把 attr2 当波特率（uint32）、attr3 当校验位（uint8）；目录 Class 22 里 attr2 是设备对象列表（array）、attr3 是数量（unsigned） | 主站按标准读 F200 会拿到类型不符的值；D1-14 的合法写用例沿用了现有产品口径 | 产品点位表拍板后另立 defect；D1-10 只断言位号范围，不判定语义 |
 | 3000/3005 属性号 | `class_id` 已改 24，属性位在 D1-18b 中按 Class 24 重排 | 主站按 Class 24 读会落到未定义属性；位号范围检查发现不了 | D1-18b 收口 |
-| codec 魔数标签 | 已修（2026-11-26，`docs/evidence/DCU-CLEANUP-CODEC/`）：编解码器里的 `18`/`5`/`28`、`0x1C`/`0x00`/`0x54` 已改用 `DLT698_TAG_*`；`0x19`（date_time）无对应常量，保留并在原位注明 | 可读性，易与新标签漂移 | 已收口；补 `DLT698_TAG_DATE_TIME` 后再替换 `0x19`；已合并 feat/dcu（merge `a106bec7`） |
-| A.7 方法上限按类聚合 | 本分支已修（2026-11-26，D1-10A）：夹具新增 per-OI 附录 A 方法集合与 7.3 类表自身上限 `max_class_method`，`test_methods_stay_within_the_oi_definition` 对同类其它 OI 的方法号变红；既有按类 `max_method` 检查保留 | 原缺口已消除：方法放错 OI 会被拒收；7.3 类表内部跳号仍按 max 放行（既有行为，未变） | 证据 `docs/evidence/DCU-D1-10A/`；已合并 feat/dcu（merge `632783b7`） |
+| codec 魔数标签 | 已收口（2026-11-26 CLEANUP-CODEC；2026-11-27 P3-7）：新增 `DLT698_TAG_DATE_TIME = 25`，`foundation/src/protocol/dlt698_codec.c`、`cmd/dcu/dcu_698_axdr.c`、`cmd/dcu/dcu_698_class_event.c` 的 date_time/date_time_s 标签字面量全部换常量；codec 对象 sha256 前后一致 `eaa6b7c4…` | 可读性，易与新标签漂移 | 已完成；证据 `docs/evidence/DCU-P3-7-DATE-TIME-TAG/`；已合并 feat/dcu（merge `4ce21c74`） |
+| A.7 方法上限按类聚合 | D1-10A + P3-8 生成器按真实 7.3 集合校验；2026-11-27 P3-9 运行时也用真实集合（Class 7/24 无 3、Class 9 无 6），未定义方法 resolver DAR 4、ACL 先 DAR 3 | 生成器/检查器与运行时方法集合均已收口 | 证据 `docs/evidence/DCU-P3-8-CATALOG-GAPS/`、`docs/evidence/DCU-P3-9-RUNTIME-METHODS/`；已合并 feat/dcu（merge `21c84480`） |
 | 生成器行窗口 | 已修（2026-11-26，D1-10B）：`appendix_a_window` 按 `附 录 A`/`附 录 B` 标题定位附录 A，再按 `表A.1`..`表A.14`（除数据格式表 A.10）标题及“对象名称”表头校验；行号整体平移后解析结果不变，标题缺失或重复时生成器报错退出 | 原缺口已消除：不再静默丢行 | 证据 `docs/evidence/DCU-D1-10B/`；已合并 feat/dcu（merge `8127a473`） |
 | test-platform 解析器 | `testplatform.protocol.dlt698.parse_get_response_list` 遇到逐项 DAR 抛错、拒绝 count 0；`get_request_list` 仍拒绝空列表 | 验收只能直读 APDU，平台侧无法表达合法空列表与混合结果 | 外部 pinned 仓库更新；本仓不改 |
 | 继电器 OAD 映射与真实 DO 执行 | P4 已提供映射接口：`dcu_relay_map_t`（固定 32 项）由 `dcu_node` 拥有，`dcu_node_set_relay` 填表；空表 129–131 回 DAR 2，命中后因真实 DO 未接线仍回 DAR 5 | 点位表数值（继电器 OAD → 表地址/DO 通道）与跳合闸执行未接线 | 产品点位表拍板后填表；真实 DO 执行另立任务 |
-| `OAD_ZERO_SEQ_CURRENT` 的 OI 编号 | `dcu_router.h` 把它定义成 `0x20020200`，但目录里 OI 2002 属性 2 是电压相角；驱动点表按零序电流命名映射它 | 当前没有对象行或方案引用它，北向名已删；一旦有人按零序电流使用会读错量 | 先确认标准 OI（2002 是相角），改常量或改用正确 OI；另立任务，不在本轮改 |
+| `OAD_ZERO_SEQ_CURRENT` 的 OI 编号 | 已收口（2026-11-27，`dcu/P3-6-zero-seq-oi`）：标准 A.3/表204 的 OI 2002 是电压相角，全文无零序电流 OI；2001 A4 是零线电流（IN=3I0）；删除宏与唯一种子行 | 不再有按零序电流误读的 OAD | 已完成；证据 `docs/evidence/DCU-P3-6-ZERO-SEQ-OI/`；已合并 feat/dcu（merge `2415aebf`）；相邻 3006 注释/脚本硬编码另立 |
 | D2-05 执行路径 | 6016 到 601B 的管理平面可做，但事件上送依赖 D3-02/D3-05b 的事件记录与上报接线；透明转发依赖 raw I/O 的等待/比对与 ADR-0017 REPORT CHOICE[2]；6013 任务当前拒绝 scheme types 2-5 | D2-05 的“事件上送与透明转发各一例”无法在管理平面任务内完成 | 拆成 D2-05a（管理平面、ACL、GET/ACTION、持久化、DAR 诚实，夜间先做）与 D2-05b（执行，等 D3-02/D3-05b 与 raw I/O）；事件上送仍归 D3-02/D3-05b |
 | MS 编码上下文 | ACTION Data 参数与 A2 Data 结构（6014/6015/6016 到 601B）按 H.5.4 编成 `5C choice`；RSD Selector5 的 MS 是协议 SEQUENCE 字段，标准示例（`docs/698_parsed.md` 1825-1833、10311-10317）为裸 choice，产品未实现 Selector5 | 两种上下文不可混用；把 ACTION Data 的 `5C` 当缺陷会破坏 H.5.4 标准帧 | 保持 ACTION Data 的 `5C`；日后实现 RSD Selector5 时另写 typed codec，不共用 `_decode_ms` |
 | D2-06 执行面 | 601C/601D 管理平面可做；SnF/重试/CHOICE[2] 记录上报与生产来源依赖 ADR-0017 与 D3-05b | 验收“主站断开恢复、按序补齐”无法在管理平面完成 | D2-06a 管理平面已做；D2-06b/D3-05b 承接；D2-06-r 显式 storage 与事务助手；ACL cap 由 D2-07/D2-08 提升 |
@@ -975,14 +1000,20 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | Class 11 文件/脚本集合 producer | 7000/7010 对象行与只读 ACL 已就绪（D5-03），但无文件/脚本集合存储与元素来源（D4-06 未做）；7010 A2 与 7000 方法回 DAR 5 | 集合元素不可读、文件/脚本方法不可执行 | 有存储与 producer 后补对象 mask、resolver 编码与验收值用例；另立任务 |
 | Class 25/26 通信参数生产者 | 对象行/只读 ACL 与 4510 A5 平台物理单播 MAC 已就绪（D4-10）；无 APN/ICCID/IMSI/SIM 号码/信号强度/端口配置来源，4511–4517 无逐口映射 | 除 4510 A5 外全部 DAR 5；写与持久化不可用 | 有平台配置或存储后补逐口映射、写与持久化；另立任务 |
 | 事件快照 device_id 错位 | `dcu_698_var.c::_read_element` 把 OAD 低字节当 device_id 传 `read_shadow`，`_capture_record_snapshots` 用元素序号当设备号；F5R 测试把 snapshot_count 置 0 隔离 | 事件 A2/A6 关联数据快照不跟表 | F5S 已修：快照按 `ev->device_id` 经 `dcu_698_var_encode_axdr_device` 取表；本条仅留作历史 |
-| 事件恢复记录 start_time 身份 | `dcu_event_monitor.c:231/247` 的 `evt->last_start_time` 是每个事件 OI 一份；F5S 只修 A6 快照取表 | 同一 OI 两只表交错发生时，恢复记录的发生时间可能来自另一只表 | 另立任务：按 slot 保存或改为记录级字段 |
+| 事件恢复记录 start_time 身份 | 已收口（2026-11-27，`dcu/P3-4-event-start-time`）：`dcu_event_record_t` 增加 `slot_id`，恢复记录按同 slot 的最新 active 记录取 `start_time`；发生记录被 10 条窗口挤出时不追加恢复记录，只更新 A14 `last_end_time`（不伪造起点）；A14 `last_start_time` 仍每 OI | 同一 OI 两只表交错不再串时间；淘汰分支是显式产品语义（丢弃而非伪造） | 已完成；证据 `docs/evidence/DCU-P3-4-EVENT-START/`；已合并 feat/dcu（merge `f02ed19e`） |
 | Class 19 设备管理 producer | 4300/4307–4309 对象行与只读 ACL 已就绪（D4-04）；无设备身份/版本/复位/数据初始化/恢复出厂/事件初始化/需量初始化端口 | GET 与方法按类定义回 DAR 5 | 有设备身份与平台端口后补 mask、处理器与验收值；另立任务 |
-| Class 19 子设备方法 127..129 | 表178 类方法 1..6；4307..4309 另定义 127..129（出厂启用/阀门控制/机电同步） | D4-04 记入 resolver 定义但 ACL 不广告（每对象 `method_ids` 8 槽，类方法占 6），主站 ACTION 回 DAR 3 | 方法空间 9 > 8 | 扩 `method_ids` 或裁减类方法广告，并重算 `DRIVER_PRIV_SIZE` |
-| 从站响应池与 write_async 引用契约 | D4-04 给从站独立 `EDGE_SLAVE_AXDR_MAX + 256` × 32 池；poll `write_async` 持引用，UDP/HTTP/OPCUA 不持引用 | slave 当前只用 poll io；IEMS 32 从站总线可能耗尽 32 缓冲并静默丢响应 | 既有契约缺口 | 统一 `write_async` 引用契约或按 io 类型区分；多从站产品按总线数扩容 |
-| Class 21 ESAM producer 与方法 9..12 | F100 对象行/只读 ACL 已就绪（D4-07），方法 1..8 广告、9..12 因每对象方法槽 8 记 HOLD；无 ESAM 硬件/会话来源 | 方法 9..12 主站 ACTION 回 DAR 3；A2/A3 序列号/版本与安全会话不可用 | 有 ESAM 硬件或安全会话端口后补值、处理器与验收；扩 ACL 方法槽需重算 `DRIVER_PRIV_SIZE` |
-| Class 23 总加组 producer 与 A17/A18 | 2301..2308 对象行/只读 ACL 已就绪（D4-09），A1..A16 广告、A17/A18 因 ACL 属性 schema 16 记 HOLD；无总加配置/总加值/滑差/功控来源 | A17/A18 主站 DAR 3；总加值与滑差不可用 | 有配置与总加来源后补 mask、处理器与验收；扩 ACL 属性槽需重算 `DRIVER_PRIV_SIZE` |
-| Class 18 文件传输 producer 与 F001 9/10 | F000..F002 对象行/只读 ACL 已就绪（D4-06），方法 1..8 广告、F001 9/10 因每对象方法槽 8 记 HOLD；无文件存储/DFU 激活/校验/回滚来源 | F001 9/10 主站 DAR 3；分块传输与激活不可用 | 有文件存储与 DFU 端口后补 mask、处理器与验收；扩方法槽需重算 `DRIVER_PRIV_SIZE` |
+| Class 19 子设备方法 127..129 | 已收口（2026-11-27，`dcu/P3-1-acl-cap`）：每对象方法上限 8→12、会话级 1024 B 方法池；4307..4309 方法 1..6+127..129 已广告 | ACTION 到 resolver 回 DAR 5（无来源）；不再 DAR 3 | 已完成；证据 `docs/evidence/DCU-P3-1-ACL-CAP/`；已合并 feat/dcu（merge `a33af605`） |
+| 从站响应池与 write_async 引用契约 | 已收口（2026-11-27，`dcu/P3-2-write-async`）：`io_executor.h` 写明契约；poll/UDP/HTTP 成功时自持引用到完成/失败/destroy，调用方无论 rc 立即 unref；HTTP 完成回调 destroy 顺序与 CURLM_ADDED_ALREADY 已修 | slave 只用 poll 的路径安全；UDP/HTTP 引用不再漏/双释放；MQTT 仍按库拷贝假设，未验证 | 契约完成；证据 `docs/evidence/DCU-P3-2-WRITE-ASYNC/`；MQTT 真实端点另立 |
+| Class 21 ESAM producer 与方法 9..12 | 已收口（2026-11-27，`dcu/P3-1-acl-cap`）：F100 方法 1..12 已广告 | 方法 9..12 ACTION 回 DAR 5（无 ESAM 来源）；A2/A3 序列号/版本与安全会话仍无来源 | 已完成；证据 `docs/evidence/DCU-P3-1-ACL-CAP/`；已合并 feat/dcu（merge `a33af605`） |
+| Class 23 总加组 producer 与 A17/A18 | 已收口（2026-11-27，`dcu/P3-1-acl-cap`）：2301..2308 A1..A18 已广告 | A17/A18 GET 回 DAR 5（无来源）；SET 仍 DAR 3；总加值与滑差仍不可用 | 已完成；证据 `docs/evidence/DCU-P3-1-ACL-CAP/`；已合并 feat/dcu（merge `a33af605`） |
+| Class 18 文件传输 producer 与 F001 9/10 | 已收口（2026-11-27，`dcu/P3-1-acl-cap`）：F001 方法 1..10 已广告 | F001 9/10 ACTION 回 DAR 5（无来源）；文件存储/DFU 激活/校验/回滚仍不可用 | 已完成；证据 `docs/evidence/DCU-P3-1-ACL-CAP/`；已合并 feat/dcu（merge `a33af605`） |
 | heartbeat 演示冻结 device_id | 已收口（2026-11-26，`dcu/F5-heartbeat-slot`）：DCU_DEMO_MODE 下冻结触发与演示跳闸改用 `inv->meters[i].slot_id`，不再用循环下标；删除重排后冻结断面与跳闸按稳定身份归表 | 原 demo-only 错表/丢冻结已消除，生产不走 | 已完成；证据 `docs/evidence/DCU-F5-HEARTBEAT/` |
+| heartbeat 演示控制 tick 目标 | 已收口（2026-11-27，`dcu/P3-9-heartbeat-demo-slot`）：`dcu_heartbeat_control_tick` 从档案第一只表取稳定 slot_id，空档案跳过；不再写死 slot 0 或地址 10000001 | demo-only；生产遥控路径未改 | 已完成；证据 `docs/evidence/DCU-P3-9-HEARTBEAT-DEMO-SLOT/`；已合并 feat/dcu（merge `04baf768`） |
+| A6 记录序号回绕重复（pre-existing） | 对抗评审 2026-11-27 发现：`new_rec->index = record_count + 1` 在 12 次追加后编出 `11,11,10,…,3`（缺 2）；该行在 `99318550` 与修复 tip 相同 | 若 A6 序号唯一性是契约，主站按序号去重会误判 | 另立任务：按窗口内最大 index + 1 或记录级序号生成；不在 P3-4 范围 |
+| 从站响应池 32 项容量 | D4-04 独立池 32×10496；slave 只用 poll；IEMS_MAX_VBUS=32 多从站可能耗尽并静默丢响应 | DCU 单从站不受影响 | 多从站产品按总线数扩容或加背压；另立任务 |
+| bus_orchestrator destroy 不释放 engine/session | 2026-11-27 P3-2 对抗评审发现：`bus_orchestrator_destroy` 不销毁 `engine_create_master` 创建的 engine/session manager；测试用共享夹具规避 | 进程退出前可能泄漏 engine/session；生产单例生命周期到进程结束 | 另立任务：destroy 释放 setup_master 创建的 engine/session；不在 P3-2（write_async 契约）范围 |
+| dcu_698_value_for_oad 的 4510 A5 标量路径 | 标量端口 `dcu_value_t` 无 octet-string，6 字节 MAC 不可承载；主站 GET 走 `resolve_axdr` 正常 | 标量路径旧回 DAR 7（类型不符） | 已收口（2026-11-27，P3-5）：按 DEVIATIONS 无来源口径回 DAR 5；证据 `docs/evidence/DCU-P3-5-VAR-4510/`；已合并 feat/dcu（merge `9c45f835`） |
+| 3006 注释与 OAD 脚本硬编码（follow-up） | P3-6 发现：`dcu_soe_event_engine.h:24` 把 3006 注释成零序超限；`scripts/parse_*`、`build_exhaustive_idls.py` 硬编码 0x20020200 为零序；`OAD_REACTIVE_ENERGY=0x0020` 命名疑似错位 | 文档/脚本误导，不影响当前产品查表 | 另立任务逐项订正；不在 P3-6 范围 |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 

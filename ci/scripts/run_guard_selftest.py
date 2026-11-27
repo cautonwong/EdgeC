@@ -813,6 +813,14 @@ TEST_MATRIX = [
         "arg_flag": "--root"
     },
     {
+        "guard_name": "check_iems_command_egress.py",
+        "script": os.path.join(SCRIPTS_DIR, "check_iems_command_egress.py"),
+        "good_target": os.path.join(FIXTURES_DIR, "good_iems_command_egress"),
+        "bad_target": os.path.join(FIXTURES_DIR, "bad_iems_command_egress"),
+        "arg_flag": "--root",
+        "expect_bad": "FAIL edge_api_write_tag_ex adapters/rest_api/src/new_endpoint.c:2"
+    },
+    {
         "guard_name": "check_acceptance_wrapper_signals.py",
         "script": os.path.join(SCRIPTS_DIR, "check_acceptance_wrapper_signals.py"),
         "good_target": os.path.join(FIXTURES_DIR, "good_acceptance_wrapper_signals"),
@@ -1662,6 +1670,34 @@ def main():
         print(msg)
         failures.append(msg)
 
+    total_tests += 1
+    rc, out, err = run_cmd([
+        sys.executable, "-I",
+        os.path.join(REPO_ROOT, "tests", "test_dcu_698_catalog_method_sets.py"),
+    ])
+    if rc == 0:
+        print("  ✅ [PASS] test_dcu_698_catalog_method_sets.py "
+              "(method-set gaps rejected, real catalog unchanged)")
+        passed_tests += 1
+    else:
+        msg = f"❌ [FAIL] 698 catalog method-set guard failed:\n{out}\n{err}"
+        print(msg)
+        failures.append(msg)
+
+    total_tests += 1
+    rc, out, err = run_cmd([
+        sys.executable, "-I",
+        os.path.join(REPO_ROOT, "tests", "test_dcu_698_router_oad_catalog.py"),
+    ])
+    if rc == 0:
+        print("  ✅ [PASS] test_dcu_698_router_oad_catalog.py "
+              "(zero-sequence OAD absent, every OAD OI in the catalog)")
+        passed_tests += 1
+    else:
+        msg = f"❌ [FAIL] 698 router OAD catalog guard failed:\n{out}\n{err}"
+        print(msg)
+        failures.append(msg)
+
     # ---- Coverage floor gate: good info passes, low info fails ---------------
     print("\n" + "=" * 80)
     print("📈 [COVERAGE_GATE] Testing coverage floor sensitivity")
@@ -1868,7 +1904,9 @@ def main():
         "check_privileged_test_runs.py",
         "check_dcu_698_catalog.py",
         "check_iems_control_slave.py",
+        "check_iems_command_egress.py",
         "check_iems_stdout_line_buffered.py",
+        "check_iems_strategy_classification.py",
         "check_acceptance_wrapper_signals.py",
         "check_doc_references.py",
         "check_guard_path_independence.py",
@@ -1882,6 +1920,32 @@ def main():
             return 1
         else:
             print(f"  ✅ [LIVE_PASS] {script_name}")
+
+    # A gate that carries its own in-memory negative cases must replay them in
+    # CI too, or a regressed gate passes the live table and nobody notices.
+    rc, out, err = run_cmd([
+        sys.executable,
+        os.path.join(SCRIPTS_DIR, "check_iems_strategy_classification.py"),
+        "--root", REPO_ROOT,
+        "--selftest",
+    ])
+    if rc != 0:
+        print(f"❌ [LIVE_SELFTEST_FAIL] check_iems_strategy_classification.py "
+              f"rejected its own negative cases:\n{out}{err}")
+        return 1
+    print("  ✅ [LIVE_SELFTEST_PASS] check_iems_strategy_classification.py --selftest")
+
+    rc, out, err = run_cmd([
+        sys.executable,
+        os.path.join(SCRIPTS_DIR, "check_iems_command_egress.py"),
+        "--root", REPO_ROOT,
+        "--selftest",
+    ])
+    if rc != 0:
+        print(f"❌ [LIVE_SELFTEST_FAIL] check_iems_command_egress.py "
+              f"rejected its own negative cases:\n{out}{err}")
+        return 1
+    print("  ✅ [LIVE_SELFTEST_PASS] check_iems_command_egress.py --selftest")
 
     # AGENTS.md 点名的脚本必须存在：文档指向不存在的守卫时，规则等于没写。
     ledger_failures = check_live_ledgers()

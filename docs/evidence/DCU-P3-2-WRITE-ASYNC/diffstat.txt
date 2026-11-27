@@ -1,0 +1,20 @@
+ adapters/linux_platform/src/io_executor_linux.c    |  58 ++++-
+ ci/mutation_guards.tsv                             |   3 +
+ .../DCU-P3-2-WRITE-ASYNC/acceptance-dcu.log        |  40 ++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/asan.log        | 180 ++++++++++++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/comments.md     |  10 +
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/design.md       |  70 ++++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/diffstat.txt    |  18 ++
+ .../DCU-P3-2-WRITE-ASYNC/mutation-guard.log        |  11 +
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/red.log         | 152 ++++++++++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/spec.md         |  73 ++++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/summary.md      | 113 +++++++++
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/tests.log       | 155 ++++++++++++
+ .../verifier/mutation-guard.log                    |  10 +
+ docs/evidence/DCU-P3-2-WRITE-ASYNC/verify.md       |  44 ++++
+ modules/edge_io/include/io_executor.h              |  10 +
+ modules/edge_io/src/passthrough_mgr.c              |   1 +
+ tests/test_iems_full_stack.c                       |   2 -
+ tests/test_io_executor.c                           | 259 +++++++++++++++++++++
+ tests/test_passthrough.c                           | 190 +++++++++++++--
+ 19 files changed, 1364 insertions(+), 35 deletions(-)

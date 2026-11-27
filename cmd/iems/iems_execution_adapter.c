@@ -136,6 +136,24 @@ static int iems_exec_write(void *ctx, int bus_id, uint32_t slave_id, uint32_t ta
     return rc;
 }
 
+/* 影子模式的下行出口就是拒绝：任何调用方都到不了 edge_api_write_tag_ex。 */
+static int iems_exec_deny_shadow(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id,
+                                 double value, const char *proto, iems_write_done_fn on_done,
+                                 void *on_done_user) {
+    (void)ctx;
+    (void)value;
+    (void)on_done;
+    (void)on_done_user;
+    LOG_WARN(LOG_CAT_CORE,
+             "IEMS shadow gate: path=execution-port denied tag %u bus %d slave %u proto %s rc=%d",
+             tag_id, bus_id, slave_id, proto ? proto : "?", IEMS_WRITE_DENIED_SHADOW);
+    return IEMS_WRITE_DENIED_SHADOW;
+}
+
 iems_execution_port_t iems_execution_port_create(void *ctx) {
-    return (iems_execution_port_t){.ctx = ctx, .write_tag = iems_exec_write};
+    const iems_execution_config_t *cfg = (const iems_execution_config_t *)ctx;
+    bool shadow = cfg && cfg->shadow_mode;
+    return (iems_execution_port_t){.ctx = ctx,
+                                   .shadow_mode = shadow,
+                                   .write_tag = shadow ? iems_exec_deny_shadow : iems_exec_write};
 }

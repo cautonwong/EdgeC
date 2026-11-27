@@ -1,0 +1,111 @@
+$ ASAN_OPTIONS=detect_leaks=1 CMOCKA_TEST_FILTER=test_io_http_callback_destroy_keeps_pending_ref_count ./build-asan/tests/test_io_executor
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_io_http_callback_destroy_keeps_pending_ref_count
+[NETBUF][INFO] NetBufPool 0x50d000000040: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (1 -> 0)
+[       OK ] test_io_http_callback_destroy_keeps_pending_ref_count
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 1 test(s).
+exit=0
+
+$ ASAN_OPTIONS=detect_leaks=1 CMOCKA_TEST_FILTER=test_io_http_write_after_enable_read_keeps_ref ./build-asan/tests/test_io_executor
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_io_http_write_after_enable_read_keeps_ref
+[NETBUF][INFO] NetBufPool 0x50d000000040: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (1 -> 0)
+[       OK ] test_io_http_write_after_enable_read_keeps_ref
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 1 test(s).
+exit=0
+
+$ ASAN_OPTIONS=detect_leaks=1 ./build-asan/tests/test_io_executor
+[==========] tests: Running 17 test(s).
+[ RUN      ] test_io_create_uart
+[       OK ] test_io_create_uart
+[ RUN      ] test_io_uart_pty
+[NETBUF][INFO] NetBufPool 0x50d000000040: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Ref (1 -> 2)
+[IO-TX] FD:14 Sent 3 bytes SUCCESS
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000040: Unref (1 -> 0)
+[       OK ] test_io_uart_pty
+[ RUN      ] test_io_uart_unsupported_baud
+[NETBUF][INFO] NetBufPool 0x50d000000110: Created (Refs: 1)
+[2026-11-27 12:06:05][ERROR][IO] io_executor: unsupported UART baud 1234 for /dev/pts/8
+[NETBUF][INFO] NetBufPool 0x50d000000110: Unref (1 -> 0)
+[       OK ] test_io_uart_unsupported_baud
+[ RUN      ] test_io_tcp_loopback
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Ref (1 -> 2)
+[IO-TX] FD:14 Sent 8 bytes SUCCESS
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000001e0: Unref (1 -> 0)
+[       OK ] test_io_tcp_loopback
+[ RUN      ] test_io_tcp_keepalive_defaults
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000002b0: Unref (1 -> 0)
+[       OK ] test_io_tcp_keepalive_defaults
+[ RUN      ] test_io_tcp_connect_async_success
+[NETBUF][INFO] NetBufPool 0x50d000000380: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000380: Unref (1 -> 0)
+[       OK ] test_io_tcp_connect_async_success
+[ RUN      ] test_io_tcp_connect_async_refused
+[       OK ] test_io_tcp_connect_async_refused
+[ RUN      ] test_io_tcp_connect_async_cancel
+[       OK ] test_io_tcp_connect_async_cancel
+[ RUN      ] test_io_tcp_connect_async_keepalive_defaults
+[       OK ] test_io_tcp_connect_async_keepalive_defaults
+[ RUN      ] test_io_tcp_connect_async_is_async
+[       OK ] test_io_tcp_connect_async_is_async
+[ RUN      ] test_io_tcp_link_cb_reports_error_after_data_cb
+[NETBUF][INFO] NetBufPool 0x50d000000450: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000450: Unref (1 -> 0)
+[       OK ] test_io_tcp_link_cb_reports_error_after_data_cb
+[ RUN      ] test_io_tcp_refused
+[       OK ] test_io_tcp_refused
+[ RUN      ] test_io_write_hard_error_releases_pending_tx
+[NETBUF][INFO] NetBufPool 0x50d000000520: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000520: Ref (1 -> 2)
+[IO-TX-ERR] FD:9 Write Failed: Broken pipe
+[NETBUF][INFO] NetBufPool 0x50d000000520: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000520: Unref (1 -> 0)
+[       OK ] test_io_write_hard_error_releases_pending_tx
+[ RUN      ] test_io_udp_write_async_holds_ref_until_send_done
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000005f0: Unref (1 -> 0)
+[       OK ] test_io_udp_write_async_holds_ref_until_send_done
+[ RUN      ] test_io_http_write_async_holds_ref_until_complete
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d0000006c0: Unref (1 -> 0)
+[       OK ] test_io_http_write_async_holds_ref_until_complete
+[ RUN      ] test_io_http_callback_destroy_keeps_pending_ref_count
+[NETBUF][INFO] NetBufPool 0x50d000000790: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000790: Unref (1 -> 0)
+[       OK ] test_io_http_callback_destroy_keeps_pending_ref_count
+[ RUN      ] test_io_http_write_after_enable_read_keeps_ref
+[NETBUF][INFO] NetBufPool 0x50d000000860: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x50d000000860: Unref (1 -> 0)
+[       OK ] test_io_http_write_after_enable_read_keeps_ref
+[==========] tests: 17 test(s) run.
+[  PASSED  ] 17 test(s).
+exit=0

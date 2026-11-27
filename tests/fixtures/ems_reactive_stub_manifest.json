@@ -1,0 +1,59 @@
+{
+  "abi": 1,
+  "id": "ems",
+  "name": "EMS power-factor strategy app",
+  "version": "0.2.0",
+  "publisher_id": "edgeos-tests",
+  "language": "c",
+  "execution_profile": "wasm",
+  "entry": "app.wasm",
+  "tick_ms": 1000,
+  "limits": {
+    "heapKb": 64,
+    "cpuMsPerSec": 50,
+    "callsPerSec": 1000,
+    "publishPerSec": 1000,
+    "pidsMax": 4
+  },
+  "capabilities": {
+    "tags": {
+      "read": ["pcc_p_kw", "pcc_q_kvar", "pcc_pf", "pcc_online"],
+      "reason": "read the PCC meter sample"
+    },
+    "points": {
+      "publish": [
+        "app.ems.q_target_kvar",
+        "app.ems.strategy_state",
+        "app.ems.strategy_ts_ms"
+      ],
+      "reason": "PF station-level outputs, own namespace only"
+    },
+    "log": true
+  },
+  "requires": {
+    "points": ["pcc_p_kw", "pcc_q_kvar", "pcc_pf", "pcc_online"]
+  },
+  "contributes": {
+    "telemetry": {
+      "points": [
+        {"name": "q_target_kvar", "type": "number", "unit": "kvar", "contractVersion": 1},
+        {"name": "strategy_state", "type": "integer", "contractVersion": 1},
+        {"name": "strategy_ts_ms", "type": "integer", "unit": "ms", "contractVersion": 1}
+      ]
+    }
+  },
+  "settings": {
+    "schemaVersion": 1,
+    "fields": {
+      "enable": {"type": "boolean", "title": "Enable PF publishing", "default": false},
+      "en_pf_ctrl": {"type": "integer", "title": "v3 EnPFCtrl, 1 enables", "default": 0, "minimum": 0, "maximum": 1},
+      "reactive_mode": {"type": "integer", "title": "0 none, 1 PF, 2 dynamic Q", "default": 0, "minimum": 0, "maximum": 2},
+      "pf_target": {"type": "number", "title": "Signed PCC PF target", "default": 0.97},
+      "pf_deadband": {"type": "number", "title": "PF deadband", "default": 0.02},
+      "p_min_kw": {"type": "number", "title": "Low active power threshold", "default": 2.5},
+      "start_delay_s": {"type": "integer", "title": "Deviation start delay", "default": 2, "minimum": 0, "maximum": 60},
+      "hold_s": {"type": "integer", "title": "Command hold time", "default": 3, "minimum": 1, "maximum": 30},
+      "control_cycle_s": {"type": "integer", "title": "Control cycle", "default": 2, "minimum": 1, "maximum": 10}
+    }
+  }
+}

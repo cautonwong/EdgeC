@@ -1,0 +1,24 @@
+Test project /tmp/edgec-land/p3-1-acl-cap/build
+    Start 101: test_driver_dlt698
+1/1 Test #101: test_driver_dlt698 ...............***Failed    0.03 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_slave_rejects_acl_method_pool_overflow
+[NETBUF][INFO] NetBufPool 0x7fffa2611920: Ref (1 -> 2)
+[  ERROR   ] --- 6 != 3
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:1860: error: Failure!
+[  FAILED  ] test_slave_rejects_acl_method_pool_overflow
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_slave_rejects_acl_method_pool_overflow
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.07 sec
+
+The following tests FAILED:
+	101 - test_driver_dlt698 (Failed)
+Errors while running CTest

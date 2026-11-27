@@ -31,10 +31,10 @@ int dcu_698_epoch_is_civil(uint64_t epoch_s) {
 int dcu_698_date_time_s_to_epoch(const uint8_t *data, uint8_t len, uint64_t *out) {
     if (!data || !out) return -1;
     int offset;
-    if (len == 11 && data[0] == 0x19) {
+    if (len == 11 && data[0] == DLT698_TAG_DATE_TIME) {
         /* 表48：year(2) month day weekday hour minute second millisecond(2) */
         offset = 1;
-    } else if (len == 8 && data[0] == 0x1C) {
+    } else if (len == 8 && data[0] == DLT698_TAG_DATE_TIME_S) {
         offset = 0;
     } else {
         return -1;
@@ -68,7 +68,7 @@ int dcu_698_put_date_time_s(uint64_t epoch_s, uint8_t *buf, size_t cap, size_t *
     struct tm tm;
     if (!localtime_r(&t, &tm)) return -1;
     int year = tm.tm_year + 1900;
-    buf[(*off)++] = 0x1C;
+    buf[(*off)++] = DLT698_TAG_DATE_TIME_S;
     buf[(*off)++] = (uint8_t)((unsigned)year >> 8);
     buf[(*off)++] = (uint8_t)year;
     buf[(*off)++] = (uint8_t)(tm.tm_mon + 1);

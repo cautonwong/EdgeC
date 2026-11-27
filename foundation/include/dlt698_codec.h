@@ -387,6 +387,7 @@ typedef enum {
     DLT698_TAG_ENUM = 22,
     DLT698_TAG_FLOAT32 = 23,
     DLT698_TAG_FLOAT64 = 24,
+    DLT698_TAG_DATE_TIME = 25,
     DLT698_TAG_DATE_TIME_S = 28,
     DLT698_TAG_OAD = 81
 } dlt698_data_tag_t;

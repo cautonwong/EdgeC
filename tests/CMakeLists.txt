@@ -278,6 +278,22 @@ add_edge_test(test_iems_app_runtime test_iems_app_runtime.c)
 add_dependencies(test_iems_app_runtime test_fake_app_host)
 set_property(TEST test_iems_app_runtime APPEND PROPERTY
     ENVIRONMENT "EDGEC_APP_HOST_PATH=$<TARGET_FILE:app-host>;EDGEC_ABI_PROBE_WASM=${CMAKE_CURRENT_SOURCE_DIR}/fixtures/abi_probe.wasm;EDGEC_FAKE_APP_HOST_PATH=$<TARGET_FILE:test_fake_app_host>")
+# P2-03b: native stand-in for the PF strategy wasm app (no wasm toolchain
+# here); it links the pure decision module the future wasm package will port.
+add_executable(ems_reactive_stub_app fixtures/ems_reactive_stub_app.c
+               ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c
+               ${CMAKE_SOURCE_DIR}/cmd/iems/iems_pf_decision.c)
+target_include_directories(ems_reactive_stub_app PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c
+                             ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_link_libraries(ems_reactive_stub_app PRIVATE m)
+add_edge_test(test_iems_reactive_stub_app test_iems_reactive_stub_app.c
+              ${CMAKE_SOURCE_DIR}/sdk/c/edge_app_sdk.c)
+target_include_directories(test_iems_reactive_stub_app PRIVATE ${CMAKE_SOURCE_DIR}/sdk/c)
+target_compile_definitions(test_iems_reactive_stub_app PRIVATE
+    EDGEC_REACTIVE_STUB_MANIFEST="${CMAKE_CURRENT_SOURCE_DIR}/fixtures/ems_reactive_stub_manifest.json")
+add_dependencies(test_iems_reactive_stub_app ems_reactive_stub_app)
+set_property(TEST test_iems_reactive_stub_app APPEND PROPERTY
+    ENVIRONMENT "EDGEC_REACTIVE_STUB_APP=$<TARGET_FILE:ems_reactive_stub_app>")
 add_edge_test(test_registry_snapshot test_registry_snapshot.c)
 add_edge_test(test_edge_launcher test_edge_launcher.c)
 target_link_libraries(test_edge_launcher PRIVATE edge_linux_platform)
@@ -369,6 +385,18 @@ target_link_libraries(test_iems_bess_aggregate PRIVATE iems_app_lib)
 add_edge_test(test_iems_tou_demand test_iems_tou_demand.c)
 target_include_directories(test_iems_tou_demand PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
 target_link_libraries(test_iems_tou_demand PRIVATE iems_app_lib)
+
+add_edge_test(test_iems_soc_keep test_iems_soc_keep.c)
+target_include_directories(test_iems_soc_keep PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_soc_keep PRIVATE iems_app_lib)
+
+add_edge_test(test_iems_strategy_priority test_iems_strategy_priority.c)
+target_include_directories(test_iems_strategy_priority PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_strategy_priority PRIVATE iems_app_lib)
+
+add_edge_test(test_iems_pf_decision test_iems_pf_decision.c)
+target_include_directories(test_iems_pf_decision PRIVATE "${CMAKE_SOURCE_DIR}/cmd/iems")
+target_link_libraries(test_iems_pf_decision PRIVATE iems_app_lib)
 
 add_edge_test(test_ekf_soc test_ekf_soc.c)
 add_edge_test(test_mpc_dispatcher test_mpc_dispatcher.c)
@@ -486,6 +514,11 @@ add_edge_test(test_northbound_lifecycle test_northbound_lifecycle.c)
 add_edge_test(test_iems_full_stack test_iems_full_stack.c)
 add_edge_test(test_iems_node test_iems_node.c)
 add_edge_test(test_iems_execution_port test_iems_execution_port.c)
+# P1-08a c1：影子模式下行硬闸（注入端口、四条控制路径、DataHub 控制值不变）
+add_edge_test(test_iems_shadow_gate test_iems_shadow_gate.c)
+# REST 下行入口注入缝：被拒请求不得进入 edge_api 的 raw IO / write_tag。
+target_link_options(test_iems_shadow_gate PRIVATE -Wl,--wrap=edge_api_raw_io
+                                                    -Wl,--wrap=edge_api_write_tag)
 # P4-03c1 B5 回归：无 IO 总线必须恰好一次完成，池不泄漏
 add_edge_test(test_iems_noio_completion test_iems_noio_completion.c)
 
@@ -635,6 +668,13 @@ target_include_directories(test_iems_pcs_settings PRIVATE ${CMAKE_SOURCE_DIR}/cm
 target_compile_definitions(test_iems_pcs_settings PRIVATE
     IEMS_CONFIG_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tools/migration/golden")
 target_link_libraries(test_iems_pcs_settings PRIVATE iems_app_lib SQLite::SQLite3)
+
+# P1-07a 转换后的 per-LC 点位覆盖：golden、三值 source、原子失败、装配拒启
+add_edge_test(test_iems_lc_user_cfg test_iems_lc_user_cfg.c)
+target_include_directories(test_iems_lc_user_cfg PRIVATE ${CMAKE_SOURCE_DIR}/cmd/iems)
+target_compile_definitions(test_iems_lc_user_cfg PRIVATE
+    IEMS_CONFIG_GOLDEN_DIR="${CMAKE_SOURCE_DIR}/tools/migration/golden")
+target_link_libraries(test_iems_lc_user_cfg PRIVATE iems_app_lib SQLite::SQLite3)
 
 # P3-01b BMSER-BIN IPC 契约：真实文件计数、字段语义、边界拒绝
 add_edge_test(test_iems_bmser_ipc test_iems_bmser_ipc.c)

@@ -222,6 +222,12 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32
                         uint32_t tag_id, double value, const char *proto, iems_write_done_fn on_done,
                         void *on_done_user) {
     if (!node || !node->execution.write_tag) return -1;
+    /* 影子模式在聚合根先拒绝：PCS 调度与 DataHub 控制值镜像都不得被改写。 */
+    if (node->execution.shadow_mode) {
+        LOG_WARN(LOG_CAT_CORE, "IEMS shadow gate: path=aggregate-root denied tag %u rc=%d", tag_id,
+                 IEMS_WRITE_DENIED_SHADOW);
+        return IEMS_WRITE_DENIED_SHADOW;
+    }
 
     if (tag_id == IEMS_TAG_PCS_CONTROL) {
         double actual_kw = 0.0;
@@ -249,6 +255,13 @@ int iems_node_write_tag(iems_node_t *node, int bus_id, uint32_t slave_id, uint32
 
 int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_actual_kw) {
     if (!node) return -1;
+    /* 影子模式下 PCS 调度同样是下行控制写：早退，不改 PCS 状态与控制镜像。 */
+    if (node->execution.shadow_mode) {
+        LOG_WARN(LOG_CAT_CORE, "IEMS shadow gate: path=pcs-dispatch denied tag %u rc=%d",
+                 IEMS_TAG_PCS_CONTROL, IEMS_WRITE_DENIED_SHADOW);
+        if (out_actual_kw) *out_actual_kw = 0.0;
+        return IEMS_WRITE_DENIED_SHADOW;
+    }
     uint64_t t_start = uv_hrtime();
 
     /* 0. 控制环路看门狗超时降级检查 (Watchdog Degradation Check) */
@@ -328,6 +341,13 @@ int iems_node_dispatch_power(iems_node_t *node, double target_kw, double *out_ac
 
 int iems_node_emergency_trip(iems_node_t *node, const char *reason) {
     if (!node) return -1;
+    /* 紧急停机也是下行控制写：影子模式拒绝，不生成零功率下发或控制值镜像。 */
+    if (node->execution.shadow_mode) {
+        LOG_WARN(LOG_CAT_CORE,
+                 "IEMS shadow gate: path=emergency-trip denied tag %u reason=%s rc=%d",
+                 IEMS_TAG_PCS_CONTROL, reason ? reason : "Unknown", IEMS_WRITE_DENIED_SHADOW);
+        return IEMS_WRITE_DENIED_SHADOW;
+    }
     uint64_t t_start = uv_hrtime();
     LOG_ERROR(LOG_CAT_CORE, "🚨 IEMS Emergency Trip Triggered! Reason: %s", reason ? reason : "Unknown");
     node->fire_safety.is_pcs_emergency_stop = true;

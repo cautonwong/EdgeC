@@ -16,6 +16,7 @@
 #include "edge_authz_sqlite.h"
 #include "edge_log.h"
 #include "edgeos/edge_authz.h"
+#include "iems_point_model.h"
 #include "pipe_msg.h"
 
 static int fail(char *reason, size_t cap, const char *code) {
@@ -89,10 +90,20 @@ static int host_resolve(void *ctx, const char *name, uint32_t *handle, uint8_t *
     }
 
     const edge_tag_meta_t *tag = product_tag_by_name(self, name);
-    if (!tag) return fail(reason, reason_size, "not_found");
-    *handle = tag->id;
-    *access = APP_HOST_ACCESS_READ;
-    return 0;
+    if (tag) {
+        *handle = tag->id;
+        *access = APP_HOST_ACCESS_READ;
+        return 0;
+    }
+
+    /* 旧名只查点模型的精确表；无产品元数据的 tag 不能作为 handle。 */
+    uint32_t tag_id = IEMS_POINT_TAG_NONE;
+    if (iems_point_lookup_name(name, &tag_id) == 0 && product_tag_by_id(self, tag_id)) {
+        *handle = tag_id;
+        *access = APP_HOST_ACCESS_READ;
+        return 0;
+    }
+    return fail(reason, reason_size, "not_found");
 }
 
 /* Resolves the authz scope for a readable handle: a product tag name or

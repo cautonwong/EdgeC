@@ -1,12 +1,16 @@
 #include "bus_datahub_adapter.h"
 #include <cmocka.h>
+#include <errno.h>
 #include <setjmp.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <netinet/in.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
+#include <unistd.h>
 #include <uv.h>
 
 #include "datahub.h"
@@ -28,7 +32,6 @@ static int mock_write_async(io_handle_t* h, net_buf_t* buf) {
         memcpy(last_written, buf->b.data, buf->b.len);
         last_written_len = buf->b.len;
     }
-    net_buf_unref(buf);
     return 0;
 }
 
@@ -50,32 +53,48 @@ static void on_client_closed(uv_handle_t* handle) {
     g_client_closed = true;
 }
 
-static void test_passthrough_basic(void** state) {
-    (void)state;
-    uv_loop_t* loop = uv_default_loop();
-
-    // Need a dummy DataHub for Orchestrator
-    datahub_t* hub = calloc(1, sizeof(datahub_t));
-    assert_int_equal(datahub_init(hub, loop, "passthrough_bus", 64, 64, NULL, 0, NULL, NULL, NULL), 0);
-
+/* orchestrator 用全局单例存储：每个用例各建一份会覆盖前一份，旧 engine/池
+ * 不可达即泄漏。三个用例共用一份夹具，进程内只 create 一次。 */
+typedef struct {
+    uv_loop_t* loop;
+    datahub_t* hub;
     arbiter_t* arb;
-    arbiter_init(&arb, loop);
-    arbiter_resume(arb);
+    driver_manager_storage_t drv_mgr_storage;
+    bus_orchestrator_t* orch;
+} passthrough_fixture_t;
 
-    // Create real driver manager and register dlt698
-    driver_manager_storage_t drv_mgr_storage = {0};
-    driver_manager_t* drv_mgr = driver_manager_create_in(&drv_mgr_storage);
+static passthrough_fixture_t g_fx;
+
+static void _fixture_ensure(void) {
+    if (g_fx.orch) return;
+    g_fx.loop = uv_default_loop();
+    g_fx.hub = calloc(1, sizeof(datahub_t));
+    assert_non_null(g_fx.hub);
+    assert_int_equal(
+        datahub_init(g_fx.hub, g_fx.loop, "passthrough_bus", 64, 64, NULL, 0, NULL, NULL, NULL), 0);
+    memset(&g_fx.drv_mgr_storage, 0, sizeof(g_fx.drv_mgr_storage));
+    arbiter_init(&g_fx.arb, g_fx.loop);
+    arbiter_resume(g_fx.arb);
+    driver_manager_t* drv_mgr = driver_manager_create_in(&g_fx.drv_mgr_storage);
     extern const edge_driver_t dlt698_driver;
     driver_manager_register(drv_mgr, &dlt698_driver);
+    g_fx.orch = bus_orchestrator_create_hub_default(
+        g_fx.hub, g_fx.arb, driver_manager_session_port_ptr(drv_mgr), 1, 10, 1024);
+    assert_non_null(g_fx.orch);
+    assert_int_equal(bus_orchestrator_setup_master(g_fx.orch, 0, "DLT698", 0), 0);
+}
 
-    // Create Orchestrator with mock IO on Bus 0
-    bus_orchestrator_t* orch = bus_orchestrator_create_hub_default(hub, arb, driver_manager_session_port_ptr(drv_mgr), 1, 10, 1024);
-    bus_orchestrator_setup_master(orch, 0, "DLT698", 0);
+static void test_passthrough_basic(void** state) {
+    (void)state;
+    _fixture_ensure();
+    uv_loop_t* loop = g_fx.loop;
+    arbiter_t* arb = g_fx.arb;
 
-    io_handle_t mock_io = {.ops = &mock_ops};
-    bus_orchestrator_attach_io(orch, 0, &mock_io);
+    static io_handle_t mock_io;
+    mock_io.ops = &mock_ops;
+    bus_orchestrator_attach_io(g_fx.orch, 0, &mock_io);
 
-    passthrough_mgr_t* mgr = passthrough_mgr_create(loop, orch, arb);
+    passthrough_mgr_t* mgr = passthrough_mgr_create(loop, g_fx.orch, arb);
     passthrough_config_t cfg = {.port = 29988, .target_bus_id = 0};
     assert_int_equal(passthrough_mgr_start(mgr, &cfg, 1), 1);
 
@@ -141,9 +160,6 @@ static void test_passthrough_basic(void** state) {
     assert_false(status[0].is_busy);
 
     passthrough_mgr_destroy(mgr);
-    bus_orchestrator_destroy(orch);
-    arbiter_destroy(arb);
-    datahub_destroy(hub);
     shm_unlink("/dev/shm/edgeos_shadow_passthrough_bus");
 
     // 💡 [Nexus Fix] 强制驱使排空默认 loop，确保被 close 的 tcp/async handles
@@ -153,9 +169,137 @@ static void test_passthrough_basic(void** state) {
     }
 }
 
+/* write_async 契约探针：成功时自持一份引用，可延迟完成；可同步失败。
+ * 调用方（passthrough）必须在调用返回后归还自己那份引用，与驱动是否自持无关。 */
+typedef struct {
+    int writes;
+    int releases;
+    bool fail_sync;
+    net_buf_t* held;
+} tx_probe_t;
+
+static tx_probe_t g_probe;
+
+static void _probe_reset(bool fail_sync) {
+    if (g_probe.held) net_buf_unref(g_probe.held);
+    memset(&g_probe, 0, sizeof(g_probe));
+    g_probe.fail_sync = fail_sync;
+}
+
+static int _probe_write_async(io_handle_t* h, net_buf_t* buf) {
+    (void)h;
+    g_probe.writes++;
+    if (g_probe.fail_sync) return -EBUSY;
+    assert_null(g_probe.held);
+    g_probe.held = net_buf_ref(buf);
+    return 0;
+}
+
+static void _probe_complete(void) {
+    assert_non_null(g_probe.held);
+    net_buf_unref(g_probe.held);
+    g_probe.held = NULL;
+    g_probe.releases++;
+}
+
+static io_ops_t probe_ops = {.write_async = _probe_write_async, .destroy = mock_io_destroy};
+
+static uint32_t _pool_free(net_buf_pool_t* pool) {
+    net_buf_pool_stats_t stats;
+    net_buf_pool_audit(pool, 600000, &stats);
+    return stats.free_count;
+}
+
+static int _pick_tcp_port(void) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    assert_true(fd >= 0);
+    struct sockaddr_in a;
+    memset(&a, 0, sizeof(a));
+    a.sin_family = AF_INET;
+    a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    assert_int_equal(bind(fd, (struct sockaddr*)&a, sizeof(a)), 0);
+    socklen_t len = sizeof(a);
+    assert_int_equal(getsockname(fd, (struct sockaddr*)&a, &len), 0);
+    int port = ntohs(a.sin_port);
+    close(fd);
+    return port;
+}
+
+static void _run_probe_session(bool fail_sync) {
+    _probe_reset(fail_sync);
+    _fixture_ensure();
+    uv_loop_t* loop = g_fx.loop;
+    int port = _pick_tcp_port();
+
+    static io_handle_t probe_io;
+    probe_io.ops = &probe_ops;
+    bus_orchestrator_attach_io(g_fx.orch, 0, &probe_io);
+
+    passthrough_mgr_t* mgr = passthrough_mgr_create(loop, g_fx.orch, g_fx.arb);
+    passthrough_config_t cfg = {.port = (uint16_t)port, .target_bus_id = 0};
+    assert_int_equal(passthrough_mgr_start(mgr, &cfg, 1), 1);
+
+    net_buf_pool_t* pool = bus_orchestrator_get_pool(g_fx.orch);
+
+    uv_tcp_t client;
+    uv_tcp_init(loop, &client);
+    struct sockaddr_in dest;
+    uv_ip4_addr("127.0.0.1", port, &dest);
+    uv_connect_t conn_req;
+    assert_int_equal(uv_tcp_connect(&conn_req, &client, (const struct sockaddr*)&dest, NULL), 0);
+    for (int i = 0; i < 1000; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        uv_sleep(1);
+    }
+    uint32_t base = _pool_free(pool);
+
+    uv_buf_t out = uv_buf_init((char*)g_test_data, (unsigned)sizeof(g_test_data));
+    g_write_req.data = NULL;
+    assert_int_equal(uv_write(&g_write_req, (uv_stream_t*)&client, &out, 1, NULL), 0);
+
+    for (int i = 0; i < 1000 && g_probe.writes == 0; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        uv_sleep(1);
+    }
+    assert_int_equal(g_probe.writes, 1);
+
+    if (fail_sync) {
+        /* 驱动同步失败、不接管引用：调用方仍必须归还自己那份。 */
+        assert_int_equal(_pool_free(pool), base);
+    } else {
+        /* 在途时只有驱动自持的那一份仍在池外。 */
+        assert_int_equal(_pool_free(pool), base - 1);
+        _probe_complete();
+        assert_int_equal(g_probe.releases, 1);
+        /* 驱动完成后回到基线：调用方没有漏还引用。 */
+        assert_int_equal(_pool_free(pool), base);
+    }
+
+    uv_close((uv_handle_t*)&client, NULL);
+    for (int i = 0; i < 2000; i++) {
+        uv_run(loop, UV_RUN_NOWAIT);
+        uv_sleep(1);
+    }
+    passthrough_mgr_destroy(mgr);
+    shm_unlink("/dev/shm/edgeos_shadow_passthrough_bus");
+    for (int i = 0; i < 50; i++) uv_run(loop, UV_RUN_NOWAIT);
+}
+
+static void test_passthrough_write_async_delayed_completion_ownership(void** state) {
+    (void)state;
+    _run_probe_session(false);
+}
+
+static void test_passthrough_write_async_sync_failure_ownership(void** state) {
+    (void)state;
+    _run_probe_session(true);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_passthrough_basic),
+        cmocka_unit_test(test_passthrough_write_async_delayed_completion_ownership),
+        cmocka_unit_test(test_passthrough_write_async_sync_failure_ownership),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

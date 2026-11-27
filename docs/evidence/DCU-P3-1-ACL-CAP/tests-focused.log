@@ -1,0 +1,11 @@
+Test project /tmp/edgec-land/p3-1-acl-cap/build
+    Start  25: test_dcu_698_object_model
+1/3 Test  #25: test_dcu_698_object_model ........   Passed    0.02 sec
+    Start 101: test_driver_dlt698
+2/3 Test #101: test_driver_dlt698 ...............   Passed    5.20 sec
+    Start 103: test_dcu_698_appconn
+3/3 Test #103: test_dcu_698_appconn .............   Passed    0.05 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   5.54 sec

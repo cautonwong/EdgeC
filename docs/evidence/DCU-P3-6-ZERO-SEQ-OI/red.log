@@ -1,0 +1,15 @@
+test_every_oad_macro_oi_is_in_the_catalog (__main__.RouterOadCatalogTest) ... ok
+test_zero_seq_current_macro_is_absent_or_zero_sequence_current (__main__.RouterOadCatalogTest) ... FAIL
+
+======================================================================
+FAIL: test_zero_seq_current_macro_is_absent_or_zero_sequence_current (__main__.RouterOadCatalogTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/p3-6-zero-seq-oi/tests/test_dcu_698_router_oad_catalog.py", line 40, in test_zero_seq_current_macro_is_absent_or_zero_sequence_current
+    self.assertIn(
+AssertionError: '零序' not found in '电压相角              数据类型：long-unsigned，单位：度，换算：-1' : OAD_ZERO_SEQ_CURRENT=0x20020200 resolves to OI 0x2002 '电压相角              数据类型：long-unsigned，单位：度，换算：-1'; table A.3 defines no zero-sequence current OI
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.006s
+
+FAILED (failures=1)

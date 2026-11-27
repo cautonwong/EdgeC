@@ -1,0 +1,37 @@
+# Red evidence: new tests against 40d8dca5 (old runtime max-only method table)
+
+## Red 1 — behavioral assertion (Class 24 objects 3000/3005, method 3)
+
+Command:
+    cmake --build build -j1 --target test_dcu_698_object_model   # build_exit=0
+    CMOCKA_TEST_FILTER=test_class24_missing_method_is_undefined \
+        ./build/tests/test_dcu_698_object_model
+
+Raw output (test_exit=1):
+
+    [==========] tests: Running 1 test(s).
+    [ RUN      ] test_class24_missing_method_is_undefined
+    [  ERROR   ] --- -21 != -23
+    [   LINE   ] --- /tmp/edgec-land/p3-9-runtime-methods/tests/test_dcu_698_object_model.c:257: error: Failure!
+    [  FAILED  ] test_class24_missing_method_is_undefined
+    [==========] tests: 1 test(s) run.
+    [  PASSED  ] 0 test(s).
+    [  FAILED  ] tests: 1 test(s), listed below:
+    [  FAILED  ] test_class24_missing_method_is_undefined
+
+    -21 = EDGE_SLAVE_SRC_CLASS_MISMATCH (DAR 5), -23 = EDGE_SLAVE_SRC_UNDEFINED (DAR 4).
+    OI 3000/3005 method 3 is not in 7.3.24 (methods 1/2/4/5) but the max check
+    (Class 24 max_method=5) still reports the class as defining it.
+
+## Red 2 — class predicate test added on the same old code
+
+Command:
+    cmake --build build -j1 --target test_dcu_698_object_model   # build_exit=1
+
+Raw output:
+
+    tests/test_dcu_698_object_model.c:254:18: error: implicit declaration of function 'dcu_698_class_defines_method'; did you mean 'dcu_698_class_defines_attr'? [-Werror=implicit-function-declaration]
+
+The class-level seam (dcu_698_class_defines_method) does not exist yet, so
+Class 7 has no observable way to report that method 3 is undefined. The
+implementation commit adds it; both new tests then run green.

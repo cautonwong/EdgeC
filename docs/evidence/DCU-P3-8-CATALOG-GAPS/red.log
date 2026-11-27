@@ -1,0 +1,29 @@
+FFF..
+======================================================================
+FAIL: test_extra_method_is_rejected (__main__.CatalogMethodSetsTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/p3-8-catalog-gaps/tests/test_dcu_698_catalog_method_sets.py", line 89, in test_extra_method_is_rejected
+    self.assertNotEqual(proc.returncode, 0,
+AssertionError: 0 == 0 : generator accepted an extra Class 7 method 3
+
+======================================================================
+FAIL: test_missing_internal_method_is_rejected (__main__.CatalogMethodSetsTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/p3-8-catalog-gaps/tests/test_dcu_698_catalog_method_sets.py", line 79, in test_missing_internal_method_is_rejected
+    self.assertNotEqual(proc.returncode, 0,
+AssertionError: 0 == 0 : generator accepted a Class 7 method table without method 5
+
+======================================================================
+FAIL: test_oi_method_outside_the_class_set_is_rejected (__main__.CatalogMethodSetsTest)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/edgec-land/p3-8-catalog-gaps/tests/test_dcu_698_catalog_method_sets.py", line 101, in test_oi_method_outside_the_class_set_is_rejected
+    self.assertNotEqual(proc.returncode, 0,
+AssertionError: 0 == 0 : generator accepted OI 4307 method 126 outside class 19
+
+----------------------------------------------------------------------
+Ran 5 tests in 8.010s
+
+FAILED (failures=3)

@@ -1,0 +1,8 @@
+{"v":1,"t_ms":0,"source":"bench","kind":"point","key":"pcs1.active_power","value":0.0}
+{"v":1,"t_ms":100,"source":"bench","kind":"point","key":"pcs1.reactive_power","value":0.0}
+{"v":1,"t_ms":800,"source":"iems_v3","kind":"point","key":"pcs1.active_power","value":120.0}
+{"v":1,"t_ms":1000,"source":"iems_v3","kind":"point","key":"pcs1.active_power","value":260.0}
+{"v":1,"t_ms":1200,"source":"iems_v3","kind":"point","key":"pcs1.active_power","value":410.0}
+{"v":1,"t_ms":1500,"source":"iems_v3","kind":"point","key":"meter1.grid_power","value":488.5}
+{"v":1,"t_ms":2500,"source":"iems_v3","kind":"point","key":"pcs1.active_power","value":500.0}
+{"v":1,"t_ms":3600,"source":"iems_v3","kind":"point","key":"meter1.grid_power","value":491.2}

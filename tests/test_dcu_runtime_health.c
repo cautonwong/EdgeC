@@ -92,6 +92,29 @@ static void seed_inventory(const char *db_path, int meter_count) {
     sqlite3_close(db);
 }
 
+typedef struct {
+    int calls;
+    char meter_addr[MAX_ADDR_LEN];
+    uint16_t control_oi;
+    bool trip;
+} recorded_control_t;
+
+static int record_control(void *ctx, const char *meter_addr, uint16_t control_oi, bool trip) {
+    recorded_control_t *rec = (recorded_control_t *)ctx;
+    rec->calls++;
+    snprintf(rec->meter_addr, sizeof(rec->meter_addr), "%s", meter_addr);
+    rec->control_oi = control_oi;
+    rec->trip = trip;
+    return 0;
+}
+
+static void run_demo_control_tick(dcu_node_t *node, dcu_heartbeat_t *hb) {
+    memset(hb, 0, sizeof(*hb));
+    hb->demo_mode = true;
+    hb->node = node;
+    dcu_heartbeat_control_tick(hb);
+}
+
 static dcu_node_t *create_node(uv_loop_t *loop, const char *db_path, void **mem_out) {
     dcu_node_config_t cfg = {.product_name = "DCU_HealthTest",
                              .db_path = db_path,
@@ -310,6 +333,70 @@ static void test_demo_freeze_trigger_uses_slot_identity(void **state) {
     unlink(db_path);
 }
 
+/* demo 遥控必须发到档案第一只表的稳定 slot；按下标 0 发会打到另一只表（或 NOT_FOUND）。 */
+static void test_demo_control_targets_first_meter_slot(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    char db_file[96];
+    const char *db_path = unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_ctl");
+
+    seed_inventory(db_path, 2);
+    void *mem = NULL;
+    dcu_node_t *node = create_node(loop, db_path, &mem);
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+
+    /* 删除 slot 0：000000000002 成为档案第一只表，slot_id = 1，slot 与下标分叉。 */
+    assert_int_equal(dcu_inventory_remove(inv, "000000000001"), 0);
+    assert_int_equal(inv->count, 1);
+    assert_string_equal(inv->meters[0].address, "000000000002");
+    assert_int_equal(inv->meters[0].slot_id, 1);
+
+    recorded_control_t rec;
+    memset(&rec, 0, sizeof(rec));
+    dcu_router_set_control_sink(record_control, &rec);
+
+    dcu_heartbeat_t hb;
+    run_demo_control_tick(node, &hb);
+
+    assert_int_equal(hb.control_triggers, 1);
+    assert_int_equal(rec.calls, 1);
+    assert_string_equal(rec.meter_addr, "000000000002");
+    assert_int_equal(rec.control_oi, OI_REMOTE_CONTROL);
+    assert_true(rec.trip);
+
+    dcu_node_destroy(node);
+    free(mem);
+    unlink(db_path);
+}
+
+/* 空档案时跳过遥控，绝不回落到 slot 0。 */
+static void test_demo_control_skips_empty_inventory(void **state) {
+    uv_loop_t *loop = (uv_loop_t *)*state;
+    char db_file[96];
+    const char *db_path =
+        unique_db_path(db_file, sizeof(db_file), "test_dcu_runtime_health_ctl_missing");
+
+    seed_inventory(db_path, 1);
+    void *mem = NULL;
+    dcu_node_t *node = create_node(loop, db_path, &mem);
+    dcu_inventory_t *inv = dcu_node_get_inventory(node);
+    assert_int_equal(dcu_inventory_remove(inv, "000000000001"), 0);
+    assert_int_equal(inv->count, 0);
+
+    recorded_control_t rec;
+    memset(&rec, 0, sizeof(rec));
+    dcu_router_set_control_sink(record_control, &rec);
+
+    dcu_heartbeat_t hb;
+    run_demo_control_tick(node, &hb);
+
+    assert_int_equal(hb.control_triggers, 1);
+    assert_int_equal(rec.calls, 0);
+
+    dcu_node_destroy(node);
+    free(mem);
+    unlink(db_path);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_production_cycle_has_no_demo_behavior, setup,
@@ -317,6 +404,10 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_demo_mode_restores_bench_behavior, setup, teardown),
         cmocka_unit_test_setup_teardown(test_node_lifecycle_runs_on_one_thread, setup, teardown),
         cmocka_unit_test_setup_teardown(test_demo_freeze_trigger_uses_slot_identity, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_demo_control_targets_first_meter_slot, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_demo_control_skips_empty_inventory, setup,
                                         teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

@@ -1201,7 +1201,8 @@ static void test_slave_class19_devmgr_dar(void** state) {
     memset(&bus, 0, sizeof(bus));
     assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
 
-    /* ACL 广告 A1..A10 与方法 1..6：类定义但无来源 → DAR 5；未在 ACL 先 DAR 3。 */
+    /* ACL 广告 A1..A10 与方法 1..6（4307..4309 另加 127..129）：类定义但无来源 →
+     * DAR 5；未在 ACL 先 DAR 3。 */
     static const uint8_t get_4300_a1[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x01, 0x00, 0x00};
     static const uint8_t get_4300_a10[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x0A, 0x00, 0x00};
     static const uint8_t get_4300_a11[] = {0x05, 0x01, 0x05, 0x43, 0x00, 0x0B, 0x00, 0x00};
@@ -1244,13 +1245,28 @@ static void test_slave_class19_devmgr_dar(void** state) {
     assert_int_equal(payload[4], DLT698_DAR_DENIED);
     net_buf_unref(out);
 
-    /* 4307 的 127 已计入 resolver 定义，但 ACL 每对象方法上限 8 已被类方法占用，
-     * 主站 ACTION 先回 DAR 3。 */
-    static const uint8_t action_4307_127[] = {0x07, 0x01, 0x05, 0x43, 0x07,
+    /* 4307..4309 的 127..129 已计入 resolver 定义并进 ACL：ACTION 到对象表回
+     * DAR 5；4300 没有 OI 专属方法，127 仍先被 ACL 拒（DAR 3）。 */
+    static const uint16_t sub_devices[] = {0x4307, 0x4308, 0x4309};
+    for (size_t i = 0; i < sizeof(sub_devices) / sizeof(sub_devices[0]); i++) {
+        for (uint8_t method = 127; method <= 129; method++) {
+            uint8_t action[9] = {0x07, 0x01, 0x05, (uint8_t)(sub_devices[i] >> 8),
+                                 (uint8_t)sub_devices[i], method, 0x00, 0x00, 0x00};
+            out = net_buf_alloc(&pool, 0);
+            assert_non_null(out);
+            assert_int_equal(run_slave_apdu(action, sizeof(action), &src, NULL, out), 0);
+            decode_payload(out, &payload, &svc);
+            assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+            assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+            net_buf_unref(out);
+        }
+    }
+
+    static const uint8_t action_4300_127[] = {0x07, 0x01, 0x05, 0x43, 0x00,
                                               0x7F, 0x00, 0x00, 0x00};
     out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
-    assert_int_equal(run_slave_apdu(action_4307_127, sizeof(action_4307_127), &src, NULL, out), 0);
+    assert_int_equal(run_slave_apdu(action_4300_127, sizeof(action_4300_127), &src, NULL, out), 0);
     decode_payload(out, &payload, &svc);
     assert_int_equal(svc, DLT698_SVC_ACTION_RES);
     assert_int_equal(payload[4], DLT698_DAR_DENIED);
@@ -1270,7 +1286,7 @@ static void test_slave_class19_devmgr_dar(void** state) {
     dcu_698_object_model_reset();
 }
 
-/* D4-04 回归：118 项对象列表的 GET 响应是 5806 B 数据 + 22 B 帧 = 5828 B。
+/* D4-04 回归：118 项对象列表的 GET 响应是 5992 B 数据 + 22 B 帧 = 6014 B。
  * 生产共享池的 4096 B 装不下；旧码 net_buf 的 assert 在 NDEBUG 下被编译掉，
  * 直接越界写坏下一个 net_buf 节点。放不下时必须干净回 DAR 2。 */
 static void test_slave_object_list_does_not_overflow_pool_buffer(void** state) {
@@ -1317,7 +1333,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 5828);
+    assert_int_equal(out->b.len, 6014);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1441,7 +1457,7 @@ static void test_slave_class21_esam_dar(void** state) {
     memset(&bus, 0, sizeof(bus));
     assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
 
-    /* ACL 广告 A1..A15 与方法 1..8：类定义但无 ESAM 来源 → DAR 5；未在 ACL 先 DAR 3。 */
+    /* ACL 广告 A1..A15 与方法 1..12：类定义但无 ESAM 来源 → DAR 5；未在 ACL 先 DAR 3。 */
     static const uint8_t get_f100_a1[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x01, 0x00, 0x00};
     static const uint8_t get_f100_a15[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x0F, 0x00, 0x00};
     static const uint8_t get_f100_a16[] = {0x05, 0x01, 0x05, 0xF1, 0x00, 0x10, 0x00, 0x00};
@@ -1473,12 +1489,23 @@ static void test_slave_class21_esam_dar(void** state) {
         net_buf_unref(out);
     }
 
-    /* 方法 9..12 已计入 resolver 定义，但 ACL 每对象方法上限 8，主站先 DAR 3。 */
-    static const uint8_t action_f100_9[] = {0x07, 0x01, 0x05, 0xF1, 0x00,
-                                            0x09, 0x00, 0x00, 0x00};
+    /* 方法 9..12 已计入 resolver 定义并进 ACL：ACTION 回 DAR 5；13 未定义，ACL 先 DAR 3。 */
+    for (uint8_t method = 9; method <= 12; method++) {
+        uint8_t action_f100[9] = {0x07, 0x01, 0x05, 0xF1, 0x00, method, 0x00, 0x00, 0x00};
+        net_buf_t* out = net_buf_alloc(&pool, 0);
+        assert_non_null(out);
+        assert_int_equal(run_slave_apdu(action_f100, sizeof(action_f100), &src, NULL, out), 0);
+        decode_payload(out, &payload, &svc);
+        assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        net_buf_unref(out);
+    }
+
+    static const uint8_t action_f100_13[] = {0x07, 0x01, 0x05, 0xF1, 0x00,
+                                             0x0D, 0x00, 0x00, 0x00};
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
-    assert_int_equal(run_slave_apdu(action_f100_9, sizeof(action_f100_9), &src, NULL, out), 0);
+    assert_int_equal(run_slave_apdu(action_f100_13, sizeof(action_f100_13), &src, NULL, out), 0);
     decode_payload(out, &payload, &svc);
     assert_int_equal(svc, DLT698_SVC_ACTION_RES);
     assert_int_equal(payload[4], DLT698_DAR_DENIED);
@@ -1510,8 +1537,8 @@ static void test_slave_class23_group_dar(void** state) {
     memset(&bus, 0, sizeof(bus));
     assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
 
-    /* ACL 广告 A1..A16 与方法 1..5：类定义但无来源 → DAR 5；A17/A18 超出 ACL 属性
-     * schema、A19 类未定义、未知 OI 都先 DAR 3。 */
+    /* ACL 广告 A1..A18 与方法 1..5：类定义但无来源 → DAR 5；A19 类未定义、
+     * 未知 OI 都先 DAR 3。 */
     static const uint8_t get_2301_a1[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x01, 0x00, 0x00};
     static const uint8_t get_2301_a16[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x10, 0x00, 0x00};
     static const uint8_t get_2301_a17[] = {0x05, 0x01, 0x05, 0x23, 0x01, 0x11, 0x00, 0x00};
@@ -1520,8 +1547,8 @@ static void test_slave_class23_group_dar(void** state) {
     static const uint8_t get_2309_a2[] = {0x05, 0x01, 0x05, 0x23, 0x09, 0x02, 0x00, 0x00};
     assert_product_get_dar(get_2301_a1, sizeof(get_2301_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2301_a16, sizeof(get_2301_a16), DLT698_DAR_OBJECT_CLASS_MISMATCH);
-    assert_product_get_dar(get_2301_a17, sizeof(get_2301_a17), DLT698_DAR_DENIED);
-    assert_product_get_dar(get_2301_a18, sizeof(get_2301_a18), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2301_a17, sizeof(get_2301_a17), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2301_a18, sizeof(get_2301_a18), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2301_a19, sizeof(get_2301_a19), DLT698_DAR_DENIED);
     assert_product_get_dar(get_2309_a2, sizeof(get_2309_a2), DLT698_DAR_DENIED);
 
@@ -1562,6 +1589,17 @@ static void test_slave_class23_group_dar(void** state) {
     out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
     assert_int_equal(run_slave_apdu(set_2301_a2, sizeof(set_2301_a2), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+
+    net_buf_unref(out);
+    /* A17 已广告为只读：SET 仍由 ACL 回 DAR 3，不落到 resolver。 */
+    static const uint8_t set_2301_a17[] = {0x06, 0x01, 0x05, 0x23, 0x01,
+                                           0x11, 0x00, 0x09, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(set_2301_a17, sizeof(set_2301_a17), &src, NULL, out), 0);
     decode_payload(out, &payload, &svc);
     assert_int_equal(svc, DLT698_SVC_SET_RES);
     assert_int_equal(payload[4], DLT698_DAR_DENIED);
@@ -1622,12 +1660,43 @@ static void test_slave_class18_file_dar(void** state) {
         net_buf_unref(out);
     }
 
-    /* F001 的 OI 方法 9/10 已计入 resolver 定义，但 ACL 方法槽 8 已满，主站 DAR 3。 */
+    /* F001 的 OI 方法 9/10 已计入 resolver 定义并进 ACL：ACTION 回 DAR 5；
+     * F000/F002 没有 9/10，ACL 先回 DAR 3。 */
     static const uint8_t action_f001_9[] = {0x07, 0x01, 0x05, 0xF0, 0x01,
                                             0x09, 0x00, 0x00, 0x00};
     net_buf_t* out = net_buf_alloc(&pool, 0);
     assert_non_null(out);
     assert_int_equal(run_slave_apdu(action_f001_9, sizeof(action_f001_9), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    net_buf_unref(out);
+
+    static const uint8_t action_f001_10[] = {0x07, 0x01, 0x05, 0xF0, 0x01,
+                                             0x0A, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_f001_10, sizeof(action_f001_10), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    net_buf_unref(out);
+
+    static const uint8_t action_f000_9[] = {0x07, 0x01, 0x05, 0xF0, 0x00,
+                                            0x09, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_f000_9, sizeof(action_f000_9), &src, NULL, out), 0);
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_ACTION_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+
+    static const uint8_t action_f002_9[] = {0x07, 0x01, 0x05, 0xF0, 0x02,
+                                            0x09, 0x00, 0x00, 0x00};
+    out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(action_f002_9, sizeof(action_f002_9), &src, NULL, out), 0);
     decode_payload(out, &payload, &svc);
     assert_int_equal(svc, DLT698_SVC_ACTION_RES);
     assert_int_equal(payload[4], DLT698_DAR_DENIED);
@@ -1706,6 +1775,95 @@ static void test_slave_rejects_over_cap_object_list(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+typedef struct {
+    uint8_t acl[EDGE_SLAVE_AXDR_MAX];
+    size_t acl_len;
+    int resolve_calls;
+} big_acl_t;
+
+static int big_acl_object_list(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    big_acl_t* b = (big_acl_t*)ctx;
+    if (oad != 0x44000200u) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (b->acl_len > cap) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(buf, b->acl, b->acl_len);
+    *len = b->acl_len;
+    return 0;
+}
+
+static int big_acl_resolve(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, size_t* len) {
+    (void)oad;
+    (void)buf;
+    (void)cap;
+    (void)len;
+    ((big_acl_t*)ctx)->resolve_calls++;
+    return EDGE_SLAVE_SRC_NOT_FOUND;
+}
+
+static void test_slave_rejects_acl_method_pool_overflow(void** state) {
+    (void)state;
+    static big_acl_t b;
+    memset(&b, 0, sizeof(b));
+    size_t off = 0;
+    b.acl[off++] = 0x01;
+    b.acl[off++] = 0x81;
+    b.acl[off++] = 100;
+    for (uint8_t o = 0; o < 100; o++) {
+        b.acl[off++] = 0x02;
+        b.acl[off++] = 0x02;
+        b.acl[off++] = 0x50;
+        b.acl[off++] = 0x00;
+        b.acl[off++] = 0x01;
+        b.acl[off++] = 0x02;
+        b.acl[off++] = 0x02;
+        b.acl[off++] = 0x01;
+        b.acl[off++] = (o == 0) ? 1 : 0;
+        if (o == 0) {
+            /* 第一只对象广告属性 2：整单被池界拒绝时它也不得可用。 */
+            b.acl[off++] = 0x02;
+            b.acl[off++] = 0x02;
+            b.acl[off++] = 0x11;
+            b.acl[off++] = 0x02;
+            b.acl[off++] = 0x16;
+            b.acl[off++] = 0x01;
+        }
+        b.acl[off++] = 0x01;
+        b.acl[off++] = 12;
+        for (uint8_t m = 1; m <= 12; m++) {
+            b.acl[off++] = 0x02;
+            b.acl[off++] = 0x02;
+            b.acl[off++] = 0x11;
+            b.acl[off++] = m;
+            b.acl[off++] = 0x03;
+            b.acl[off++] = 0x01;
+        }
+    }
+    assert_true(off <= sizeof(b.acl));
+    b.acl_len = off;
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = big_acl_object_list;
+    src.resolve_axdr = big_acl_resolve;
+    static const uint8_t get_0001[] = {0x05, 0x01, 0x05, 0x00, 0x01, 0x02, 0x00, 0x00};
+    assert_int_equal(run_slave_apdu(get_0001, sizeof(get_0001), &src, &b, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x00);
+    assert_int_equal(payload[5], DLT698_DAR_DENIED);
+    assert_int_equal(b.resolve_calls, 0);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
@@ -1739,6 +1897,7 @@ int main(void) {
         cmocka_unit_test(test_slave_encode_failure_clears_half_frame),
         cmocka_unit_test(test_slave_set_read_only_is_denied),
         cmocka_unit_test(test_slave_rejects_over_cap_object_list),
+        cmocka_unit_test(test_slave_rejects_acl_method_pool_overflow),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

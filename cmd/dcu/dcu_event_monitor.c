@@ -208,6 +208,30 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             float actual_val = is_recover ? -val : val;
             uint64_t wall_s = _wall_epoch_s();
 
+            /* 发生与恢复都按 slot_id 取地址：档案删除重排后下标 N 可能已是另一只表。 */
+            const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, ev->device_id);
+            const char* addr = meter ? meter->address : "Unknown";
+
+            dcu_event_stamp_t slot_start = {0};
+            if (is_recover) {
+                bool found = false;
+                for (uint16_t i = 0; i < evt->record_count && i < MAX_EVENT_RECORDS; i++) {
+                    if (evt->records[i].is_active && evt->records[i].slot_id == ev->device_id) {
+                        slot_start = evt->records[i].start_time;
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    /* 发生记录已被挤出窗口：A6 发生时间是必填非空字段，不伪造起点，跳过追加。 */
+                    evt->last_end_time = (dcu_event_stamp_t){.mono_ns = ev->ts, .epoch_s = wall_s};
+                    printf(
+                        "📝 [SNAPSHOT] 事件 %04X 恢复 (表: %s)！发生记录已不在 10 条窗口内，不追加恢复记录。\n",
+                        evt->oi, addr);
+                    return STAGE_DROP;
+                }
+            }
+
             // 💡 倒序排列追加事件记录表 (新产生的排在最前)
             uint16_t limit = (evt->record_count < MAX_EVENT_RECORDS) ? evt->record_count
                                                                      : (MAX_EVENT_RECORDS - 1);
@@ -218,12 +242,9 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
             dcu_event_record_t* new_rec = &evt->records[0];
             memset(new_rec, 0, sizeof(*new_rec));
             new_rec->index = (uint16_t)(evt->record_count + 1);
+            new_rec->slot_id = ev->device_id;
             new_rec->snapshot_value = actual_val;
             new_rec->is_active = !is_recover;
-
-            /* 发生与恢复都按 slot_id 取地址：档案删除重排后下标 N 可能已是另一只表。 */
-            const production_meter_t* meter = dcu_inventory_by_slot(ctx->inv, ev->device_id);
-            const char* addr = meter ? meter->address : "Unknown";
 
             if (!is_recover) {
                 new_rec->start_time.mono_ns = ev->ts;
@@ -244,7 +265,7 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
                 printf("📝 [SNAPSHOT] 事件 %04X 触发 (表: %s)！抓取 %d 项关联快照并入库。\n",
                        evt->oi, addr, captured);
             } else {
-                new_rec->start_time = evt->last_start_time;
+                new_rec->start_time = slot_start;
                 new_rec->end_time.mono_ns = ev->ts;
                 new_rec->end_time.epoch_s = wall_s;
                 evt->last_end_time = new_rec->end_time;
@@ -252,8 +273,8 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
                 if (ctx->sink_ops.archive_event) {
                     ctx->sink_ops.archive_event(ctx->sink_ops.ctx, addr, evt->oi,
-                                                evt->last_start_time.epoch_s,
-                                                new_rec->end_time.epoch_s, actual_val);
+                                                slot_start.epoch_s, new_rec->end_time.epoch_s,
+                                                actual_val);
                 }
 
                 printf("📝 [SNAPSHOT] 事件 %04X 恢复 (表: %s)！记录更新。\n", evt->oi, addr);

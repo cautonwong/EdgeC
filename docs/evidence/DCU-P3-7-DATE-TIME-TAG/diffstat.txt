@@ -1,0 +1,12 @@
+ cmd/dcu/dcu_698_axdr.c                             |   6 +-
+ cmd/dcu/dcu_698_axdr.h                             |   4 +-
+ cmd/dcu/dcu_698_class_event.c                      |   3 +-
+ docs/evidence/DCU-P3-7-DATE-TIME-TAG/comments.md   |  35 ++++++
+ docs/evidence/DCU-P3-7-DATE-TIME-TAG/diffstat.txt  |  10 ++
+ .../DCU-P3-7-DATE-TIME-TAG/object-sha256.txt       |  26 +++++
+ docs/evidence/DCU-P3-7-DATE-TIME-TAG/rg.txt        |  32 ++++++
+ docs/evidence/DCU-P3-7-DATE-TIME-TAG/summary.md    |  53 +++++++++
+ docs/evidence/DCU-P3-7-DATE-TIME-TAG/tests.log     | 123 +++++++++++++++++++++
+ foundation/include/dlt698_codec.h                  |   1 +
+ foundation/src/protocol/dlt698_codec.c             |   4 +-
+ 11 files changed, 289 insertions(+), 8 deletions(-)

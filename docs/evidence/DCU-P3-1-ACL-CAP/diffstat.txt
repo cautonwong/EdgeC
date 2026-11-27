@@ -1,0 +1,17 @@
+ adapters/io_drivers/src/driver_dlt698.c           |  40 +-
+ ci/mutation_guards.tsv                            |   5 +-
+ cmd/dcu/dcu_698_appconn.c                         |  53 +--
+ docs/evidence/DCU-P3-1-ACL-CAP/acceptance-dcu.log |  38 ++
+ docs/evidence/DCU-P3-1-ACL-CAP/budgets.txt        |  49 +++
+ docs/evidence/DCU-P3-1-ACL-CAP/comments.md        |  15 +
+ docs/evidence/DCU-P3-1-ACL-CAP/design.md          |  92 +++++
+ docs/evidence/DCU-P3-1-ACL-CAP/diffstat.txt       |  24 ++
+ docs/evidence/DCU-P3-1-ACL-CAP/mutation-guard.log |  10 +
+ docs/evidence/DCU-P3-1-ACL-CAP/red.log            | 424 ++++++++++++++++++++++
+ docs/evidence/DCU-P3-1-ACL-CAP/spec.md            |  46 +++
+ docs/evidence/DCU-P3-1-ACL-CAP/summary.md         |  94 +++++
+ docs/evidence/DCU-P3-1-ACL-CAP/tests-focused.log  |  11 +
+ docs/evidence/DCU-P3-1-ACL-CAP/tests.log          |  95 +++++
+ tests/test_dcu_698_appconn.c                      |  45 ++-
+ tests/test_driver_dlt698.c                        | 193 +++++++++-
+ 16 files changed, 1158 insertions(+), 76 deletions(-)

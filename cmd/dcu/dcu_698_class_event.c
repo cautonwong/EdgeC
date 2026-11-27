@@ -4,6 +4,7 @@
 #include "dcu_698_axdr.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_var.h"
+#include "dlt698_codec.h"
 
 int dcu_698_event_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
                        void *out_val) {
@@ -98,7 +99,7 @@ static int _put_required_stamp(const dcu_event_stamp_t *stamp, uint8_t *buf, siz
 /* 表49 的非法 date_time_s：年 0xFFFF，其余字段 0xFF。不由 _put_date_time_s 产生。 */
 static int _put_invalid_stamp(uint8_t *buf, size_t cap, size_t *off) {
     if (*off + 8 > cap) return -1;
-    buf[(*off)++] = 0x1C;
+    buf[(*off)++] = DLT698_TAG_DATE_TIME_S;
     for (int i = 0; i < 7; i++) buf[(*off)++] = 0xFF;
     return 0;
 }

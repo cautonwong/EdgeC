@@ -59,6 +59,17 @@ int main(int argc, char* argv[]) {
     const char* rest_bind = getenv("EDGE_REST_BIND");
     if (rest_bind && !rest_bind[0]) rest_bind = NULL;
     const char* rest_legacy = getenv("EDGE_REST_LEGACY_UPLOAD");
+    // IEMS_REST_RAW_IO=1 显式重开 REST 原始帧写入口;默认关闭,影子模式下仍拒绝
+    bool rest_raw_io_enabled = false;
+    if (iems_app_rest_raw_io_parse(getenv("IEMS_REST_RAW_IO"), &rest_raw_io_enabled) != 0) {
+        return -1;
+    }
+    // P1-08a c1: IEMS_SHADOW_MODE 只在这里读一次;未设/0=正常,1=影子,其它值拒绝启动
+    bool shadow_mode = false;
+    if (iems_app_shadow_mode_parse(getenv("IEMS_SHADOW_MODE"), &shadow_mode) != 0) {
+        fprintf(stderr, "FATAL: invalid IEMS_SHADOW_MODE (accepted: unset, 0, 1). Boot aborted.\n");
+        return -1;
+    }
     iems_app_config_t cfg = {
         .db_path = getenv("EDGE_DB_PATH"),
         .shm_name = getenv("EDGE_SHM_NAME"),
@@ -70,7 +81,9 @@ int main(int argc, char* argv[]) {
         .rest_legacy_upload = rest_legacy && atoi(rest_legacy) != 0,
         .north_sock = north_sock,
         .ui_sock = ui_sock,
-        .config_dir = getenv("EDGE_CONFIG_DIR")
+        .config_dir = getenv("EDGE_CONFIG_DIR"),
+        .shadow_mode = shadow_mode,
+        .rest_raw_io_enabled = rest_raw_io_enabled
     };
 
     g_app = iems_app_assemble(loop, &cfg);

@@ -1,0 +1,12 @@
+=== DCU-P3-2-http-poll-after-cb
+  [restore] adapters/linux_platform/src/io_executor_linux.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-2-http-poll-after-cb: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
+=== DCU-P3-2-http-added-already
+  [restore] adapters/linux_platform/src/io_executor_linux.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-2-http-added-already: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

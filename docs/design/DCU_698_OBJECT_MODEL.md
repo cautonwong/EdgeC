@@ -102,7 +102,8 @@ param 白名单与对象/ACL 行。
 
 - 对象表：**131** 行（`dcu_698_object_count()`）。
 - Class 20 ACL：**118** 个对象（107 个手写行 + 11 个 `DCU_698_PARAM_OIS` 生成行）。
-- 每 ACL 对象：属性 id 1..16（2 bit/属性压 32 位）、方法 8 个（`method_ids[8]`）。
+- 每 ACL 对象：12 B（属性 id 1..18，2 bit/属性压 5 B；方法号每对象最多 12 个）。
+  方法号放会话级 `method_ids[1024]` 池，累计超池整单拒绝（fail closed）。
 - 每会话存储：`DRIVER_PRIV_SIZE 4096`（D1-21，原 1024）；`EDGE_SLAVE_AXDR_MAX 10240`
   （D1-21，原 2048）；`EDGE_SLAVE_ACL_MAX_OBJECTS 224`（D1-21，operator 2026-11-24
   决定移除 60 项上限，目标集合 201，余 23）。证据见 `docs/evidence/DCU-D1-21/`。
@@ -169,18 +170,18 @@ param 白名单与对象/ACL 行。
 | 9 冻结数据 | full (5000–5007) | `dcu_698_freeze.{c,h}`、`dcu_698_freeze_cfg.{c,h}`、`dcu_698_record.c`；5008–5011 只有对象行 |
 | 10 采集监控 | full | `dcu_698_class_acq.c`、`dcu_698_scheme_axdr.c`、`dcu_698_rules.c` |
 | 11 集合类 | full / DAR | `dcu_698_class_acq.c`、`dcu_698_scheme_axdr.c`、`dcu_698_rules.c`：6014/6016/6018/601A/601C/601E/6032/6034 与 6002 均 IC_COLLECTION（6032 A2 仍回 DAR 2）；6000 的 A.7 偏差（标准 11、产品 10，reconciliation:48）；6001 是 IC 8。A.8 的 7000（`OI_FILE_SET`）与 7010（`OI_SCRIPT_SET`）只有对象行与只读 ACL（空掩码）：7010 A2 在 `dcu_north_resolve_axdr` 回 DAR 5，7000 方法 127–129 与 7010 方法 127–130 在 `dcu_698_check_call` 回 DAR 5，类未定义回 DAR 4，主站未在 ACL 先回 DAR 3；无文件/脚本集合存储，不返回空集合或伪造元素；见 `docs/evidence/DCU-D5-03/` |
-| 12 脉冲计量 | DAR | 2401 对象行（`dcu_698_object_model.c`，IC_PULSE=12，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 1..15 只读、方法 1..4）；无脉冲量来源 → resolver 对表157 定义的 A1..A19 回 DAR 5、A20 回 DAR 4；16/17 的归属在表157/158 之间冲突（`698_parsed.md:4365-4366` vs `:4423-4425`），按类定义表157 记为已定义但 ACL 不广告（HOLD，主站先 DAR 3），A18/A19 超出 ACL 属性 schema 同样不广告；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-04/` |
+| 12 脉冲计量 | DAR | 2401 对象行（`dcu_698_object_model.c`，IC_PULSE=12，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 1..15 只读、方法 1..4）；无脉冲量来源 → resolver 对表157 定义的 A1..A19 回 DAR 5、A20 回 DAR 4；16/17 的归属在表157/158 之间冲突（`698_parsed.md:4365-4366` vs `:4423-4425`），按类定义表157 记为已定义但 ACL 不广告（HOLD，主站先 DAR 3）；A18/A19 仍不广告（ACL 只放 1..15，schema 已支持到 18）；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-04/` |
 | 13 控制 | read/DAR | `dcu_698_class_control.c`、`dcu_698_axdr.c`；8000（A.9 IC 8、产品偏差 13，reconciliation:76）只读 A2/A4/A5 DAR 2（无继电器来源，D4-02a），方法 129–131 无继电器 OAD→表地址映射 → DAR 2；8103（A.9 IC 13）A2 只读 DAR 2，且不在 ACL → 主站 DAR 3 |
 | 14 区间统计 | DAR | 2100–2104 对象行（`dcu_698_object_model.c`，IC_INTERVAL_STAT=14，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 1..3 只读、方法 1..4）；无统计生产者，resolver 回 DAR 5、类未定义 DAR 4（主站先被 ACL 拒为 DAR 3）；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-05/` |
 | 15 累加平均 | DAR | 2110–2114 对象行（IC_AVERAGE=15，空掩码）并进 ACL（属性 1..3 只读、方法 1..4）；无生产者 → resolver DAR 5/4、主站未广告先 DAR 3；不伪造统计值 |
 | 16 极值工具 | DAR | 2120–2124 对象行（IC_EXTREMUM=16，空掩码）并进 ACL（属性 1..3 只读、方法 1..4）；无生产者 → resolver DAR 5/4、主站未广告先 DAR 3；`_class_max_method` 按表 171 修正为 4 |
 | 17 显示 | DAR | F300/F301 对象行（`dcu_698_object_model.c`，IC_DISPLAY=17，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 2..4 只读、方法 1..6）；无显示配置来源 → resolver DAR 5/4、主站未广告属性先 DAR 3；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-06/` |
-| 18 文件传输 | DAR | F000/F001/F002 对象行（`dcu_698_object_model.c`，IC_FILE_TRANSFER=18，空掩码；`k_oi_max_attr` 登记 F000 A1..A5、F001/F002 A1..A4）并进 ACL（`dcu_698_appconn.c`：F000 A1..A5、F001/F002 A1..A4 只读，方法 1..8）；无文件传输/DFU 来源 → resolver 对已定义属性与 F001 方法 9/10 回 DAR 5、类/OI 未定义回 DAR 4；主站对 F001 9/10 因 ACL 方法槽 8 已满回 DAR 3；方法 1..8 回 DAR 5（绝不接收分块/校验/激活/回滚）；SET 回 DAR 3；不伪造传输结果；见 `docs/evidence/DCU-D4-06/` |
-| 19 设备管理 | DAR | 4300/4307–4309 对象行（`dcu_698_object_model.c`，IC_DEVICE_MGMT=19，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A10 只读、方法 1..6）；无设备描述/版本/复位/初始化端口 → resolver 对表178 定义的 A1..A10 回 DAR 5、A11 回 DAR 4；方法 1..6 回 DAR 5（绝不执行复位/数据初始化/恢复出厂/事件初始化/需量初始化）；4307..4309 的 127..129 已计入定义（resolver DAR 5）但 ACL 每对象方法上限 8 已被类方法占用，主站 ACTION 回 DAR 3；SET 回 DAR 3；见 `docs/evidence/DCU-D4-04/` |
+| 18 文件传输 | DAR | F000/F001/F002 对象行（`dcu_698_object_model.c`，IC_FILE_TRANSFER=18，空掩码；`k_oi_max_attr` 登记 F000 A1..A5、F001/F002 A1..A4）并进 ACL（`dcu_698_appconn.c`：F000 A1..A5、F001/F002 A1..A4 只读，F000/F002 方法 1..8、F001 方法 1..10）；无文件传输/DFU 来源 → resolver 对已定义属性与方法回 DAR 5、类/OI 未定义回 DAR 4；F001 方法 9/10 已广告，主站 ACTION 回 DAR 5；SET 回 DAR 3；不伪造传输结果；见 `docs/evidence/DCU-D4-06/` |
+| 19 设备管理 | DAR | 4300/4307–4309 对象行（`dcu_698_object_model.c`，IC_DEVICE_MGMT=19，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A10 只读、方法 1..6）；无设备描述/版本/复位/初始化端口 → resolver 对表178 定义的 A1..A10 回 DAR 5、A11 回 DAR 4；方法 1..6 回 DAR 5（绝不执行复位/数据初始化/恢复出厂/事件初始化/需量初始化）；4307..4309 的 127..129 已计入定义并进入 ACL，主站 ACTION 回 DAR 5；SET 回 DAR 3；见 `docs/evidence/DCU-D4-04/` |
 | 20 应用连接 | A2 only（ACL） | `dcu_698_appconn.c` + 驱动 `_acl_load/_acl_parse`；A3/A4/A5 与方法 1/2 无 0x4400 对象行与 ACL；0x4400 例外见 §4.1 |
-| 21 ESAM | DAR | OI `F100`（表184；F101 是 Class 8 安全模式参数，不是本类实例）：对象行空掩码并进 ACL（A1..A15 只读、方法 1..8；9..12 因 ACL 每对象方法上限 8 记 HOLD）。产品没有 ESAM 硬件/会话来源，软件 ESAM 模拟只保留 C API；resolver 对 A1..A15 回 DAR 5、A16 回 DAR 4；方法 1..12 回 DAR 5（698 面不执行复位/读取/密钥/证书/钱包/红外认证），主站对 9..12 回 DAR 3；SET 回 DAR 3；不返回序列号/版本/会话/MAC；见 `docs/evidence/DCU-D4-07/` |
+| 21 ESAM | DAR | OI `F100`（表184；F101 是 Class 8 安全模式参数，不是本类实例）：对象行空掩码并进 ACL（A1..A15 只读、方法 1..12）。产品没有 ESAM 硬件/会话来源，软件 ESAM 模拟只保留 C API；resolver 对 A1..A15 回 DAR 5、A16 回 DAR 4；方法 1..12 回 DAR 5（698 面不执行复位/读取/密钥/证书/钱包/红外认证）；SET 回 DAR 3；不返回序列号/版本/会话/MAC；见 `docs/evidence/DCU-D4-07/` |
 | 22 输入输出 | read/DAR | 目录 F200..F20C 的 13 个 OI 都有对象行（`dcu_698_object_model.c`，IC_PERIPHERAL、SINGLETON）并进 ACL（`dcu_698_appconn.c`）；A.12 只读属性如实广告：A2 全部，F203/F204/F206/F20C 加 A4，F209 加 A5/A6；无端口配置来源 → resolver：已广告属性 DAR 2、类定义未广告 DAR 5、类未定义 DAR 4（主站对未广告属性先被 ACL 拒，回 DAR 3）；SET 回 DAR 3；A.12 的 OI 专属方法 127/128 已计入定义（resolver DAR 5、未实现；主站 ACTION 因 ACL 无方法回 DAR 3） |
-| 23 总加组 | DAR | 2301–2308 对象行（`dcu_698_object_model.c`，IC_GROUP=23，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A16 只读、方法 1..5）；无总加组配置/总加值/滑差/功控来源 → resolver 对表190 定义的 A1..A18 回 DAR 5、A19 回 DAR 4；方法 1..5 回 DAR 5（绝不执行清空/添加/删除/执行），主站对 A17/A18 因超出 ACL 属性 schema 回 DAR 3；SET 回 DAR 3；不伪造总加值、滑差或轮次；见 `docs/evidence/DCU-D4-09/` |
+| 23 总加组 | DAR | 2301–2308 对象行（`dcu_698_object_model.c`，IC_GROUP=23，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A18 只读、方法 1..5）；无总加组配置/总加值/滑差/功控来源 → resolver 对表190 定义的 A1..A18 回 DAR 5、A19 回 DAR 4；方法 1..5 回 DAR 5（绝不执行清空/添加/删除/执行）；SET 回 DAR 3；不伪造总加值、滑差或轮次；见 `docs/evidence/DCU-D4-09/` |
 | 24 分项事件 | full（3000/3005） | `dcu_698_class_event.c`；3000/3005 实现 A2/A3/A4/A6/A11/A12/A14；其它 OI 无对象行（resolver DAR 6，主站 ACL DAR 3） |
 | 25 无线公网通信 | DAR | 4500/4501 对象行（`dcu_698_object_model.c`，`IC_WIRELESS_PUBLIC`=25，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A11 只读、方法 1）；产品没有 APN/ICCID/IMSI/SIM 号码/信号强度来源 → resolver 对表196 定义的 A1..A11 回 DAR 5、A12 回 DAR 4；主站未在 ACL 先 DAR 3；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D4-10/` |
 | 26 以太网通信 | DAR + 只读 MAC | 4510–4517 对象行（`IC_ETHERNET`=26）；4510 A5 是唯一有来源的属性（`dcu_comm_info.c` 读平台第一个物理单播以太网口的 MAC：type=1、无 wireless/ 与 bridge/、有总线 device 链接），A1..A4 与 4511–4517 的 A5 回 DAR 5、A6 回 DAR 4；ACL A1..A5 只读、方法 1；平台没有符合判据的以太网口（含容器 veth）时 A5 也回 DAR 5，不伪造；见 `docs/evidence/DCU-D4-10/` |
@@ -203,6 +204,9 @@ param 白名单与对象/ACL 行。
 
 - 对象表与 ACL：5000–5007 进 ACL；5008/5009/500A/500B/5011 只有对象行（ACL DAR 3，
   GetRecord begin 回 DAR 2）。
+- 7.3.9 方法集合为 1/2/3/4/5/7/8（无 6）：`dcu_698_class_defines_method` 按真实集合
+  判定，对象表未掩码的方法 1/2 回 DAR 5、方法 6 回 DAR 4；ACL 只广告 3/4/5/7/8，
+  主站对未广告方法先回 DAR 3。
 - 属性 3 `{冻结周期, OAD, 存储深度}`（698_parsed 4190–4218）持久化在
   `dcu_freeze_attr3(_meta)`；调度器按 (OI, 条目) 独立周期，方法 3/4/5/7/8 已实现。
 - GetRecord 由 `dcu_698_record.c::dcu_698_record_begin/row/end` 实现，RSD Selector1/2
@@ -224,6 +228,10 @@ Class 24 标准名单是 3000–3008（3006 断流、3007 功率反向、3008 �
 A2 关联 OAD 数组、A3 四表计数、A4、A6、A11/A12/A14；A5 因结构随 OI 变化且未存储
 回 DAR 5。Class 7 的目录 OI（3009..）在产品无对象行：resolver 回 DAR 6（D3-08 单测），主站请求因不在 ACL 先回 DAR 3（§4.1）。
 
+7.3.7 与 7.3.24 的方法集合都是 1/2/4/5（无 3）：3000/3005 的方法 3 在
+`dcu_698_check_call` 回 DAR 4，方法 2/4/5 类定义但无处理器回 DAR 5，方法 1 仍执行
+复位；Class 7 无实例，同一判定由 `dcu_698_class_defines_method` 表达。
+
 ### 8.5 Class 20 与 ACL 加载
 
 `dcu_698_appconn_object_list()` 编码 `array { structure { OI, { 属性[], 方法[] } } }`；
@@ -244,7 +252,7 @@ A-XDR 长格式长度（D1-21）。
 
 Class 21 的 OI 是 F100（不是 F101）；表184 定义 A1..A15 与方法 1..12。产品没有 ESAM
 硬件/会话来源，软件 ESAM 模拟（`dcu_security_*` C API）不再从 698 面暴露：F100 对象行
-空掩码并进 ACL（A1..A15 只读；方法 1..8，9..12 因每对象方法上限 8 不广告），GET 与
+空掩码并进 ACL（A1..A15 只读；方法 1..12 全部广告），GET 与
 ACTION 按类定义回 DAR 5，绝不伪造序列号/版本/会话/MAC/密钥。Class 22 标准范围
 F200..F20C（F210 属 Class 8）：13 个 OI 各有一行
 （`OI_CHANNEL_CONFIG` 起，`dcu_router.h` 的 `0xF200`–`0xF20C`，IC_PERIPHERAL、

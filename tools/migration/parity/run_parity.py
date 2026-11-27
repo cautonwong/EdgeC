@@ -19,6 +19,10 @@ DEFAULT_REPORT = BASE_DIR / "reports" / "replay.report.json"
 EDGEC_TARGET_BIN = BASE_DIR / "edgec_target" / "edgec_modbus_target"
 # Pinned golden hash of samples/sample_trace.jsonl; update only with a deliberate trace change.
 SAMPLE_TRACE_SHA256 = "32de3467bb747e751954575e2d12dd56ae80540771335cad9eb09f688463fa29"
+# Pinned golden hash of samples/iems_mqtt_trace.jsonl; update only with a deliberate trace change.
+IEMS_MQTT_TRACE = BASE_DIR / "samples" / "iems_mqtt_trace.jsonl"
+IEMS_MQTT_TRACE_SHA256 = "3e1256b3f21d8bb75087a167eb7faf82239710b800fcb20988609e4247a264e7"
+SELFTEST_CASES = 22
 
 
 class TraceError(Exception):
@@ -99,11 +103,256 @@ class EdgecModbusTarget:
             proc.kill()
 
 
-TARGETS = {"mock": MockTarget, "edgec-modbus": EdgecModbusTarget}
+IEMS_MQTT_SN = "E4B853F333"
+IEMS_MQTT_ENDPOINTS = {
+    # P4-02c section 1.1 sample config: module/dev_id/type.
+    "pcs1": {"module": "ems", "dev_id": "pcs456", "type": "pcsdata"},
+    "meter1": {"module": "env", "dev_id": "ems", "type": "emsctrl"},
+}
+# v3 config/bmser_ipc_bin.json: block id and 1-based sub index; all three are S32 scale 10.
+IEMS_MQTT_POINTS = {
+    "pcs1.active_power": {"endpoint": "pcs1", "block_id": 0x8021, "start_sub_id": 12, "scale": 10},
+    "pcs1.reactive_power": {"endpoint": "pcs1", "block_id": 0x8021, "start_sub_id": 16, "scale": 10},
+    "meter1.grid_power": {"endpoint": "meter1", "block_id": 0x8001, "start_sub_id": 2, "scale": 10},
+}
+IEMS_MQTT_POINTS_BY_BLOCK = {
+    (point["block_id"], point["start_sub_id"]): key
+    for key, point in IEMS_MQTT_POINTS.items()
+}
+IEMS_MQTT_VERB = "GetResp"  # v3 publishes device data as GetResp (mqtt_north.c:935).
+
+
+def _iems_mqtt_topic(endpoint_name):
+    endpoint = IEMS_MQTT_ENDPOINTS[endpoint_name]
+    return (
+        f"ipc/{IEMS_MQTT_SN}/{endpoint['module']}/{endpoint['dev_id']}"
+        f"/{endpoint['type']}/{IEMS_MQTT_VERB}/binaryFlow"
+    )
+
+
+def _iems_mqtt_payload(record, corrupt_key):
+    """binaryFlow payload section: block_num(1) + block(P4-02b section 1.2)."""
+    if record["kind"] != "point":
+        raise TargetError(f"iems-mqtt target only maps point records, got {record['kind']!r}")
+    point = IEMS_MQTT_POINTS.get(record["key"])
+    if point is None:
+        raise TargetError(f"no iems-mqtt mapping for key {record['key']!r}")
+    value = record["value"]
+    if type(value) not in (int, float):
+        raise TargetError(f"iems-mqtt point {record['key']!r} needs a numeric value")
+    scaled = value * point["scale"]
+    # A finite value times the scale can overflow to inf (1e308 * 10); range-check
+    # before round() so it is rejected instead of raising OverflowError.
+    raw = round(scaled) if -(2**31) <= scaled <= 2**31 - 1 else None
+    if raw is None or abs(scaled - raw) > 1e-9:
+        raise TargetError(
+            f"iems-mqtt point {record['key']!r} value {value!r} is not representable"
+            f" as S32 at scale {point['scale']}"
+        )
+    if corrupt_key == record["key"]:
+        raw += 1
+    data = raw.to_bytes(4, "big", signed=True)
+    block = (
+        point["block_id"].to_bytes(4, "big")
+        + point["start_sub_id"].to_bytes(2, "big")
+        + (1).to_bytes(2, "big")
+        + len(data).to_bytes(2, "big")
+        + data
+    )
+    return b"\x01" + block
+
+
+def _decode_iems_mqtt_payload(payload):
+    if len(payload) != 15 or payload[0] != 1:
+        raise TargetError("iems-mqtt frame must carry exactly one block")
+    block = payload[1:]
+    block_id = int.from_bytes(block[0:4], "big")
+    start_sub_id = int.from_bytes(block[4:6], "big")
+    sub_num = int.from_bytes(block[6:8], "big")
+    data_len = int.from_bytes(block[8:10], "big")
+    data = block[10:]
+    if sub_num != 1 or data_len != 4:
+        raise TargetError("iems-mqtt frame block must carry exactly one S32")
+    key = IEMS_MQTT_POINTS_BY_BLOCK.get((block_id, start_sub_id))
+    if key is None:
+        raise TargetError(
+            f"iems-mqtt frame has no mapping for block {block_id:#06x} sub {start_sub_id}"
+        )
+    return key, int.from_bytes(data, "big", signed=True)
+
+
+class IemsMqttTarget:
+    """The EdgeC IEMS MQTT northbound mapping, mirrored for the parity bench.
+
+    Maps one trace point to the v3 topic (P4-02c section 1.1) and binaryFlow
+    payload section (P4-02b section 1.2), then decodes the frame back. The
+    annotation sidecar carries the v3-derived topic and frame bytes; a replay
+    is only green when both the round trip and every annotation match.
+
+    shortcut: the bench doubles the mapping in Python instead of linking the
+    EdgeC C codec; upgrade when the product target can link edge_codec directly.
+    """
+
+    name = "iems-mqtt"
+
+    def __init__(self, corrupt_key=None):
+        if corrupt_key is not None and corrupt_key not in IEMS_MQTT_POINTS:
+            raise TargetError(f"iems-mqtt target has no mapping for corrupt key {corrupt_key!r}")
+        self.corrupt_key = corrupt_key
+        self._annotations = None
+
+    def prepare(self, trace_path, records):
+        annotations_path = _iems_annotations_path(trace_path)
+        if not annotations_path.is_file():
+            raise TargetError(f"{annotations_path}: missing annotations sidecar")
+        try:
+            raw = json.loads(
+                annotations_path.read_text(encoding="utf-8"),
+                parse_constant=_reject_constant,
+                object_pairs_hook=_reject_duplicate_keys,
+            )
+        except ValueError as exc:
+            raise TargetError(f"{annotations_path}: invalid annotations JSON: {exc}") from exc
+        if not isinstance(raw, dict):
+            raise TargetError(f"{annotations_path}: annotations must be an object keyed by t_ms")
+        expected = {}
+        for record in records:
+            key = str(record["t_ms"])
+            if key in expected:
+                raise TargetError(
+                    f"{annotations_path}: duplicate t_ms {key} in trace; annotations need unique keys"
+                )
+            expected[key] = record
+        missing = sorted(set(expected) - set(raw))
+        if missing:
+            raise TargetError(f"{annotations_path}: missing annotation for t_ms {missing[0]}")
+        extra = sorted(set(raw) - set(expected))
+        if extra:
+            raise TargetError(
+                f"{annotations_path}: annotation for unknown t_ms {extra[0]!r} has no trace record"
+            )
+        annotations = {}
+        for key, entry in raw.items():
+            where = f"{annotations_path}: annotation t_ms {key}"
+            if not isinstance(entry, dict):
+                raise TargetError(f"{where} must be an object")
+            unknown = sorted(set(entry) - {"topic", "payload_hex", "fields"})
+            if unknown:
+                raise TargetError(f"{where}: unknown annotation field {unknown[0]!r}")
+            lacking = sorted({"topic", "payload_hex", "fields"} - set(entry))
+            if lacking:
+                raise TargetError(f"{where}: missing annotation field {lacking[0]!r}")
+            topic = entry["topic"]
+            if not isinstance(topic, str) or not topic:
+                raise TargetError(f"{where}: topic must be a non-empty string")
+            payload_hex = entry["payload_hex"]
+            if (
+                not isinstance(payload_hex, str)
+                or not payload_hex
+                or len(payload_hex) % 2
+                or any(char not in "0123456789abcdef" for char in payload_hex)
+            ):
+                raise TargetError(f"{where}: payload_hex must be lowercase even-length hex")
+            fields = entry["fields"]
+            if not isinstance(fields, dict):
+                raise TargetError(f"{where}: fields must be an object")
+            _reject_nonfinite_floats(fields, where, "fields")
+            _reject_unencodable_strings(topic, where, "topic")
+            _reject_unencodable_strings(payload_hex, where, "payload_hex")
+            _reject_unencodable_strings(fields, where, "fields")
+            annotations[key] = {
+                "topic": topic,
+                "payload_hex": payload_hex,
+                "fields": fields,
+            }
+        self._annotations = annotations
+
+    def apply(self, record):
+        payload = _iems_mqtt_payload(record, self.corrupt_key)
+        key, raw = _decode_iems_mqtt_payload(payload)
+        return [
+            {
+                "v": TRACE_VERSION,
+                "t_ms": record["t_ms"],
+                "source": self.name,
+                "kind": "point",
+                "key": key,
+                "value": raw / IEMS_MQTT_POINTS[key]["scale"],
+            }
+        ]
+
+    def describe(self, record):
+        payload = _iems_mqtt_payload(record, self.corrupt_key)
+        key, raw = _decode_iems_mqtt_payload(payload)
+        return {
+            "topic": _iems_mqtt_topic(IEMS_MQTT_POINTS[key]["endpoint"]),
+            "payload_hex": payload.hex(),
+            "fields": {"value": raw / IEMS_MQTT_POINTS[key]["scale"]},
+        }
+
+    def annotation_report(self, records):
+        mismatches = []
+        for record in records:
+            expected = self._annotations[str(record["t_ms"])]
+            actual = self.describe(record)
+            for field in ("topic", "payload_hex"):
+                if expected[field] != actual[field]:
+                    mismatches.append(
+                        {
+                            "field": field,
+                            "t_ms": record["t_ms"],
+                            "key": record["key"],
+                            "expected": expected[field],
+                            "actual": actual[field],
+                        }
+                    )
+            wanted = expected["fields"]
+            got = actual["fields"]
+            for name in sorted(set(wanted) | set(got)):
+                if name in wanted and name in got and _canon(wanted[name]) == _canon(got[name]):
+                    continue
+                mismatches.append(
+                    {
+                        "field": f"fields.{name}",
+                        "t_ms": record["t_ms"],
+                        "key": record["key"],
+                        "expected": wanted.get(name),
+                        "actual": got.get(name),
+                    }
+                )
+        first = mismatches[0] if mismatches else None
+        return {"ok": not mismatches, "mismatches": mismatches, "first_divergence": first}
+
+
+TARGETS = {"mock": MockTarget, "edgec-modbus": EdgecModbusTarget, "iems-mqtt": IemsMqttTarget}
 
 
 def _reject_constant(name):
     raise ValueError(f"non-finite number {name}")
+
+
+def _reject_duplicate_keys(pairs):
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r}")
+        obj[key] = value
+    return obj
+
+
+def _reject_unencodable_strings(value, where, path):
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8")
+        except UnicodeEncodeError:
+            raise TargetError(f"{where}: {path} is not encodable as UTF-8") from None
+    elif isinstance(value, dict):
+        for index, (key, item) in enumerate(value.items()):
+            _reject_unencodable_strings(key, where, f"{path} key {index}")
+            _reject_unencodable_strings(item, where, f"{path}[{index}]")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _reject_unencodable_strings(item, where, f"{path}[{index}]")
 
 
 def _reject_nonfinite_floats(value, where, path="value"):
@@ -120,6 +369,11 @@ def _reject_nonfinite_floats(value, where, path="value"):
 
 def _sha256_file(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _iems_annotations_path(trace_path):
+    path = Path(trace_path)
+    return path.with_name(path.stem + ".annotations.json")
 
 
 def _verify_trace_sha256(path, expected):
@@ -292,6 +546,9 @@ def compare(expected, actual):
 
 def run_replay(trace_path, target):
     expected = load_trace(trace_path)
+    prepare = getattr(target, "prepare", None)
+    if prepare is not None:
+        prepare(trace_path, expected)
     actual = []
     try:
         for record in expected:
@@ -301,6 +558,12 @@ def run_replay(trace_path, target):
         if close is not None:
             close()
     report = compare(expected, actual)
+    annotation_report = getattr(target, "annotation_report", None)
+    if annotation_report is not None:
+        annotations = annotation_report(expected)
+        report["annotations"] = annotations
+        if not annotations["ok"]:
+            report["ok"] = False
     report["trace"] = str(trace_path)
     report["trace_sha256"] = _sha256_file(trace_path)
     report["target"] = target.name
@@ -339,6 +602,10 @@ def _check(condition, message):
         raise SystemExit(1)
 
 
+def _selftest_ok(index, message):
+    print(f"selftest {index}/{SELFTEST_CASES} ok: {message}")
+
+
 def _run_cli(argv):
     stderr = io.StringIO()
     try:
@@ -364,6 +631,433 @@ class _CorruptingTarget(MockTarget):
         return [record]
 
 
+def _selftest_iems_mqtt(reports_dir):
+    trace_path = IEMS_MQTT_TRACE
+    _check(
+        _sha256_file(trace_path) == IEMS_MQTT_TRACE_SHA256,
+        "pinned golden hash must match samples/iems_mqtt_trace.jsonl;"
+        " update IEMS_MQTT_TRACE_SHA256 only with a deliberate trace change",
+    )
+
+    try:
+        target = IemsMqttTarget()
+    except TargetError as exc:
+        _check(False, str(exc))
+    golden = run_replay(trace_path, target)
+    golden_path = reports_dir / "selftest_iems_mqtt.json"
+    write_report(golden, golden_path)
+    _check(golden["ok"], "IEMS MQTT golden replay must report zero divergence")
+    _check(
+        golden["expected_records"] == golden["actual_records"] == 8,
+        "IEMS MQTT golden replay must return all 8 sample records",
+    )
+    _check(golden["first_divergence"] is None, "IEMS MQTT golden replay must have no divergence")
+    _check(
+        golden["annotations"]["ok"] and golden["annotations"]["mismatches"] == [],
+        "IEMS MQTT golden frames must match every v3 annotation",
+    )
+    _selftest_ok(
+        11,
+        f"IEMS MQTT golden replay and annotations, expected=8, actual=8, report={golden_path}",
+    )
+
+    victim = next(
+        record
+        for record in load_trace(trace_path)
+        if record["key"] == "pcs1.reactive_power"
+    )
+    try:
+        corrupt_target = IemsMqttTarget(corrupt_key=victim["key"])
+    except TargetError as exc:
+        _check(False, str(exc))
+    corrupt = run_replay(trace_path, corrupt_target)
+    corrupt_path = reports_dir / "selftest_iems_mqtt_corrupt.json"
+    write_report(corrupt, corrupt_path)
+    _check(not corrupt["ok"], "corrupted IEMS MQTT payload must report a difference")
+    first = corrupt["first_divergence"]
+    _check(first is not None, "corrupted IEMS MQTT payload must report a first divergence")
+    _check(
+        first["key"] == victim["key"] and first["t_ms"] == victim["t_ms"],
+        f"corrupted IEMS MQTT payload must name {victim['key']} at t_ms={victim['t_ms']}",
+    )
+    expected_actual = (round(victim["value"] * 10) + 1) / 10
+    _check(
+        first["fields"].get("value", {}).get("expected") == victim["value"]
+        and first["fields"].get("value", {}).get("actual") == expected_actual,
+        "corrupted IEMS MQTT report must show the value on both sides",
+    )
+    annotation_first = corrupt["annotations"]["first_divergence"]
+    _check(annotation_first is not None, "corrupted IEMS MQTT frame must diverge from the annotation")
+    _check(
+        annotation_first["field"] == "payload_hex"
+        and annotation_first["t_ms"] == victim["t_ms"],
+        f"corrupted IEMS MQTT annotation report must name payload_hex at t_ms={victim['t_ms']}",
+    )
+
+    TARGETS["iems-mqtt-corrupt"] = lambda: IemsMqttTarget(corrupt_key=victim["key"])
+    try:
+        exit_code = main(
+            [
+                "replay",
+                "--trace",
+                str(trace_path),
+                "--target",
+                "iems-mqtt-corrupt",
+                "--report",
+                str(reports_dir / "selftest_iems_mqtt_corrupt_cli.json"),
+            ]
+        )
+    finally:
+        del TARGETS["iems-mqtt-corrupt"]
+    _check(exit_code == 1, "replay with a corrupted IEMS MQTT payload must exit 1")
+    _selftest_ok(
+        12,
+        f"corrupted IEMS MQTT payload {victim['key']}, first divergence"
+        f" t_ms={first['t_ms']}, exit={exit_code}, report={corrupt_path}",
+    )
+
+    annotations_path = _iems_annotations_path(trace_path)
+    annotations = json.loads(annotations_path.read_text(encoding="utf-8"))
+    victim_key = str(victim["t_ms"])
+
+    def write_variant(directory, name, records, annotation_doc):
+        trace_copy = directory / f"{name}.jsonl"
+        if records is None:
+            trace_copy.write_bytes(trace_path.read_bytes())
+        else:
+            trace_copy.write_text(
+                "".join(json.dumps(record, ensure_ascii=False) + "\n" for record in records),
+                encoding="utf-8",
+            )
+        (directory / f"{name}.annotations.json").write_text(
+            json.dumps(annotation_doc, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return trace_copy
+
+    with tempfile.TemporaryDirectory(prefix="parity-iems-") as temp_dir:
+        temp = Path(temp_dir)
+
+        tampered_doc = json.loads(json.dumps(annotations))
+        hex_value = tampered_doc[victim_key]["payload_hex"]
+        tampered_doc[victim_key]["payload_hex"] = hex_value[:-1] + (
+            "0" if hex_value[-1] != "0" else "1"
+        )
+        tampered_trace = write_variant(temp, "tampered_annotation", None, tampered_doc)
+        tampered_report_path = temp / "tampered_annotation.report.json"
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(tampered_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(tampered_report_path),
+            ]
+        )
+        _check(exit_code == 1, f"tampered annotation must exit 1: {stderr}")
+        tampered_report = json.loads(tampered_report_path.read_text(encoding="utf-8"))
+        annotation_first = tampered_report["annotations"]["first_divergence"]
+        _check(
+            annotation_first["field"] == "payload_hex"
+            and annotation_first["t_ms"] == victim["t_ms"],
+            "tampered annotation report must name payload_hex and its t_ms",
+        )
+        _check(
+            tampered_report["first_divergence"] is None,
+            "annotation-only tamper must not change the trace comparator verdict",
+        )
+        _selftest_ok(
+            13,
+            f"tampered annotation rejected, field=payload_hex t_ms={victim['t_ms']}, exit={exit_code}",
+        )
+
+        missing_doc = json.loads(json.dumps(annotations))
+        del missing_doc[victim_key]
+        missing_trace = write_variant(temp, "missing_annotation", None, missing_doc)
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(missing_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(temp / "missing_annotation.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"missing annotation must exit 2: {stderr}")
+        _check(
+            "missing annotation" in stderr and victim_key in stderr,
+            f"missing annotation error must name t_ms={victim_key}: {stderr}",
+        )
+        _selftest_ok(14, f"missing annotation rejected, t_ms={victim_key}, exit={exit_code}")
+
+        extra_doc = json.loads(json.dumps(annotations))
+        extra_doc[victim_key]["note"] = "not-v3"
+        extra_trace = write_variant(temp, "extra_annotation_field", None, extra_doc)
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(extra_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(temp / "extra_annotation_field.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"unknown annotation field must exit 2: {stderr}")
+        _check(
+            "unknown annotation field" in stderr and "note" in stderr,
+            f"unknown annotation field error must name 'note': {stderr}",
+        )
+        _selftest_ok(15, f"unknown annotation field rejected, exit={exit_code}")
+
+        records = load_trace(trace_path)
+        records[2]["key"] = "pcs1.unknown_point"
+        unknown_trace = write_variant(temp, "unknown_key", records, annotations)
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(unknown_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                _sha256_file(unknown_trace),
+                "--report",
+                str(temp / "unknown_key.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"unknown key must exit 2: {stderr}")
+        _check(
+            "no iems-mqtt mapping" in stderr and "pcs1.unknown_point" in stderr,
+            f"unknown key error must name the key: {stderr}",
+        )
+        _selftest_ok(16, f"unknown key rejected, exit={exit_code}")
+
+        records = load_trace(trace_path)
+        records[0]["value"] = 999.0
+        tampered_trace = write_variant(temp, "tampered_trace", records, annotations)
+        actual_hash = _sha256_file(tampered_trace)
+        _check(
+            actual_hash != IEMS_MQTT_TRACE_SHA256,
+            "tampered IEMS trace must not keep the pinned hash",
+        )
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(tampered_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(temp / "tampered_trace.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"tampered IEMS trace hash must exit 2: {stderr}")
+        _check(
+            IEMS_MQTT_TRACE_SHA256 in stderr and actual_hash in stderr,
+            f"tampered IEMS trace error must show expected and actual hashes: {stderr}",
+        )
+        _selftest_ok(17, f"tampered IEMS trace rejected before replay, exit={exit_code}")
+
+        overflow_records = load_trace(trace_path)
+        overflow_record = next(
+            record for record in overflow_records if record["key"] == "pcs1.active_power"
+        )
+        for value, label in ((1e308, "1e+308"), (1e307, "1e+307")):
+            overflow_record["value"] = value
+            name = f"overflow_{label.replace('+', '')}"
+            overflow_trace = write_variant(temp, name, overflow_records, annotations)
+            exit_code, stderr = _run_cli(
+                [
+                    "replay",
+                    "--trace",
+                    str(overflow_trace),
+                    "--target",
+                    "iems-mqtt",
+                    "--trace-sha256",
+                    _sha256_file(overflow_trace),
+                    "--report",
+                    str(temp / f"{name}.report.json"),
+                ]
+            )
+            _check(exit_code == 2, f"overflow value {label} must exit 2: {stderr}")
+            _check(
+                "not representable as S32" in stderr and label in stderr,
+                f"overflow value {label} error must name the value: {stderr}",
+            )
+            _check(
+                "Traceback" not in stderr,
+                f"overflow value {label} must not traceback: {stderr}",
+            )
+        _selftest_ok(18, "overflow values 1e+308 and 1e+307 rejected cleanly, exit=2")
+
+        duplicate_entry = json.loads(json.dumps(annotations[victim_key]))
+        payload_hex = duplicate_entry["payload_hex"]
+        duplicate_entry["payload_hex"] = payload_hex[:-1] + (
+            "0" if payload_hex[-1] != "0" else "1"
+        )
+        parts = []
+        for key, entry in annotations.items():
+            if key == victim_key:
+                parts.append(
+                    f"{json.dumps(key)}: {json.dumps(duplicate_entry, ensure_ascii=False)}"
+                )
+            parts.append(f"{json.dumps(key)}: {json.dumps(entry, ensure_ascii=False)}")
+        duplicate_trace = temp / "duplicate_key.jsonl"
+        duplicate_trace.write_bytes(trace_path.read_bytes())
+        (temp / "duplicate_key.annotations.json").write_text(
+            "{\n" + ",\n".join(parts) + "\n}\n", encoding="utf-8"
+        )
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(duplicate_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(temp / "duplicate_key.report.json"),
+            ]
+        )
+        _check(exit_code == 2, f"duplicate annotation key must exit 2: {stderr}")
+        _check(
+            "duplicate key" in stderr and victim_key in stderr,
+            f"duplicate annotation key error must name t_ms={victim_key}: {stderr}",
+        )
+        _selftest_ok(
+            19, f"duplicate annotation key rejected, t_ms={victim_key}, exit={exit_code}"
+        )
+
+        topic_doc = json.loads(json.dumps(annotations))
+        topic_doc[victim_key]["topic"] = topic_doc[victim_key]["topic"].replace(
+            "GetResp", "SetResp"
+        )
+        topic_trace = write_variant(temp, "topic_only", None, topic_doc)
+        topic_report_path = temp / "topic_only.report.json"
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(topic_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(topic_report_path),
+            ]
+        )
+        _check(exit_code == 1, f"topic-only annotation mismatch must exit 1: {stderr}")
+        topic_report = json.loads(topic_report_path.read_text(encoding="utf-8"))
+        topic_first = topic_report["annotations"]["first_divergence"]
+        _check(
+            topic_first["field"] == "topic" and topic_first["t_ms"] == victim["t_ms"],
+            f"topic-only annotation mismatch must report field=topic t_ms={victim['t_ms']}",
+        )
+        _check(
+            topic_report["first_divergence"] is None,
+            "topic-only annotation mismatch must not change the trace comparator verdict",
+        )
+        _selftest_ok(
+            20,
+            f"topic-only annotation mismatch reported, field=topic t_ms={victim['t_ms']},"
+            f" exit={exit_code}",
+        )
+
+        fields_doc = json.loads(json.dumps(annotations))
+        fields_doc[victim_key]["fields"]["value"] = victim["value"] + 1.0
+        fields_trace = write_variant(temp, "fields_only", None, fields_doc)
+        fields_report_path = temp / "fields_only.report.json"
+        exit_code, stderr = _run_cli(
+            [
+                "replay",
+                "--trace",
+                str(fields_trace),
+                "--target",
+                "iems-mqtt",
+                "--trace-sha256",
+                IEMS_MQTT_TRACE_SHA256,
+                "--report",
+                str(fields_report_path),
+            ]
+        )
+        _check(exit_code == 1, f"fields-only annotation mismatch must exit 1: {stderr}")
+        fields_report = json.loads(fields_report_path.read_text(encoding="utf-8"))
+        fields_first = fields_report["annotations"]["first_divergence"]
+        _check(
+            fields_first["field"] == "fields.value"
+            and fields_first["t_ms"] == victim["t_ms"],
+            f"fields-only annotation mismatch must report field=fields.value"
+            f" t_ms={victim['t_ms']}",
+        )
+        _check(
+            fields_report["first_divergence"] is None,
+            "fields-only annotation mismatch must not change the trace comparator verdict",
+        )
+        _selftest_ok(
+            21,
+            f"fields-only annotation mismatch reported, field=fields.value"
+            f" t_ms={victim['t_ms']}, exit={exit_code}",
+        )
+
+        surrogate_docs = []
+        surrogate_topic = json.loads(json.dumps(annotations))
+        surrogate_topic[victim_key]["topic"] = "\ud800"
+        surrogate_docs.append(("surrogate_topic", surrogate_topic))
+        surrogate_field_key = json.loads(json.dumps(annotations))
+        surrogate_field_key[victim_key]["fields"]["\ud800"] = 0.0
+        surrogate_docs.append(("surrogate_fields_key", surrogate_field_key))
+        surrogate_field_value = json.loads(json.dumps(annotations))
+        surrogate_field_value[victim_key]["fields"]["value"] = "\ud800"
+        surrogate_docs.append(("surrogate_fields_value", surrogate_field_value))
+        for name, doc in surrogate_docs:
+            surrogate_trace = temp / f"{name}.jsonl"
+            surrogate_trace.write_bytes(trace_path.read_bytes())
+            (temp / f"{name}.annotations.json").write_text(
+                json.dumps(doc, ensure_ascii=True) + "\n", encoding="utf-8"
+            )
+            report_path = temp / f"{name}.report.json"
+            exit_code, stderr = _run_cli(
+                [
+                    "replay",
+                    "--trace",
+                    str(surrogate_trace),
+                    "--target",
+                    "iems-mqtt",
+                    "--trace-sha256",
+                    IEMS_MQTT_TRACE_SHA256,
+                    "--report",
+                    str(report_path),
+                ]
+            )
+            _check(exit_code == 2, f"{name} must exit 2: {stderr}")
+            _check(
+                "not encodable as UTF-8" in stderr,
+                f"{name} error must name the UTF-8 rejection: {stderr}",
+            )
+            _check("Traceback" not in stderr, f"{name} must not traceback: {stderr}")
+            _check(
+                not report_path.exists(),
+                f"{name} must not leave a report behind, report={report_path}",
+            )
+        _selftest_ok(22, "lone surrogates in topic and fields rejected, exit=2, no report")
+
+
 def _cmd_selftest():
     trace_path = BASE_DIR / "samples" / "sample_trace.jsonl"
     reports_dir = BASE_DIR / "reports"
@@ -376,9 +1070,10 @@ def _cmd_selftest():
     _check(mirror["missing"] == 0 and mirror["extra"] == 0, "identical replay must have no missing or extra records")
     _check(mirror["mismatches"] == 0, "identical replay must have no mismatched records")
     _check(mirror["first_divergence"] is None, "identical replay must have no first divergence")
-    print(
-        f"selftest 1/10 ok: identical replay, expected={mirror['expected_records']},"
-        f" actual={mirror['actual_records']}, report={mirror_path}"
+    _selftest_ok(
+        1,
+        f"identical replay, expected={mirror['expected_records']},"
+        f" actual={mirror['actual_records']}, report={mirror_path}",
     )
 
     victim = None
@@ -430,9 +1125,10 @@ def _cmd_selftest():
         del TARGETS["corrupt"]
     _check(exit_code == 1, "replay with a difference must exit 1")
 
-    print(
-        f"selftest 2/10 ok: corrupted {first['kind']} {first['key']},"
-        f" first divergence t_ms={first['t_ms']}, exit={exit_code}, report={corrupt_path}"
+    _selftest_ok(
+        2,
+        f"corrupted {first['kind']} {first['key']},"
+        f" first divergence t_ms={first['t_ms']}, exit={exit_code}, report={corrupt_path}",
     )
 
     try:
@@ -451,9 +1147,9 @@ def _cmd_selftest():
         edgec["expected_records"] == edgec["actual_records"] == 14,
         "real EdgeC codec replay must return all 14 sample records",
     )
-    print(
-        f"selftest 3/10 ok: real EdgeC Modbus RTU codec, expected=14, actual=14,"
-        f" report={edgec_path}"
+    _selftest_ok(
+        3,
+        f"real EdgeC Modbus RTU codec, expected=14, actual=14, report={edgec_path}",
     )
 
     corrupt_key = "meter1.grid_power"
@@ -493,10 +1189,10 @@ def _cmd_selftest():
         del TARGETS["edgec-modbus-corrupt"]
     _check(exit_code == 1, "replay with a corrupted EdgeC register must exit 1")
 
-    print(
-        f"selftest 4/10 ok: corrupted register {corrupt_key},"
-        f" first divergence t_ms={edgec_first['t_ms']}, exit={exit_code},"
-        f" report={edgec_corrupt_path}"
+    _selftest_ok(
+        4,
+        f"corrupted register {corrupt_key}, first divergence t_ms={edgec_first['t_ms']},"
+        f" exit={exit_code}, report={edgec_corrupt_path}",
     )
 
     golden = SAMPLE_TRACE_SHA256
@@ -520,8 +1216,8 @@ def _cmd_selftest():
         ]
     )
     _check(exit_code == 0, f"replay with the pinned trace hash must exit 0: {stderr}")
-    print(
-        f"selftest 5/10 ok: pinned trace SHA256 accepted, exit={exit_code}, report={ok_path}"
+    _selftest_ok(
+        5, f"pinned trace SHA256 accepted, exit={exit_code}, report={ok_path}"
     )
 
     with tempfile.TemporaryDirectory(prefix="parity-selftest-") as temp_dir:
@@ -561,9 +1257,9 @@ def _cmd_selftest():
             golden in stderr and tampered_hash in stderr,
             f"hash mismatch error must show expected and actual hashes: {stderr}",
         )
-        print(
-            f"selftest 6/10 ok: tampered trace rejected before replay,"
-            f" exit={exit_code}, actual={tampered_hash}"
+        _selftest_ok(
+            6,
+            f"tampered trace rejected before replay, exit={exit_code}, actual={tampered_hash}",
         )
 
         missing_field = [dict(record) for record in raw]
@@ -607,7 +1303,7 @@ def _cmd_selftest():
                 reason in stderr,
                 f"malformed trace ({label}) must be rejected for {reason!r}: {stderr}",
             )
-            print(f"selftest {index}/10 ok: {label} rejected, exit={exit_code}")
+            _selftest_ok(index, f"{label} rejected, exit={exit_code}")
 
         nonfinite = temp / "nonfinite.jsonl"
         nonfinite.write_text(
@@ -634,7 +1330,9 @@ def _cmd_selftest():
             f"non-finite value must be rejected by the loader: {stderr}",
         )
         _check("Traceback" not in stderr, f"non-finite value must not traceback: {stderr}")
-        print(f"selftest 10/10 ok: non-finite value rejected, exit={exit_code}")
+        _selftest_ok(10, f"non-finite value rejected, exit={exit_code}")
+
+    _selftest_iems_mqtt(reports_dir)
 
     print("SELFTEST PASS")
     return 0
@@ -675,7 +1373,20 @@ def main(argv=None):
         if report["ok"]:
             print(f"OK: no divergence, report={args.report}")
             return 0
-        print(f"DIFF: first divergence {_describe_first(report['first_divergence'])}, report={args.report}")
+        if report["first_divergence"] is not None:
+            print(
+                f"DIFF: first divergence {_describe_first(report['first_divergence'])},"
+                f" report={args.report}"
+            )
+        else:
+            divergence = report["annotations"]["first_divergence"]
+            print(
+                f"DIFF: annotation field {divergence['field']}"
+                f" at t_ms={divergence['t_ms']}"
+                f" expected {json.dumps(divergence['expected'], ensure_ascii=False)}"
+                f" actual {json.dumps(divergence['actual'], ensure_ascii=False)},"
+                f" report={args.report}"
+            )
         return 1
     except (TraceError, TargetError, OSError) as exc:
         print(f"error: {exc}", file=sys.stderr)

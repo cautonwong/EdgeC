@@ -1,0 +1,49 @@
+# DCU-P3-1-ACL-CAP 预算前后对比
+
+测量口径：
+- 会话大小：gdb `start` 后读 `dlt698_driver.ctx_size`（= sizeof(dlt698_session_t)），
+  红色构建（实现前）与绿色构建（实现后）各一次。
+- 对象列表字节：`test_slave_object_list_fits_production_slave_pool` 的精确帧长断言；
+  红色构建实际 5828 B（断言 5828 != 6014 失败），绿色构建 6014 B 通过。
+- 方法号总数：静态表 `k_objects` 的 n_methods 求和（107 手写行 + 11 参数行）。
+- 上限常数取自 `foundation/include/edge_slave_plane.h`、
+  `modules/edge_io/include/bus_orchestrator.h`、`adapters/io_drivers/src/driver_manager.c`。
+
+## 会话与私有区
+
+| 项 | 改前 | 改后 | 变化 |
+| --- | --- | --- | --- |
+| 每对象 ACL 描述 | 16 B | 12 B | -4 B |
+| ACL 对象数组（224） | 16×224 = 3584 B | 12×224 = 2688 B | -896 B |
+| 会话级方法号池 | 0 B（对象内 method_ids[8]） | 1024 B（产品用 296 B） | +1024 B |
+| ACL 头（loaded/count/method_used） | 4 B | 6 B（对齐后 +6 B） | +6 B |
+| `sizeof(dlt698_session_t)` | **3624 B**（gdb 0xe28） | **3752 B**（gdb 0xea8） | **+128 B** |
+| `DRIVER_PRIV_SIZE` | 4096 B | 4096 B（不变） | 0 |
+| 会话余量 | 472 B | **344 B** | -128 B |
+| `driver_manager_storage_t.raw` | 147456 B | 147456 B（不变） | 0 |
+| north adapter storage | 163840 B | 163840 B（不变） | 0 |
+
+方法池余量：1024 - 296 = 728 B（产品当前 118 对象；单对象上限 12，池满整单拒绝）。
+
+## Class 20 对象列表 A-XDR 与响应池
+
+| 项 | 改前 | 改后 | 变化 |
+| --- | --- | --- | --- |
+| 对象数 | 118 | 118 | 0 |
+| 属性项 | 470（手写 457 + 参数 OI 13） | 486 | +16 |
+| 方法项 | 281 | 296 | +15 |
+| 属性/方法条目 | 751 | 782 | +31 |
+| 数据字节 | 5806 B | **5992 B** | +186 B |
+| 加 22 B 698 帧 | 5828 B | **6014 B** | +186 B |
+| `EDGE_SLAVE_AXDR_MAX` 余量（对当前列表） | 4434 B | **4248 B** | -186 B |
+| D1-21 224 项投影 7354 B 的余量 | 2886 B | 2886 B（不变） | 0 |
+| `BUS_SLAVE_POOL_BUF_SIZE` = 10240+256 | 10496 B | 10496 B（不变） | 0 |
+| 响应池帧余量 | 4668 B | **4482 B** | -186 B |
+| 从站响应池总量（32 × 10496） | 335872 B | 335872 B（不变） | 0 |
+
+## 结论
+
+- `DRIVER_PRIV_SIZE`、`EDGE_SLAVE_AXDR_MAX`、`EDGE_SLAVE_ACL_MAX_OBJECTS`（224）
+  三项 D1-21 预算均不需要抬高；会话仍在 4096 B 内（余 344 B），
+  所以所有按 D1-21 使用 4096 B 会话缓冲的测试与产品槽位不做改动。
+- 广告 31 个新条目只占 Class 20 列表 3.2%，响应池余量 4482 B。

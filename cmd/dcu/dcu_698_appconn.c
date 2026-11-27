@@ -58,7 +58,8 @@ static const acl_attr_t k_attrs_harmonic[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5
 static const acl_attr_t k_attrs_stat[] = {{1, 1}, {2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_display[] = {{2, 1}, {3, 1}, {4, 1}};
 static const acl_attr_t k_attrs_7010[] = {{2, 1}};
-/* 表157 定义 A1..A19；ACL schema 只到 16，16 归属有冲突记 HOLD，故广告 1..15。 */
+/* 表157 定义 A1..A19；16/17 的归属在表157/表158 间冲突、18/19 未裁决，
+ * 故广告 1..15。 */
 static const acl_attr_t k_attrs_2401[] = {{1, 1},  {2, 1},  {3, 1},  {4, 1},  {5, 1},
                                           {6, 1},  {7, 1},  {8, 1},  {9, 1},  {10, 1},
                                           {11, 1}, {12, 1}, {13, 1}, {14, 1}, {15, 1}};
@@ -67,29 +68,29 @@ static const acl_attr_t k_attrs_2401[] = {{1, 1},  {2, 1},  {3, 1},  {4, 1},  {5
 static const acl_attr_t k_attrs_wireless[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1},
                                               {7, 1}, {8, 1}, {9, 1}, {10, 1}, {11, 1}};
 static const acl_attr_t k_attrs_ethernet[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}};
-/* 表178 的 A1..A10 只读广告；方法 1..6 广告只读，ACTION 才能越过 ACL 到对象表
- * 如实回 DAR 5。4307..4309 的 127..129 计入 resolver 定义但 ACL 每对象方法上限 8
- * 已被类方法占用，不广告（主站回 DAR 3）。 */
+/* 表178 的 A1..A10 只读广告；4307..4309 的 OI 方法 127..129 也广告只读，
+ * ACTION 才能越过 ACL 到对象表如实回 DAR 5。 */
 static const acl_attr_t k_attrs_devmgr[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1},
                                             {6, 1}, {7, 1}, {8, 1}, {9, 1}, {10, 1}};
 static const uint8_t k_methods_devmgr[] = {1, 2, 3, 4, 5, 6};
-/* 表184 的 A1..A15 只读广告；方法 1..12 定义但 ACL 每对象方法上限 8，故广告 1..8，
- * 9..12 记 HOLD（主站 ACTION 回 DAR 3）。产品无 ESAM 处理器，广告的方法只回 DAR 5。 */
+static const uint8_t k_methods_devmgr_sub[] = {1, 2, 3, 4, 5, 6, 127, 128, 129};
+/* 表184 的 A1..A15 只读广告；方法 1..12 广告只读，ACTION 到对象表如实回 DAR 5。
+ * 产品无 ESAM 处理器，广告的方法只回 DAR 5。 */
 static const acl_attr_t k_attrs_esam[] = {{1, 1},  {2, 1},  {3, 1},  {4, 1},  {5, 1},
                                           {6, 1},  {7, 1},  {8, 1},  {9, 1},  {10, 1},
                                           {11, 1}, {12, 1}, {13, 1}, {14, 1}, {15, 1}};
-static const uint8_t k_methods_esam[] = {1, 2, 3, 4, 5, 6, 7, 8};
-/* 表190 的 A1..A18、方法 1..5；ACL 属性 schema 只到 16，故广告 A1..A16，
- * A17/A18 记 HOLD（主站 GET 回 DAR 3）。方法 1..5 全部广告只读。 */
+static const uint8_t k_methods_esam[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+/* 表190 的 A1..A18、方法 1..5 全部只读广告。 */
 static const acl_attr_t k_attrs_group[] = {
-    {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, {8, 1},
-    {9, 1}, {10, 1}, {11, 1}, {12, 1}, {13, 1}, {14, 1}, {15, 1}, {16, 1}};
+    {1, 1},  {2, 1},  {3, 1},  {4, 1},  {5, 1},  {6, 1},  {7, 1},  {8, 1},  {9, 1},
+    {10, 1}, {11, 1}, {12, 1}, {13, 1}, {14, 1}, {15, 1}, {16, 1}, {17, 1}, {18, 1}};
 static const uint8_t k_methods_group[] = {1, 2, 3, 4, 5};
-/* 表175/表A.11：F000 广告 A1..A5，F001/F002 广告 A1..A4；方法 1..8 全部广告。
- * F001 的 OI 方法 9/10 已计入 resolver 定义，但 ACL 方法槽 8 已满，记 HOLD。 */
+/* 表175/表A.11：F000 广告 A1..A5，F001/F002 广告 A1..A4；方法 1..8 全部广告，
+ * F001 另有 OI 方法 9/10。 */
 static const acl_attr_t k_attrs_file_frame[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}};
 static const acl_attr_t k_attrs_file[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}};
 static const uint8_t k_methods_file[] = {1, 2, 3, 4, 5, 6, 7, 8};
+static const uint8_t k_methods_file_chunk[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 static const uint8_t k_methods_comm_reset[] = {1};
 static const uint8_t k_methods_reset_exec[] = {1, 2};
 static const uint8_t k_methods_stat[] = {1, 2, 3, 4};
@@ -150,20 +151,20 @@ static const acl_object_t k_objects[] = {
     {0x2124, k_attrs_stat, 3, k_methods_stat, 4},
     {0x2401, k_attrs_2401, 15, k_methods_pulse, 4},
     {0x4300, k_attrs_devmgr, 10, k_methods_devmgr, 6},
-    {0x4307, k_attrs_devmgr, 10, k_methods_devmgr, 6},
-    {0x4308, k_attrs_devmgr, 10, k_methods_devmgr, 6},
-    {0x4309, k_attrs_devmgr, 10, k_methods_devmgr, 6},
-    {0xF100, k_attrs_esam, 15, k_methods_esam, 8},
-    {0x2301, k_attrs_group, 16, k_methods_group, 5},
-    {0x2302, k_attrs_group, 16, k_methods_group, 5},
-    {0x2303, k_attrs_group, 16, k_methods_group, 5},
-    {0x2304, k_attrs_group, 16, k_methods_group, 5},
-    {0x2305, k_attrs_group, 16, k_methods_group, 5},
-    {0x2306, k_attrs_group, 16, k_methods_group, 5},
-    {0x2307, k_attrs_group, 16, k_methods_group, 5},
-    {0x2308, k_attrs_group, 16, k_methods_group, 5},
+    {0x4307, k_attrs_devmgr, 10, k_methods_devmgr_sub, 9},
+    {0x4308, k_attrs_devmgr, 10, k_methods_devmgr_sub, 9},
+    {0x4309, k_attrs_devmgr, 10, k_methods_devmgr_sub, 9},
+    {0xF100, k_attrs_esam, 15, k_methods_esam, 12},
+    {0x2301, k_attrs_group, 18, k_methods_group, 5},
+    {0x2302, k_attrs_group, 18, k_methods_group, 5},
+    {0x2303, k_attrs_group, 18, k_methods_group, 5},
+    {0x2304, k_attrs_group, 18, k_methods_group, 5},
+    {0x2305, k_attrs_group, 18, k_methods_group, 5},
+    {0x2306, k_attrs_group, 18, k_methods_group, 5},
+    {0x2307, k_attrs_group, 18, k_methods_group, 5},
+    {0x2308, k_attrs_group, 18, k_methods_group, 5},
     {0xF000, k_attrs_file_frame, 5, k_methods_file, 8},
-    {0xF001, k_attrs_file, 4, k_methods_file, 8},
+    {0xF001, k_attrs_file, 4, k_methods_file_chunk, 10},
     {0xF002, k_attrs_file, 4, k_methods_file, 8},
     {0x4500, k_attrs_wireless, 11, k_methods_comm_reset, 1},
     {0x4501, k_attrs_wireless, 11, k_methods_comm_reset, 1},

@@ -555,14 +555,18 @@ bool dcu_698_oi_defines_attr(uint16_t oi, uint8_t class_id, uint8_t attr_id) {
     return false;
 }
 
-/* 附录 A 各接口类自身方法号的上限（OCI 专属的 127+ 方法另算）。 */
+/* 附录 A 各接口类自身方法号的上限；absent_methods 的 bit n 标记 7.3 类表缺号（OCI 专属的 127+ 方法另算）。 */
 static const struct {
     uint8_t class_id;
     uint8_t max_method;
+    uint8_t absent_methods;
 } k_class_max_method[] = {
-    {1, 2},  {2, 2},  {3, 2},   {4, 2},  {5, 2},  {6, 2},  {7, 5},  {8, 2},  {9, 8},
-    {10, 3}, {11, 2}, {12, 4},  {13, 7}, {14, 4}, {15, 4}, {16, 4}, {17, 6}, {18, 8},
-    {19, 6}, {20, 2}, {21, 12}, {22, 2}, {23, 5}, {24, 5}, {25, 1}, {26, 1},
+    {1, 2, 0},  {2, 2, 0},  {3, 2, 0},   {4, 2, 0},  {5, 2, 0},   {6, 2, 0},
+    {7, 5, 1u << 3}, {8, 2, 0}, {9, 8, 1u << 6},
+    {10, 3, 0}, {11, 2, 0}, {12, 4, 0},  {13, 7, 0}, {14, 4, 0},  {15, 4, 0},
+    {16, 4, 0}, {17, 6, 0}, {18, 8, 0},
+    {19, 6, 0}, {20, 2, 0}, {21, 12, 0}, {22, 2, 0}, {23, 5, 0},
+    {24, 5, 1u << 3}, {25, 1, 0}, {26, 1, 0},
 };
 
 /* A.12/A.8 与 Class 19 子设备的 OI 专属方法（127 起）；类表只到各类自身的方法号。 */
@@ -576,9 +580,19 @@ static const struct {
     {OI_DEVICE_WATER, 129},   {OI_DEVICE_GAS, 129},     {OI_DEVICE_HEAT, 129},
 };
 
+bool dcu_698_class_defines_method(uint8_t class_id, uint8_t method_id) {
+    if (method_id == 0) return false;
+    for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
+        if (k_class_max_method[i].class_id == class_id) {
+            return method_id <= k_class_max_method[i].max_method &&
+                   !(k_class_max_method[i].absent_methods & (1u << method_id));
+        }
+    }
+    return false;
+}
+
 static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_id) {
     if (method_id == 0) return false;
-    if (class_id == 9 && method_id == 6) return false; /* 表148 跳过方法 6 */
     if (oi == OI_REMOTE_CONTROL && method_id >= DCU_ACTION_METHOD_FIRST &&
         method_id <= DCU_ACTION_METHOD_LAST) {
         return true;
@@ -593,12 +607,7 @@ static bool _class_defines_method(uint8_t class_id, uint16_t oi, uint8_t method_
             if (k_oi_max_method[i].oi == oi) return method_id <= k_oi_max_method[i].max_method;
         }
     }
-    for (size_t i = 0; i < sizeof(k_class_max_method) / sizeof(k_class_max_method[0]); i++) {
-        if (k_class_max_method[i].class_id == class_id) {
-            return method_id <= k_class_max_method[i].max_method;
-        }
-    }
-    return false;
+    return dcu_698_class_defines_method(class_id, method_id);
 }
 
 const router_sink_ops_t *dcu_698_internal_sink_ops(void) {

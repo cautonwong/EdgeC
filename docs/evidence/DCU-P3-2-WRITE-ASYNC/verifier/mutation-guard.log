@@ -1,0 +1,10 @@
+=== Mutation guards: 1 entries, build /tmp/edgec-land/p3-2-write-async/build ===
+
+[MUTATION] DCU-P3-2-write-async-ownership (modules/edge_io/src/passthrough_mgr.c)
+  [mutate] modules/edge_io/src/passthrough_mgr.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] modules/edge_io/src/passthrough_mgr.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-2-write-async-ownership: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
