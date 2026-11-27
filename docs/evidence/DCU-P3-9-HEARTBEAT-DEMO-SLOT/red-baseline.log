@@ -1,0 +1,74 @@
+Test project /tmp/edgec-land/p3-9-heartbeat-demo-slot/build
+    Start 23: test_dcu_runtime_health
+1/1 Test #23: test_dcu_runtime_health ..........***Failed    1.89 sec
+[==========] tests: Running 6 test(s).
+[ RUN      ] test_production_cycle_has_no_demo_behavior
+[2026-11-27 10:07:11][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:11][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 2052 KB)
+ [Metrics] Registered: Tag=12001, Name=datahub.ring.watermark
+ [Metrics] Registered: Tag=12002, Name=datahub.ring.drop_count
+ [Metrics] Registered: Tag=12003, Name=datahub.ring.read_latency
+ [Metrics] Registered: Tag=12004, Name=datahub.shadow.write_count
+[2026-11-27 10:07:11][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[2026-11-27 10:07:11][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=0)
+[2026-11-27 10:07:11][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-27 10:07:11][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[       OK ] test_production_cycle_has_no_demo_behavior
+[ RUN      ] test_demo_mode_restores_bench_behavior
+[2026-11-27 10:07:13][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:13][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 2052 KB)
+[2026-11-27 10:07:13][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 201)
+[2026-11-27 10:07:13][INFO][BUS] 🏁 [TEST] Triggering demo relay control for Meter 10000001...
+[2026-11-27 10:07:13][WARN][CORE] DCU control: 聚合根拒绝/下发失败 dev=000000000001 action=1 rc=-4
+[2026-11-27 10:07:13][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+🎛️ [RELAY] Dev 200: Triggering Action 1
+[2026-11-27 10:07:13][WARN][CORE] DCU control: 聚合根拒绝/下发失败 dev=000000000201 action=1 rc=-4
+[2026-11-27 10:07:13][INFO][SCHED] 💓 [HEARTBEAT] Cycle 2 completed (saved=0)
+[2026-11-27 10:07:13][INFO][SCHED] 💓 [HEARTBEAT] Cycle 3 completed (saved=0)
+[2026-11-27 10:07:13][INFO][SCHED] 🏁 [TEST] Marathon Completed. Self-terminating...
+[       OK ] test_demo_mode_restores_bench_behavior
+[ RUN      ] test_node_lifecycle_runs_on_one_thread
+[2026-11-27 10:07:13][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:13][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 2052 KB)
+[2026-11-27 10:07:13][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[       OK ] test_node_lifecycle_runs_on_one_thread
+[ RUN      ] test_demo_freeze_trigger_uses_slot_identity
+[2026-11-27 10:07:13][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:13][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 2052 KB)
+[2026-11-27 10:07:13][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 3)
+[2026-11-27 10:07:13][INFO][CORE] WASM: Secure Runtime initialized
+[2026-11-27 10:07:13][INFO][SCHED] 💓 [HEARTBEAT] Cycle 1 completed (saved=1)
+💓 [HEARTBEAT] Marathon Cycle 1 Completed. Database Flushed.
+[       OK ] test_demo_freeze_trigger_uses_slot_identity
+[ RUN      ] test_demo_control_targets_first_meter_slot
+[2026-11-27 10:07:13][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:13][INFO][BUS] Sealed memfd Ring created (FD: 10, Size: 2052 KB)
+[2026-11-27 10:07:13][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 2)
+[2026-11-27 10:07:13][INFO][BUS] 🏁 [TEST] Triggering demo relay control for Meter 10000001...
+[2026-11-27 10:07:13][WARN][CORE] DCU control: slot 0 不在档案里，拒绝执行
+[  ERROR   ] --- 0 != 1
+[   LINE   ] --- /tmp/edgec-land/p3-9-heartbeat-demo-slot/tests/test_dcu_runtime_health.c:361: error: Failure!
+[  FAILED  ] test_demo_control_targets_first_meter_slot
+[ RUN      ] test_demo_control_skips_empty_inventory
+[2026-11-27 10:07:13][WARN][SCHED] datahub_capacity=1024 < DCU_SHADOW_CAPACITY=135168：产品或应用点位的影子值会被丢弃
+[2026-11-27 10:07:13][INFO][BUS] Sealed memfd Ring created (FD: 17, Size: 2052 KB)
+[2026-11-27 10:07:13][INFO][CORE] DCU Node Aggregate Root assembled successfully (Meters: 1)
+[2026-11-27 10:07:13][INFO][BUS] 🏁 [TEST] Triggering demo relay control for Meter 10000001...
+[2026-11-27 10:07:13][WARN][CORE] DCU control: slot 0 不在档案里，拒绝执行
+[       OK ] test_demo_control_skips_empty_inventory
+[==========] tests: 6 test(s) run.
+[  PASSED  ] 5 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_demo_control_targets_first_meter_slot
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   1.89 sec
+
+The following tests FAILED:
+	 23 - test_dcu_runtime_health (Failed)
+Errors while running CTest

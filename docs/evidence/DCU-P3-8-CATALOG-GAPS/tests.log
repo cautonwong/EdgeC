@@ -1,0 +1,25 @@
+.....
+----------------------------------------------------------------------
+Ran 5 tests in 1.798s
+
+OK
+
+== source-window tests (green)
+----------------------------------------------------------------------
+Ran 6 tests in 1.928s
+
+OK
+
+== generator --check
+rc=0
+
+== ci catalog gate
+[DCU_698_CATALOG] catalog matches docs/698_parsed.md
+rc=0
+
+== ctest catalog targets
+2/2 Test #27: test_dcu_698_catalog .............   Passed    0.13 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.79 sec

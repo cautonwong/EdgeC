@@ -73,7 +73,7 @@ int dcu_698_rule_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len
 int dcu_698_task_monitor_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
 
 /**
- * @brief 编码 date_time_s：UNIX 整秒 → tag 0x1C + 设备本地公历 7 字节。
+ * @brief 编码 date_time_s：UNIX 整秒 → tag DLT698_TAG_DATE_TIME_S + 设备本地公历 7 字节。
  *
  * 表49 的 date_time_s 不带时区，主站看到的是设备本地民用时间，所以这里经
  * `localtime_r` 展开，进程 TZ 即设备配置的时区（部署时必须配置）。
@@ -81,7 +81,7 @@ int dcu_698_task_monitor_encode_axdr(uint32_t oad, uint8_t *buf, size_t cap, siz
  */
 int dcu_698_put_date_time_s(uint64_t epoch_s, uint8_t *buf, size_t cap, size_t *off);
 
-/** @brief 解码 date_time_s / date_time（0x1C / 0x19），按设备本地时区经 `mktime` 返回 UNIX 整秒。
+/** @brief 解码 date_time_s / date_time（DLT698_TAG_DATE_TIME_S / DLT698_TAG_DATE_TIME），按设备本地时区经 `mktime` 返回 UNIX 整秒。
  */
 int dcu_698_date_time_s_to_epoch(const uint8_t *data, uint8_t len, uint64_t *out);
 

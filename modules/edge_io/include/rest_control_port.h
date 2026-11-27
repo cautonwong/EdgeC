@@ -139,6 +139,14 @@ typedef struct {
      */
     int (*consumer_heartbeat)(void *ctx, const char *name,
                               unsigned long long applied_generation);
+
+    /**
+     * Downlink control-write policy for /api/v1/actor/set and /api/v1/io/raw.
+     * Returns NULL to allow, or a short denial reason ("denied_shadow",
+     * "write_disabled"). A NULL callback means closed. The composition root
+     * decides; the REST adapter never reads IEMS env.
+     */
+    const char *(*control_write_denial)(void *ctx, const char *endpoint);
 } rest_control_port_t;
 
 #endif /* REST_CONTROL_PORT_H */

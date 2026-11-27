@@ -157,12 +157,20 @@ typedef enum {
     IEMS_WRITE_DONE_TIMEOUT = 2
 } iems_write_done_status_t;
 
+/* 影子模式拒绝下行控制写的 typed 返回码（失败关闭，调用方必须按 <0 失败处理）。
+ * 取独立值：正常模式 BMS L3 闭锁也返回 -3，同码会让调用方无法区分两种拒绝。
+ * 仅本产品内部 C 宏；调用方契约仍是 rc != 0（<0）即失败，无协议/线格式变化。 */
+#define IEMS_WRITE_DENIED_SHADOW (-100)
+
 /* 完成回调可能在总线/IO 线程触发，实现方必须自己保证线程安全（北向用 uv_async 回投）。
  * on_done 为 NULL 时行为与旧接口一致：只提交，不要结果。 */
 typedef void (*iems_write_done_fn)(void *user, iems_write_done_status_t status);
 
 typedef struct {
     void *ctx;
+    /* 影子模式由组合根注入：true 时聚合根与执行出口拒绝一切下行控制写，
+     * 返回 IEMS_WRITE_DENIED_SHADOW；读、轮询、遥测不经过本端口。 */
+    bool shadow_mode;
     int (*write_tag)(void *ctx, int bus_id, uint32_t slave_id, uint32_t tag_id, double value,
                      const char *proto, iems_write_done_fn on_done, void *on_done_user);
 } iems_execution_port_t;

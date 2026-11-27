@@ -11,10 +11,13 @@
 #include <string.h>
 
 #include "datahub.h"
+#include "dcu_comm_info.h"
+#include "dcu_698_axdr.h"
 #include "dcu_698_object_model.h"
 #include "dcu_698_var.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
+#include "dlt698_codec.h"
 #include "edge_slave_plane.h"
 
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
@@ -301,6 +304,54 @@ static void test_class_ids_and_masks(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
+static void test_4510_a5_scalar_path_refuses_octet_string(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    dcu_comm_info_t info = {0};
+    info.mac_present = true;
+    info.mac[0] = 0x02;
+    info.mac[1] = 0x11;
+    info.mac[2] = 0x22;
+    info.mac[3] = 0x33;
+    info.mac[4] = 0x44;
+    info.mac[5] = 0x55;
+    dcu_comm_info_install(&info);
+
+    dcu_value_t v;
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_ETHERNET_COMM_FIRST, 5), buf, sizeof(buf), &len),
+        0);
+    static const uint8_t want[] = {DLT698_TAG_OCTET_STRING, 6, 0x02, 0x11,
+                                   0x22,                   0x33, 0x44, 0x55};
+    assert_int_equal(len, sizeof(want));
+    assert_memory_equal(buf, want, sizeof(want));
+
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_ETHERNET_COMM_FIRST, 5), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_comm_info_reset();
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_ETHERNET_COMM_FIRST, 5), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_ETHERNET_COMM_FIRST, 5), buf, sizeof(buf), &len),
+        EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_ETHERNET_COMM_FIRST, 6), &v),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_WIRELESS_COMM_FIRST, 1), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(OI_ETHERNET_COMM_FIRST + 1, 5), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_class3_voltage_array_and_scaler, setup, teardown),
@@ -312,6 +363,8 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_wrong_slot_and_attr, setup, teardown),
         cmocka_unit_test_setup_teardown(test_shadow_missing_is_not_found, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class_ids_and_masks, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_4510_a5_scalar_path_refuses_octet_string, setup,
+                                        teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

@@ -1371,6 +1371,18 @@ static char *_control_registry_snapshot(void *ctx) {
     return json;
 }
 
+/* REST 下行写策略：影子优先；raw IO 还要组合根显式开启；其余入口保持关闭。 */
+static const char *_control_write_denial(void *ctx_v, const char *endpoint) {
+    const iems_control_ctx_t *ctx = (const iems_control_ctx_t *)ctx_v;
+    if (!ctx) return "write_disabled";
+    if (ctx->shadow_mode) return "denied_shadow";
+    if (ctx->rest_raw_io_enabled && endpoint &&
+        strcmp(endpoint, "/api/v1/io/raw") == 0) {
+        return NULL;
+    }
+    return "write_disabled";
+}
+
 void iems_control_port_init(rest_control_port_t *port, iems_control_ctx_t *ctx,
                             edge_app_mgr_t *mgr, stream_engine_t *engine, sqlite_svc_t *db) {
     if (!port || !ctx) return;
@@ -1378,6 +1390,8 @@ void iems_control_port_init(rest_control_port_t *port, iems_control_ctx_t *ctx,
     ctx->engine = engine;
     ctx->db = db;
     ctx->app_runtime = NULL;
+    ctx->shadow_mode = false;
+    ctx->rest_raw_io_enabled = false;
     memset(ctx->consumers, 0, sizeof(ctx->consumers));
     ctx->consumer_count = 0;
     _load_package_keyring(ctx);
@@ -1389,6 +1403,7 @@ void iems_control_port_init(rest_control_port_t *port, iems_control_ctx_t *ctx,
         }
     }
     port->ctx = ctx;
+    port->control_write_denial = _control_write_denial;
     port->apps_json = _control_apps_json;
     port->time_status_json = _control_time_status_json;
     port->time_mark = _control_time_mark;

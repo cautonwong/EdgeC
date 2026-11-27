@@ -41,7 +41,9 @@ cmd/edge_mcp_server/main.c|184
 #   调用 + 只读 getter），解析/校验在 iems_pcs_settings.c，模型在 iems_pcs_settings.h。
 # 2026-11-26: cmd/iems/iems_app.c 626 -> 632；P2-02a 把 PCS 加载抽成 _load_pcs_settings，
 #   assemble 保持 < 200 行（SRP 门禁）。
-cmd/iems/iems_app.c|632
+# 2026-11-27: cmd/iems/iems_app.c 632 -> 690；P1-07a typed lc loader 与 P1-08a shadow/REST 写策略
+#   注入接入组合根；SRP 重构把 config-dir 加载块抽成 _load_startup_configs，assemble 保持 < 200 行。
+cmd/iems/iems_app.c|690
 cmd/iems/iems_north_listener.c|170
 # 2026-11-19: cmd/iems/iems_north_iec104.c 基线 203；IEC104 TCP 监听 + 从站 source ops 接线适配器。
 # 2026-11-22: cmd/iems/iems_north_iec104.c 203 -> 180；既有改动缩小了根，刷新基线（只降不升）。
@@ -54,7 +56,8 @@ cmd/iems/iems_north_iec104.c|180
 cmd/iems/iems_southbound_adapter.c|216
 # 2026-11-19: cmd/iems/main.c 109 -> 111；stdout 行缓冲 (setvbuf _IOLBF)，裸 printf 状态行不再等下一次 flush 才落盘。
 # 2026-11-25: cmd/iems/main.c 111 -> 112；EDGE_CONFIG_DIR 在组合根读一次传入（P6-04b，空串由装配层当未设置）。
-cmd/iems/main.c|112
+# 2026-11-27: cmd/iems/main.c 112 -> 125；IEMS_REST_RAW_IO 只认 "1" 的解析函数与 shadow/raw 接线（P1-08a）。
+cmd/iems/main.c|125
 # 2026-11-16: 组合根忽略 SIGPIPE（+1 调用 +1 include），应用崩溃后的 IPC 写入不得打死网关。
 # 2026-11-21: DCU-D0-03 产品 stdout 行缓冲：所有产品组合根入口 setvbuf(_IOLBF)（mcp +1, nexus_lab +1, smart_box +2）。
 cmd/nexus_lab/main.c|157
@@ -104,4 +107,6 @@ modules/edge_north/src/northbound_mgr.c|650
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1374 -> 1465；参数 schema 随安装/升级持久化、setting_get 端口与 appctl settings set 回调。
 # 2026-11-17: cmd/iems/iems_app_manager_adapter.c 1465 -> 1470；settings set 成功后经 runtime 通知运行中的应用。
 # 2026-11-19: cmd/iems/iems_app_manager_adapter.c 1470 -> 1474；未知 app_id 在排队前拒绝 (-ENOENT)，REST 报 not_found。
-cmd/iems/iems_app_manager_adapter.c|1471
+# 2026-11-27: cmd/iems/iems_app_manager_adapter.c 1471 -> 1486；REST 写策略 control_write_denial 端口
+#   由组合根注入（P1-08a）。
+cmd/iems/iems_app_manager_adapter.c|1486

@@ -23,6 +23,7 @@ add_library(iems_app_lib STATIC
     iems_app.c
     iems_health_monitor.c
     iems_pcs_settings.c
+    iems_lc_user_cfg.c
     iems_wal_start.c
     iems_app_manager_adapter.c
     iems_app_runtime.c
@@ -33,6 +34,9 @@ add_library(iems_app_lib STATIC
     iems_driver_adapter.c
     iems_microgrid_coordinator.c
     iems_tou_demand.c
+    iems_soc_keep.c
+    iems_strategy_priority.c
+    iems_pf_decision.c
     iems_pcs_controller.c
     iems_bms_cluster_engine.c
     iems_multi_pcs_dispatcher.c

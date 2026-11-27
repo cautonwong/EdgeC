@@ -272,8 +272,9 @@ static uint8_t _dar_for_action_rc(int rc) {
 #define DLT698_OI_CONN 0x4400u
 #define DLT698_OI_CONN_OBJECT_LIST 0x44000200u
 #define DLT698_ACL_MAX_OBJECTS EDGE_SLAVE_ACL_MAX_OBJECTS
-#define DLT698_ACL_MAX_ATTRS 16
-#define DLT698_ACL_MAX_METHODS 8
+#define DLT698_ACL_MAX_ATTRS 18
+#define DLT698_ACL_MAX_METHODS 12
+#define DLT698_ACL_METHOD_POOL 1024
 #define DLT698_ATTR_RIGHT_READ 1u
 #define DLT698_ATTR_RIGHT_WRITE 2u
 #define DLT698_ATTR_RIGHT_RW 3u
@@ -282,23 +283,27 @@ typedef struct {
     uint16_t oi;
     uint8_t n_attrs;
     uint8_t n_methods;
-    uint32_t attr_rights;
-    uint8_t method_ids[DLT698_ACL_MAX_METHODS];
+    uint16_t method_off;
+    uint8_t attr_rights[(DLT698_ACL_MAX_ATTRS + 3) / 4];
 } dlt698_acl_object_t;
 
-/* 属性权限按 attr id 1..16 各 2 bit 压进 32 位；越界由调用方先拒绝。 */
+/* 属性权限按 attr id 1..18 各 2 bit 压在 5 字节里；越界由调用方先拒绝。 */
 static uint8_t _attr_rights_get(const dlt698_acl_object_t *obj, uint8_t attr_id) {
-    return (uint8_t)((obj->attr_rights >> ((attr_id - 1u) * 2u)) & 3u);
+    uint8_t bit = (uint8_t)((attr_id - 1u) * 2u);
+    return (uint8_t)((obj->attr_rights[bit >> 3] >> (bit & 7u)) & 3u);
 }
 
 static void _attr_rights_set(dlt698_acl_object_t *obj, uint8_t attr_id, uint8_t rights) {
-    obj->attr_rights |= ((uint32_t)rights & 3u) << ((attr_id - 1u) * 2u);
+    uint8_t bit = (uint8_t)((attr_id - 1u) * 2u);
+    obj->attr_rights[bit >> 3] |= (uint8_t)((rights & 3u) << (bit & 7u));
 }
 
 typedef struct {
     bool loaded;
     uint16_t count;
+    uint16_t method_used;
     dlt698_acl_object_t objects[DLT698_ACL_MAX_OBJECTS];
+    uint8_t method_ids[DLT698_ACL_METHOD_POOL];
 } dlt698_acl_t;
 
 typedef struct {
@@ -325,6 +330,7 @@ static int _acl_take(const uint8_t *buf, size_t len, size_t *off, uint8_t tag) {
 
 static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
     size_t off = 0;
+    acl->method_used = 0;
     if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
     uint16_t n = 0;
     uint8_t first = buf[off++];
@@ -349,7 +355,7 @@ static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
         uint8_t na = buf[off++];
         if (na > DLT698_ACL_MAX_ATTRS) return false;
         obj->n_attrs = na;
-        obj->attr_rights = 0;
+        memset(obj->attr_rights, 0, sizeof(obj->attr_rights));
         for (uint8_t a = 0; a < na; a++) {
             if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
             if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
@@ -362,15 +368,20 @@ static bool _acl_parse(const uint8_t *buf, size_t len, dlt698_acl_t *acl) {
 
         if (_acl_take(buf, len, &off, 0x01) != 0 || off >= len) return false;
         uint8_t nm = buf[off++];
-        if (nm > DLT698_ACL_MAX_METHODS) return false;
+        if (nm > DLT698_ACL_MAX_METHODS ||
+            (size_t)acl->method_used + (size_t)nm > sizeof(acl->method_ids)) {
+            return false;
+        }
         obj->n_methods = 0;
+        obj->method_off = acl->method_used;
         for (uint8_t m = 0; m < nm; m++) {
             if (_acl_take(buf, len, &off, 0x02) != 0 || off >= len || buf[off++] != 2) return false;
             if (_acl_take(buf, len, &off, 0x11) != 0 || off >= len) return false;
             uint8_t method_id = buf[off++];
             if (_acl_take(buf, len, &off, 0x03) != 0 || off >= len) return false;
             if (buf[off++] != 0) {
-                obj->method_ids[obj->n_methods++] = method_id;
+                acl->method_ids[acl->method_used++] = method_id;
+                obj->n_methods++;
             }
         }
     }
@@ -410,10 +421,11 @@ static bool _acl_attr_allowed(const dlt698_acl_object_t *obj, uint8_t attr_id, b
                  : (r == DLT698_ATTR_RIGHT_READ || r == DLT698_ATTR_RIGHT_RW);
 }
 
-static bool _acl_method_allowed(const dlt698_acl_object_t *obj, uint8_t method_id) {
-    if (!obj) return false;
+static bool _acl_method_allowed(const dlt698_acl_t *acl, const dlt698_acl_object_t *obj,
+                                uint8_t method_id) {
+    if (!acl || !obj) return false;
     for (uint8_t i = 0; i < obj->n_methods; i++) {
-        if (obj->method_ids[i] == method_id) return true;
+        if (acl->method_ids[obj->method_off + i] == method_id) return true;
     }
     return false;
 }
@@ -430,7 +442,7 @@ static bool _acl_check(dlt698_session_t *s, const edge_slave_source_ops_t *src, 
     if (!s->acl.loaded && !_acl_load(s, src, src_ctx)) return false;
     const dlt698_acl_object_t *obj = _acl_find(s, oi);
     if (!obj) return false;
-    return method ? _acl_method_allowed(obj, id) : _acl_attr_allowed(obj, id, write);
+    return method ? _acl_method_allowed(&s->acl, obj, id) : _acl_attr_allowed(obj, id, write);
 }
 
 static int _handle_connect(const dlt698_addr_t *sa, uint8_t piid, const uint8_t *body,

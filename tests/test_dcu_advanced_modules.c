@@ -649,10 +649,346 @@ static void test_event_and_freeze_keep_slot_identity_after_archive_shift(void** 
     while (uv_loop_close(&loop) == UV_EBUSY) uv_run(&loop, UV_RUN_ONCE);
 }
 
+static void test_event_recovery_start_time_is_per_slot(void** state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+    assert_int_equal(dcu_inventory_add(&inv, "10000001", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000002", "DLT698", 9600, 1), 0);
+
+    dcu_storage_t storage;
+    assert_int_equal(dcu_storage_init(&storage, &loop, ":memory:"), 0);
+
+    datahub_t hub;
+    datahub_init(&hub, &loop, "dcu_test_event_slot_start", 1024, 1024, NULL, 0, NULL, NULL, NULL);
+    hub.map_fn_v2 = dcu_tag_map_fn;
+
+    dcu_poller_t poller;
+    dcu_poller_init(&poller);
+    dcu_discovery_t discovery;
+    dcu_discovery_init(&discovery);
+
+    dcu_event_obj_t evt_3000;
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.threshold = 176.0f;
+    evt_3000.delay_s = 0;
+    evt_3000.is_enabled = true;
+    dcu_event_obj_t evt_3005;
+    memset(&evt_3005, 0, sizeof(evt_3005));
+    evt_3005.oi = OI_OVER_CURRENT;
+    evt_3005.threshold = 5.0f;
+    evt_3005.delay_s = 0;
+    evt_3005.is_enabled = true;
+
+    router_sink_ops_t router_sink = {.ctx = &storage,
+                                     .record_telemetry = (void*)dcu_storage_write_telemetry,
+                                     .count_freezes = _mock_count_freezes};
+    router_bus_ops_t router_bus = {.ctx = &hub,
+                                   .msg_size = sizeof(pipe_msg_t),
+                                   .publish_realtime = _mock_publish_realtime,
+                                   .read_shadow = _mock_read_shadow};
+    assert_int_equal(dcu_router_init_ex(&inv, &poller, router_sink, NULL, &discovery, &evt_3000,
+                                        &evt_3005, router_bus),
+                     0);
+
+    event_sink_ops_t event_sink = {.ctx = &storage,
+                                   .archive_event = _test_archive_event,
+                                   .archive_freeze = _test_archive_freeze};
+
+    stream_engine_t* se = stream_engine_create_datahub(&hub, &loop, NULL, NULL);
+    pipeline_t* evt_pipeline = stream_engine_add_pipeline(se, "TEST_EVT_START_SLOT", 0);
+    pipeline_stage_t* mon_stage = stage_event_monitor_create(&inv, &evt_3000, &evt_3005);
+    pipeline_add_stage(evt_pipeline, mon_stage->name, mon_stage->process, mon_stage->priv_state,
+                       mon_stage->cleanup_state, NULL, NULL);
+    free(mon_stage);
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&inv, &evt_3000, &evt_3005, &hub, event_sink);
+    pipeline_add_stage(evt_pipeline, log_stage->name, log_stage->process, log_stage->priv_state,
+                       log_stage->cleanup_state, NULL, NULL);
+    free(log_stage);
+
+    const uint64_t sec = 1000000000ULL;
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.tag_id = OAD_VOLTAGE;
+    msg.type = PIPEMSG_TYPE_SCALAR;
+
+    msg.device_id = 0;
+    msg.ts = 1000 * sec;
+    msg.payload.val.f = 150.0f;
+    stream_engine_push(se, &msg);
+    msg.ts = 1001 * sec;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 1; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 1);
+    assert_int_equal(evt_3000.records[0].start_time.mono_ns, 1001 * sec);
+
+    msg.device_id = 1;
+    msg.ts = 2000 * sec;
+    msg.payload.val.f = 150.0f;
+    stream_engine_push(se, &msg);
+    msg.ts = 2001 * sec;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 2; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 2);
+    assert_int_equal(evt_3000.last_start_time.mono_ns, 2001 * sec);
+
+    msg.device_id = 0;
+    msg.ts = 3000 * sec;
+    msg.payload.val.f = 220.0f;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 3; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 3);
+    assert_false(evt_3000.records[0].is_active);
+    assert_int_equal(evt_3000.records[0].end_time.mono_ns, 3000 * sec);
+    assert_int_equal(evt_3000.records[0].start_time.mono_ns, 1001 * sec);
+    assert_int_equal(evt_3000.last_start_time.mono_ns, 2001 * sec);
+
+    msg.device_id = 0;
+    msg.ts = 5000 * sec;
+    msg.payload.val.f = 150.0f;
+    stream_engine_push(se, &msg);
+    msg.ts = 5001 * sec;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 4; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 4);
+
+    msg.device_id = 1;
+    msg.ts = 6000 * sec;
+    msg.payload.val.f = 220.0f;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 5; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 5);
+    assert_false(evt_3000.records[0].is_active);
+    assert_int_equal(evt_3000.records[0].end_time.mono_ns, 6000 * sec);
+    assert_int_equal(evt_3000.records[0].start_time.mono_ns, 2001 * sec);
+
+    msg.device_id = 0;
+    msg.ts = 7000 * sec;
+    msg.payload.val.f = 220.0f;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 6; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 6);
+    assert_false(evt_3000.records[0].is_active);
+    assert_int_equal(evt_3000.records[0].end_time.mono_ns, 7000 * sec);
+    assert_int_equal(evt_3000.records[0].start_time.mono_ns, 5001 * sec);
+    assert_int_equal(evt_3000.last_start_time.mono_ns, 5001 * sec);
+    assert_int_equal(evt_3000.last_end_time.mono_ns, 7000 * sec);
+
+    msg.device_id = 0;
+    msg.ts = 8000 * sec;
+    msg.payload.val.f = 150.0f;
+    stream_engine_push(se, &msg);
+    msg.ts = 8001 * sec;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.record_count < 7; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 7);
+
+    uint64_t t = 9000;
+    for (int c = 0; c < 5; c++) {
+        msg.device_id = 1;
+        msg.ts = t * sec;
+        msg.payload.val.f = 150.0f;
+        stream_engine_push(se, &msg);
+        msg.ts = (t + 1) * sec;
+        stream_engine_push(se, &msg);
+        msg.ts = (t + 2) * sec;
+        msg.payload.val.f = 220.0f;
+        stream_engine_push(se, &msg);
+        t += 10;
+    }
+    for (int i = 0; i < 1000 && evt_3000.records[0].end_time.mono_ns != 9042 * sec; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.records[0].end_time.mono_ns, 9042 * sec);
+
+    msg.device_id = 0;
+    msg.ts = 20000 * sec;
+    msg.payload.val.f = 220.0f;
+    stream_engine_push(se, &msg);
+    for (int i = 0; i < 500 && evt_3000.last_end_time.mono_ns != 20000 * sec; i++) {
+        uv_run(&loop, UV_RUN_NOWAIT);
+        usleep(1000);
+    }
+    assert_int_equal(evt_3000.record_count, 10);
+    assert_int_equal(evt_3000.records[0].end_time.mono_ns, 9042 * sec);
+    assert_int_equal(evt_3000.last_start_time.mono_ns, 9041 * sec);
+    assert_int_equal(evt_3000.last_end_time.mono_ns, 20000 * sec);
+
+    stream_engine_destroy(se);
+    datahub_destroy(&hub);
+    dcu_discovery_destroy(&discovery);
+    dcu_router_destroy();
+    dcu_storage_destroy(&storage);
+    dcu_inventory_destroy(&inv);
+    uv_walk(&loop, on_walk_close_slot_test, NULL);
+    while (uv_loop_close(&loop) == UV_EBUSY) uv_run(&loop, UV_RUN_ONCE);
+}
+
+typedef struct {
+    int calls;
+    char addr[32];
+    uint16_t oi;
+    uint64_t start_epoch;
+    uint64_t end_epoch;
+    float value;
+} captured_archive_t;
+
+static int _capture_archive_event(void* ctx, const char* addr, uint16_t event_code,
+                                  uint64_t start_time, uint64_t end_time, float snapshot_val) {
+    captured_archive_t* cap = (captured_archive_t*)ctx;
+    cap->calls++;
+    snprintf(cap->addr, sizeof(cap->addr), "%s", addr);
+    cap->oi = event_code;
+    cap->start_epoch = start_time;
+    cap->end_epoch = end_time;
+    cap->value = snapshot_val;
+    return 0;
+}
+
+/* 落盘起点必须来自本 slot 的发生记录：slot0 恢复不得写成 slot1 更晚的发生时间。 */
+static void test_event_archive_start_is_per_slot(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+    assert_int_equal(dcu_inventory_add(&inv, "10000001", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000002", "DLT698", 9600, 1), 0);
+
+    dcu_event_obj_t evt_3000;
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.is_enabled = true;
+    dcu_event_obj_t evt_3005;
+    memset(&evt_3005, 0, sizeof(evt_3005));
+
+    /* 两只表同 OI 的发生记录：slot0 更早（1700000000），slot1 更晚（1700000001）。 */
+    evt_3000.records[1].index = 1;
+    evt_3000.records[1].slot_id = 0;
+    evt_3000.records[1].is_active = true;
+    evt_3000.records[1].start_time.mono_ns = 1001ULL * 1000000000ULL;
+    evt_3000.records[1].start_time.epoch_s = 1700000000ULL;
+    evt_3000.records[0].index = 2;
+    evt_3000.records[0].slot_id = 1;
+    evt_3000.records[0].is_active = true;
+    evt_3000.records[0].start_time.mono_ns = 2001ULL * 1000000000ULL;
+    evt_3000.records[0].start_time.epoch_s = 1700000001ULL;
+    evt_3000.record_count = 2;
+    evt_3000.last_start_time = evt_3000.records[0].start_time; /* A14 最近发生 = slot1 */
+
+    captured_archive_t cap;
+    memset(&cap, 0, sizeof(cap));
+    event_sink_ops_t sink = {.ctx = &cap, .archive_event = _capture_archive_event};
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&inv, &evt_3000, &evt_3005, NULL, sink);
+    assert_non_null(log_stage);
+
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = PIPEMSG_TYPE_EVENT;
+    msg.tag_id = OI_VOLTAGE_DROP;
+    msg.device_id = 0;
+    msg.ts = 3000ULL * 1000000000ULL;
+    msg.payload.val.f = -220.0f;
+    assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+
+    assert_int_equal(cap.calls, 1);
+    assert_int_equal(cap.start_epoch, 1700000000ULL);
+    assert_int_not_equal(cap.start_epoch, 1700000001ULL);
+    assert_int_equal(cap.oi, OI_VOLTAGE_DROP);
+    assert_string_equal(cap.addr, "10000001");
+    assert_int_equal(evt_3000.records[0].start_time.epoch_s, 1700000000ULL);
+    assert_int_equal(evt_3000.last_start_time.epoch_s, 1700000001ULL);
+
+    log_stage->cleanup_state(log_stage->priv_state);
+    free(log_stage);
+    dcu_inventory_destroy(&inv);
+}
+
+/* 发生记录已被挤出窗口时，恢复不落盘、不追加记录行。 */
+static void test_event_recovery_evicted_occurrence_does_not_archive(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+    assert_int_equal(dcu_inventory_add(&inv, "10000001", "DLT698", 9600, 1), 0);
+
+    dcu_event_obj_t evt_3000;
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.is_enabled = true;
+    dcu_event_obj_t evt_3005;
+    memset(&evt_3005, 0, sizeof(evt_3005));
+
+    for (int i = 0; i < MAX_EVENT_RECORDS; i++) {
+        evt_3000.records[i].index = (uint16_t)(i + 1);
+        evt_3000.records[i].slot_id = 1;
+        evt_3000.records[i].is_active = true;
+        evt_3000.records[i].start_time.mono_ns = (uint64_t)(2001 + i) * 1000000000;
+        evt_3000.records[i].start_time.epoch_s = 1700000001ULL;
+    }
+    evt_3000.record_count = MAX_EVENT_RECORDS;
+    evt_3000.last_start_time = evt_3000.records[0].start_time;
+
+    captured_archive_t cap;
+    memset(&cap, 0, sizeof(cap));
+    event_sink_ops_t sink = {.ctx = &cap, .archive_event = _capture_archive_event};
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&inv, &evt_3000, &evt_3005, NULL, sink);
+    assert_non_null(log_stage);
+
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = PIPEMSG_TYPE_EVENT;
+    msg.tag_id = OI_VOLTAGE_DROP;
+    msg.device_id = 0;
+    msg.ts = 3000ULL * 1000000000ULL;
+    msg.payload.val.f = -220.0f;
+    assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+
+    assert_int_equal(cap.calls, 0);
+    assert_int_equal(evt_3000.record_count, MAX_EVENT_RECORDS);
+    assert_int_equal(evt_3000.records[0].slot_id, 1);
+    assert_int_equal(evt_3000.records[0].start_time.epoch_s, 1700000001ULL);
+    assert_true(evt_3000.records[0].is_active);
+    assert_true(evt_3000.last_end_time.mono_ns == msg.ts);
+
+    log_stage->cleanup_state(log_stage->priv_state);
+    free(log_stage);
+    dcu_inventory_destroy(&inv);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_advanced_features_dispatch),
         cmocka_unit_test(test_event_and_freeze_keep_slot_identity_after_archive_shift),
+        cmocka_unit_test(test_event_recovery_start_time_is_per_slot),
+        cmocka_unit_test(test_event_archive_start_is_per_slot),
+        cmocka_unit_test(test_event_recovery_evicted_occurrence_does_not_archive),
     };
     return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }

@@ -73,8 +73,6 @@ void rest_server_destroy(rest_server_t *srv);
  */
 void rest_server_set_legacy_upload(bool enable);
 
-void rest_server_enable_write(bool enable);
-
 /**
  * @brief Actual bound address, read back from the listening socket.
  *

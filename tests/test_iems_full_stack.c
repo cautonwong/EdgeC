@@ -51,7 +51,6 @@ static int iec_write_async(io_handle_t* h, net_buf_t* buf) {
         memcpy(iec_last_tx, buf->b.data, buf->b.len);
         iec_last_tx_len = buf->b.len;
     }
-    net_buf_unref(buf);
     return 0;
 }
 
@@ -80,7 +79,6 @@ static int mb_write_async(io_handle_t* h, net_buf_t* buf) {
         memcpy(mb_last_tx, buf->b.data, buf->b.len);
         mb_last_tx_len = buf->b.len;
     }
-    net_buf_unref(buf);
     return 0;
 }
 

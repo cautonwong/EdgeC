@@ -1,0 +1,424 @@
+Test project /tmp/edgec-land/p3-1-acl-cap/build
+    Start  25: test_dcu_698_object_model
+1/3 Test  #25: test_dcu_698_object_model ........   Passed    0.19 sec
+    Start 101: test_driver_dlt698
+2/3 Test #101: test_driver_dlt698 ...............***Failed    5.49 sec
+[==========] tests: Running 31 test(s).
+[ RUN      ] test_get_request_layout
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (1 -> 0)
+[       OK ] test_get_request_layout
+[ RUN      ] test_set_long_unsigned
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (1 -> 0)
+[       OK ] test_set_long_unsigned
+[ RUN      ] test_set_double_long
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (1 -> 0)
+[       OK ] test_set_double_long
+[ RUN      ] test_set_rejects_bad_input
+[2026-11-27 11:23:24][WARN][IO] DLT698: 写请求缺少 A-XDR 类型描述
+[2026-11-27 11:23:24][WARN][IO] DLT698: 不支持的 A-XDR 类型 0x11
+[2026-11-27 11:23:24][WARN][IO] DLT698: long-unsigned 越界 70000
+[2026-11-27 11:23:24][WARN][IO] DLT698: long-unsigned 越界 -1
+[NETBUF][INFO] NetBufPool 0x7ffe049c2340: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2340: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2340: Unref (1 -> 0)
+[       OK ] test_set_rejects_bad_input
+[ RUN      ] test_slave_get_record_page
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_page
+[ RUN      ] test_slave_get_record_unsupported_selector
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_unsupported_selector
+[ RUN      ] test_slave_get_record_begin_failure
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_begin_failure
+[ RUN      ] test_slave_get_record_row_failure_aborts_page
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_row_failure_aborts_page
+[ RUN      ] test_slave_get_record_port_absent
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_port_absent
+[ RUN      ] test_slave_get_record_malformed_is_dropped
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13b0: Unref (1 -> 0)
+[       OK ] test_slave_get_record_malformed_is_dropped
+[ RUN      ] test_report_frame_layout
+[NETBUF][INFO] NetBufPool 0x7ffe049c10c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10c0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Unref (1 -> 0)
+[       OK ] test_report_frame_layout
+[ RUN      ] test_report_no_session_no_send
+[NETBUF][INFO] NetBufPool 0x7ffe049c23e0: Unref (1 -> 0)
+[       OK ] test_report_no_session_no_send
+[ RUN      ] test_report_confirm_clears_pending
+[NETBUF][INFO] NetBufPool 0x7ffe049c0f70: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c0f70: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c0f70: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1250: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12e0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12e0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12e0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1250: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1250: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1250: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1250: Unref (1 -> 0)
+[       OK ] test_report_confirm_clears_pending
+[ RUN      ] test_report_timeout_unblocks
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1390: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1390: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1390: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1390: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c1390: Unref (1 -> 0)
+[       OK ] test_report_timeout_unblocks
+[ RUN      ] test_slave_parses_long_form_acl_224
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (1 -> 0)
+[       OK ] test_slave_parses_long_form_acl_224
+[ RUN      ] test_get_maps_source_rc_to_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c12c0: Unref (1 -> 0)
+[       OK ] test_get_maps_source_rc_to_dar
+[ RUN      ] test_slave_accepts_product_object_list_42
+[NETBUF][INFO] NetBufPool 0x7ffe049bfbd0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049bfbd0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049bfbd0: Unref (1 -> 0)
+[       OK ] test_slave_accepts_product_object_list_42
+[ RUN      ] test_slave_class17_display_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c21d0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (1 -> 0)
+[       OK ] test_slave_class17_display_dar
+[ RUN      ] test_slave_class11_collection_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2190: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (1 -> 0)
+[       OK ] test_slave_class11_collection_dar
+[ RUN      ] test_slave_class12_pulse_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (1 -> 0)
+[       OK ] test_slave_class12_pulse_dar
+[ RUN      ] test_slave_class25_26_comm_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2180: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23c0: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[       OK ] test_slave_class25_26_comm_dar
+[ RUN      ] test_slave_class19_devmgr_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2160: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:1260: error: Failure!
+[  FAILED  ] test_slave_class19_devmgr_dar
+[ RUN      ] test_slave_class21_esam_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:1500: error: Failure!
+[  FAILED  ] test_slave_class21_esam_dar
+[ RUN      ] test_slave_class23_group_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:922: error: Failure!
+[  FAILED  ] test_slave_class23_group_dar
+[ RUN      ] test_slave_class18_file_dar
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c2170: Unref (1 -> 0)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23b0: Ref (1 -> 2)
+[  ERROR   ] --- 3 != 5
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:1672: error: Failure!
+[  FAILED  ] test_slave_class18_file_dar
+[ RUN      ] test_slave_object_list_does_not_overflow_pool_buffer
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Unref (1 -> 0)
+[       OK ] test_slave_object_list_does_not_overflow_pool_buffer
+[ RUN      ] test_slave_object_list_fits_production_slave_pool
+[NETBUF][INFO] NetBufPool 0x7ffe049c23d0: Ref (1 -> 2)
+[  ERROR   ] --- 5828 != 6014
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_driver_dlt698.c:1336: error: Failure!
+[  FAILED  ] test_slave_object_list_fits_production_slave_pool
+[ RUN      ] test_slave_list_item_reserves_frame_trailer
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (1 -> 0)
+[       OK ] test_slave_list_item_reserves_frame_trailer
+[ RUN      ] test_slave_encode_failure_clears_half_frame
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c10d0: Unref (1 -> 0)
+[       OK ] test_slave_encode_failure_clears_half_frame
+[ RUN      ] test_slave_set_read_only_is_denied
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c13a0: Unref (1 -> 0)
+[       OK ] test_slave_set_read_only_is_denied
+[ RUN      ] test_slave_rejects_over_cap_object_list
+[NETBUF][INFO] NetBufPool 0x7ffe049c11d0: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x7ffe049c11d0: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x7ffe049c11d0: Unref (1 -> 0)
+[       OK ] test_slave_rejects_over_cap_object_list
+[==========] tests: 31 test(s) run.
+[  PASSED  ] 26 test(s).
+[  FAILED  ] tests: 5 test(s), listed below:
+[  FAILED  ] test_slave_class19_devmgr_dar
+[  FAILED  ] test_slave_class21_esam_dar
+[  FAILED  ] test_slave_class23_group_dar
+[  FAILED  ] test_slave_class18_file_dar
+[  FAILED  ] test_slave_object_list_fits_production_slave_pool
+
+ 5 FAILED TEST(S)
+
+    Start 103: test_dcu_698_appconn
+3/3 Test #103: test_dcu_698_appconn .............***Failed    0.07 sec
+[==========] tests: Running 14 test(s).
+[ RUN      ] test_object_list_shape_and_capacity
+[       OK ] test_object_list_shape_and_capacity
+[ RUN      ] test_class22_acl_advertises_read_only_attrs
+[       OK ] test_class22_acl_advertises_read_only_attrs
+[ RUN      ] test_class14_15_16_acl_is_read_only
+[       OK ] test_class14_15_16_acl_is_read_only
+[ RUN      ] test_class17_acl_is_read_only
+[       OK ] test_class17_acl_is_read_only
+[ RUN      ] test_class11_acl_is_read_only
+[       OK ] test_class11_acl_is_read_only
+[ RUN      ] test_class12_pulse_acl_is_read_only
+[       OK ] test_class12_pulse_acl_is_read_only
+[ RUN      ] test_class25_26_comm_acl_is_read_only
+[       OK ] test_class25_26_comm_acl_is_read_only
+[ RUN      ] test_class19_devmgr_acl_is_read_only
+[  ERROR   ] --- acl.method_seen[method] is not true
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_dcu_698_appconn.c:385: error: Failure!
+[  FAILED  ] test_class19_devmgr_acl_is_read_only
+[ RUN      ] test_class21_esam_acl_is_read_only
+[  ERROR   ] --- acl.method_seen[method] is not true
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_dcu_698_appconn.c:405: error: Failure!
+[  FAILED  ] test_class21_esam_acl_is_read_only
+[ RUN      ] test_class23_group_acl_is_read_only
+[  ERROR   ] --- acl.seen[attr] is not true
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_dcu_698_appconn.c:419: error: Failure!
+[  FAILED  ] test_class23_group_acl_is_read_only
+[ RUN      ] test_class18_file_acl_is_read_only
+[  ERROR   ] --- acl.method_seen[method] is not true
+[   LINE   ] --- /tmp/edgec-land/p3-1-acl-cap/tests/test_dcu_698_appconn.c:450: error: Failure!
+[  FAILED  ] test_class18_file_acl_is_read_only
+[ RUN      ] test_class22_object_masks_are_covered_by_acl
+[       OK ] test_class22_object_masks_are_covered_by_acl
+[ RUN      ] test_event_acl_advertises_only_a11_a12_writable
+[       OK ] test_event_acl_advertises_only_a11_a12_writable
+[ RUN      ] test_event_set_dar_by_attribute
+[       OK ] test_event_set_dar_by_attribute
+[==========] tests: 14 test(s) run.
+[  PASSED  ] 10 test(s).
+[  FAILED  ] tests: 4 test(s), listed below:
+[  FAILED  ] test_class19_devmgr_acl_is_read_only
+[  FAILED  ] test_class21_esam_acl_is_read_only
+[  FAILED  ] test_class23_group_acl_is_read_only
+[  FAILED  ] test_class18_file_acl_is_read_only
+
+ 4 FAILED TEST(S)
+
+
+33% tests passed, 2 tests failed out of 3
+
+Total Test time (real) =   5.95 sec
+
+The following tests FAILED:
+	101 - test_driver_dlt698 (Failed)
+	103 - test_dcu_698_appconn (Failed)
+Errors while running CTest

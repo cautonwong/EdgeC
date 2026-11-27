@@ -248,6 +248,63 @@ static void test_dar_classification_by_class_definition(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
+static void test_class_method_sets_exclude_standard_holes(void **state) {
+    (void)state;
+
+    assert_false(dcu_698_class_defines_method(IC_EVENT, 3));
+    assert_true(dcu_698_class_defines_method(IC_EVENT, 1));
+    assert_true(dcu_698_class_defines_method(IC_EVENT, 2));
+    assert_true(dcu_698_class_defines_method(IC_EVENT, 4));
+    assert_true(dcu_698_class_defines_method(IC_EVENT, 5));
+    assert_false(dcu_698_class_defines_method(IC_EVENT, 6));
+
+    assert_false(dcu_698_class_defines_method(IC_RECORD, 6));
+    assert_true(dcu_698_class_defines_method(IC_RECORD, 1));
+    assert_true(dcu_698_class_defines_method(IC_RECORD, 5));
+    assert_true(dcu_698_class_defines_method(IC_RECORD, 7));
+    assert_true(dcu_698_class_defines_method(IC_RECORD, 8));
+    assert_false(dcu_698_class_defines_method(IC_RECORD, 9));
+
+    assert_false(dcu_698_class_defines_method(IC_SUB_EVENT, 3));
+    assert_true(dcu_698_class_defines_method(IC_SUB_EVENT, 1));
+    assert_true(dcu_698_class_defines_method(IC_SUB_EVENT, 2));
+    assert_true(dcu_698_class_defines_method(IC_SUB_EVENT, 4));
+    assert_true(dcu_698_class_defines_method(IC_SUB_EVENT, 5));
+    assert_false(dcu_698_class_defines_method(IC_SUB_EVENT, 6));
+
+    assert_true(dcu_698_class_defines_method(IC_PARAM, 1));
+    assert_true(dcu_698_class_defines_method(IC_PARAM, 2));
+    assert_false(dcu_698_class_defines_method(IC_PARAM, 3));
+    assert_true(dcu_698_class_defines_method(IC_ESAM, 12));
+    assert_false(dcu_698_class_defines_method(IC_ESAM, 13));
+    assert_false(dcu_698_class_defines_method(0, 1));
+    assert_false(dcu_698_class_defines_method(IC_RECORD, 0));
+}
+
+static void test_class24_missing_method_is_undefined(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller);
+
+    assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 3), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_OVER_CURRENT, 3), NULL, NULL),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_VOLTAGE_DROP, 2), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_OVER_CURRENT, 4), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(OI_OVER_CURRENT, 5), NULL, NULL),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(0x5000, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_698_call(MK_OMD(0x5000, 7), NULL, NULL),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
 static void test_task_scheduler_reset_and_add(void **state) {
     (void)state;
     dcu_inventory_t inv;
@@ -776,6 +833,10 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_discovery_exposes_results_count_and_status, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_dar_classification_by_class_definition, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_class24_missing_method_is_undefined, setup,
+                                        teardown),
+        cmocka_unit_test_setup_teardown(test_class_method_sets_exclude_standard_holes, setup,
                                         teardown),
         cmocka_unit_test_setup_teardown(test_dispatch_read_write_call, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_class24_attr_reads, setup, teardown),

@@ -1,0 +1,9 @@
+$ python3 -I tests/test_dcu_698_router_oad_catalog.py -v
+test_every_oad_macro_oi_is_in_the_catalog ... ok
+test_zero_seq_current_macro_is_absent_or_zero_sequence_current ... FAIL
+Ran 2 tests in 0.006s
+FAILED (failures=1)
+# 完整失败断言见 red.log
+
+$ ctest --test-dir build -R 'dcu|dlt698'
+# 未运行：本单停在 spec，无 commit 2 修复（见 summary.md）

@@ -1,0 +1,29 @@
+$ CMOCKA_TEST_FILTER=test_io_http_callback_destroy_keeps_pending_ref_count ctest --test-dir build -R '^test_io_executor$' --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 97: test_io_executor
+1/1 Test #97: test_io_executor .................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+exit=0
+
+$ CMOCKA_TEST_FILTER=test_io_http_write_after_enable_read_keeps_ref ctest --test-dir build -R '^test_io_executor$' --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 97: test_io_executor
+1/1 Test #97: test_io_executor .................   Passed    0.00 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.01 sec
+exit=0
+
+$ ctest --test-dir build -R "^test_io_executor$" --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 97: test_io_executor
+1/1 Test #97: test_io_executor .................   Passed    0.33 sec
+
+100% tests passed, 0 tests failed out of 1
+
+Total Test time (real) =   0.34 sec
+exit=0

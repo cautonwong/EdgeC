@@ -107,16 +107,32 @@ static char *handle_devices_get(service_t *svc) {
     return out;
 }
 
-static bool g_rest_write_enabled = false;
-
-void rest_server_enable_write(bool enable) {
-    g_rest_write_enabled = enable;
-}
-
 static bool g_rest_legacy_upload = false;
 
 void rest_server_set_legacy_upload(bool enable) {
     g_rest_legacy_upload = enable;
+}
+
+/* 下行写策略来自组合根注入的 control port；缺省关闭，适配器不读 IEMS env。 */
+static const char *control_write_denial(service_t *svc, const char *endpoint) {
+    const rest_control_port_t *port =
+        (const rest_control_port_t *)service_get_control_port(svc);
+    if (!port || !port->control_write_denial) return "write_disabled";
+    const char *reason = port->control_write_denial(port->ctx, endpoint);
+    if (reason) {
+        LOG_WARN(LOG_CAT_CORE, "REST control write denied endpoint=%s reason=%s", endpoint,
+                 reason);
+    }
+    return reason;
+}
+
+static char *control_write_denied_json(const char *reason) {
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddStringToObject(root, "status", "error");
+    cJSON_AddStringToObject(root, "reason", reason);
+    char *out = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return out;
 }
 
 static char *handle_data_latest(service_t *svc, uint32_t tag_id) {
@@ -161,9 +177,8 @@ static bool parse_data_latest_tag(const char *text, uint32_t *out) {
 #include "edge_api.h"
 
 static char *handle_data_write(service_t *svc, const char *body) {
-    (void)svc;
-    if (!g_rest_write_enabled)
-        return strdup("{\"status\":\"error\",\"reason\":\"write_disabled\"}");
+    const char *denied = control_write_denial(svc, "/api/v1/actor/set");
+    if (denied) return control_write_denied_json(denied);
 
     cJSON *root = cJSON_Parse(body);
     if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
@@ -206,6 +221,9 @@ static void on_raw_io_complete(int status, net_buf_t *rx_buf) {
 }
 
 static char *handle_io_raw(service_t *svc, const char *body) {
+    const char *denied = control_write_denial(svc, "/api/v1/io/raw");
+    if (denied) return control_write_denied_json(denied);
+
     cJSON *root = cJSON_Parse(body);
     if (!root) return strdup("{\"status\":\"error\",\"reason\":\"invalid_json\"}");
 

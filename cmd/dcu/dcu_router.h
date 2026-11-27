@@ -53,7 +53,6 @@
 #define OAD_CURRENT 0x20010200               // 2001 属性 2（A/B/C 电流数组）
 #define TAG_CURRENT_B 0x20010300             // B 相影子 tag（数组元素，非 698 OAD）
 #define TAG_CURRENT_C 0x20010400             // C 相影子 tag（数组元素，非 698 OAD）
-#define OAD_ZERO_SEQ_CURRENT 0x20020200      // 零序电流 (OI 2002 属性 2)
 #define OAD_ACTIVE_POWER_TOTAL 0x20040200    // 2004 属性 2（总/A/B/C 功率数组）
 #define TAG_ACTIVE_POWER_A 0x20040300        // A 相影子 tag（数组元素，非 698 OAD）
 #define TAG_ACTIVE_POWER_B 0x20040400        // B 相影子 tag（数组元素，非 698 OAD）
@@ -162,6 +161,7 @@ typedef struct {
  */
 typedef struct {
     uint16_t index;
+    uint32_t slot_id;
     dcu_event_stamp_t start_time;
     dcu_event_stamp_t end_time;
     float snapshot_value;

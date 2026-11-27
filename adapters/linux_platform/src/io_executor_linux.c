@@ -105,13 +105,18 @@ static void _on_curl_poll(uv_poll_t* handle, int status, int events) {
             curl_easy_getinfo(easy, CURLINFO_PRIVATE, &impl);
 
             if (impl) {
+                /* 回调可能 destroy 句柄并释放 impl：先摘句柄、取走 pending，
+                 * 回调后只 unref 本地保存的那份，不再碰 impl/easy。 */
+                net_buf_t* pending = impl->pending_tx;
+                impl->pending_tx = NULL;
+                curl_multi_remove_handle(g_curl_ctx->multi, easy);
                 if (msg->data.result == CURLE_OK) {
                     impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
                 } else {
                     impl->base.cb(&impl->base, IO_EVENT_ERROR, (void*)(intptr_t)msg->data.result,
                                   impl->base.user_data);
                 }
-                curl_multi_remove_handle(g_curl_ctx->multi, easy);
+                if (pending) net_buf_unref(pending);
             }
         }
     }
@@ -320,7 +325,13 @@ static int _poll_write_async(io_handle_t* h, net_buf_t* buf) {
     /* 写帧期间只等可写:半双工事务里,帧没写完就收到的字节属于上一条命令,
      * 这时开读会被当成这一条命令的应答(串 tag)。整帧写完后 _on_uv_poll
      * 自己切回只读。 */
-    return uv_poll_start(&impl->handle.poll, UV_WRITABLE, _on_uv_poll);
+    int rc = uv_poll_start(&impl->handle.poll, UV_WRITABLE, _on_uv_poll);
+    if (rc != 0) {
+        net_buf_unref(impl->pending_tx);
+        impl->pending_tx = NULL;
+        impl->tx_off = 0;
+    }
+    return rc;
 }
 
 /* 排空已到达内核 RX 队列、但还没被读回调取走的字节。
@@ -399,11 +410,18 @@ static void _on_udp_recv(uv_udp_t* handle, ssize_t nread, const uv_buf_t* buf,
     }
 }
 
+typedef struct {
+    uv_udp_send_t req;
+    linux_io_handle_t* impl;
+    net_buf_t* buf;
+} udp_send_ctx_t;
+
 static void _on_udp_send_done(uv_udp_send_t* req, int status) {
     (void)status;
-    linux_io_handle_t* impl = (linux_io_handle_t*)req->data;
-    impl->base.cb(&impl->base, IO_EVENT_TX_DONE, NULL, impl->base.user_data);
-    free(req);
+    udp_send_ctx_t* ctx = (udp_send_ctx_t*)req;
+    ctx->impl->base.cb(&ctx->impl->base, IO_EVENT_TX_DONE, NULL, ctx->impl->base.user_data);
+    net_buf_unref(ctx->buf);
+    free(ctx);
 }
 
 static int _udp_enable_read(io_handle_t* h, bool enable) {
@@ -414,12 +432,18 @@ static int _udp_enable_read(io_handle_t* h, bool enable) {
 
 static int _udp_write_async(io_handle_t* h, net_buf_t* buf) {
     linux_io_handle_t* impl = (linux_io_handle_t*)h;
-    uv_udp_send_t* req = malloc(sizeof(uv_udp_send_t));
+    udp_send_ctx_t* req = malloc(sizeof(udp_send_ctx_t));
     if (!req) return -1;
-    req->data = impl;
+    req->impl = impl;
+    req->buf = net_buf_ref(buf);
     uv_buf_t b = uv_buf_init((char*)buf->b.data, buf->b.len);
-    return uv_udp_send(req, &impl->handle.udp, &b, 1, (const struct sockaddr*)&impl->udp_dest,
-                       _on_udp_send_done);
+    int rc = uv_udp_send(&req->req, &impl->handle.udp, &b, 1,
+                         (const struct sockaddr*)&impl->udp_dest, _on_udp_send_done);
+    if (rc != 0) {
+        net_buf_unref(req->buf);
+        free(req);
+    }
+    return rc;
 }
 
 /* --- 3. 基于 HTTP (Libcurl) 的处理 --- */
@@ -446,11 +470,24 @@ static int _http_enable_read(io_handle_t* h, bool enable) {
 
 static int _http_write_async(io_handle_t* h, net_buf_t* buf) {
     linux_io_handle_t* impl = (linux_io_handle_t*)h;
+    if (impl->pending_tx) return -EBUSY;
     if (buf && buf->b.len > 0) {
         curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDS, buf->b.data);
         curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDSIZE, (long)buf->b.len);
     }
-    curl_multi_add_handle(g_curl_ctx->multi, impl->handle.curl);
+    if (buf) impl->pending_tx = net_buf_ref(buf);
+    CURLMcode mrc = curl_multi_add_handle(g_curl_ctx->multi, impl->handle.curl);
+    /* 句柄已在 multi（如 enable_read 已加入）：引用交给在途传输，完成时释放。 */
+    if (mrc == CURLM_ADDED_ALREADY) return 0;
+    if (mrc != CURLM_OK) {
+        if (impl->pending_tx) {
+            net_buf_unref(impl->pending_tx);
+            impl->pending_tx = NULL;
+        }
+        curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDS, NULL);
+        curl_easy_setopt(impl->handle.curl, CURLOPT_POSTFIELDSIZE, 0L);
+        return -(int)mrc;
+    }
     return 0;
 }
 
@@ -481,6 +518,7 @@ static void _http_destroy(io_handle_t* h) {
     curl_easy_cleanup(impl->handle.curl);
     if (impl->http_hdrs) curl_slist_free_all(impl->http_hdrs);
     if (impl->http_rx_nb) net_buf_unref(impl->http_rx_nb);
+    if (impl->pending_tx) net_buf_unref(impl->pending_tx);
     free(impl);
 }
 

@@ -857,7 +857,12 @@ static void test_rule_dar_cases(void **state) {
 
     memset(&body, 0, sizeof(body));
     _delete_body(&body, 1);
-    _delete_csd(&body, OAD_ZERO_SEQ_CURRENT);
+    _delete_csd(&body, OAD_REACTIVE_POWER_TOTAL);
+    assert_int_equal(_action(OI_RULE_LIBRARY, 128, &body), 0);
+
+    memset(&body, 0, sizeof(body));
+    _delete_body(&body, 1);
+    _delete_csd(&body, OAD_REACTIVE_POWER_TOTAL);
     assert_int_equal(_action(OI_RULE_LIBRARY, 128, &body), EDGE_SLAVE_SRC_NOT_FOUND);
 
     memset(&body, 0, sizeof(body));

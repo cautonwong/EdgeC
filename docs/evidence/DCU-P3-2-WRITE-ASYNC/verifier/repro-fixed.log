@@ -1,0 +1,25 @@
+[NETBUF][INFO] NetBufPool 0x5e1a7ec71500: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5e1a7ec71500: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5e1a7ec71500: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5e1a7ec71500: Unref (1 -> 0)
+[s1] base free=4
+[s1] write_async rc=0
+[s1] in-flight free=3 (expect 3)
+[s1] done=1 destroyed=1 free after completion=4 (contract expects 4)
+[s1] free after loop drain=4
+[s1] uv_loop_close=0
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Ref (2 -> 3)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Ref (3 -> 4)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Unref (4 -> 3)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Unref (3 -> 2)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Unref (2 -> 1)
+[NETBUF][INFO] NetBufPool 0x5f101ebcf620: Unref (1 -> 0)
+[s5] enable_read rc=0
+[s5] write_async rc=0 (nonzero => caller told frame not taken)
+[s5] free after caller unref=3 (expect 4 if no one owns the frame)
+[s5] recycled node=0x5f101ebcf708 tx2=0x5f101ebcf850 free=2
+[s5] server got 127 bytes
+[s5] request head/body marker: PING present
+[s5] uv_loop_close=0

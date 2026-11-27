@@ -312,7 +312,8 @@ static void test_class12_pulse_acl_is_read_only(void **state) {
     acl_rights_t acl;
     assert_int_equal(_acl_rights_for(0x2401, &acl), 0);
     assert_false(acl.seen[0]);
-    /* 表157 类定义 A1..A19；ACL 只广告 1..15（16 记 HOLD，17..19 超 ACL schema）。 */
+    /* 表157 类定义 A1..A19；16/17 的归属在表157/表158 间冲突、18/19 未裁决，
+     * ACL 只广告 1..15。 */
     for (uint8_t attr = 1; attr <= 15; attr++) {
         assert_true(acl.seen[attr]);
         assert_int_equal(acl.rights[attr], 1);
@@ -359,9 +360,8 @@ static void test_class25_26_comm_acl_is_read_only(void **state) {
 static void test_class19_devmgr_acl_is_read_only(void **state) {
     (void)state;
     acl_rights_t acl;
-    /* 表178 的 A1..A10 与方法 1..6 全部只读广告；ACTION 才能越过 ACL 到对象表
-     * 如实回 DAR 5。4307..4309 的 127..129 已计入 resolver 定义，但 ACL 每对象
-     * 方法上限 8 已被类方法占用，不广告（主站 ACTION 回 DAR 3）。 */
+    /* 表178 的 A1..A10 与方法 1..6 全部只读广告；4307..4309 另定义 127..129，
+     * 同样只读广告。4300 没有 OI 专属方法，127..129 不广告。 */
     static const uint16_t ois[] = {0x4300, 0x4307, 0x4308, 0x4309};
     for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
         assert_int_equal(_acl_rights_for(ois[i], &acl), 0);
@@ -376,15 +376,24 @@ static void test_class19_devmgr_acl_is_read_only(void **state) {
             assert_int_equal(acl.method_rights[method], 1);
         }
         assert_false(acl.method_seen[7]);
-        assert_false(acl.method_seen[127]);
+        if (ois[i] == 0x4300) {
+            for (int method = 127; method < ACL_MAX_RIGHTS; method++) {
+                assert_false(acl.method_seen[method]);
+            }
+        } else {
+            for (uint8_t method = 127; method <= 129; method++) {
+                assert_true(acl.method_seen[method]);
+                assert_int_equal(acl.method_rights[method], 1);
+            }
+            assert_false(acl.method_seen[130]);
+        }
     }
 }
 
 static void test_class21_esam_acl_is_read_only(void **state) {
     (void)state;
     acl_rights_t acl;
-    /* 表184 的 A1..A15 与方法 1..12；ACL 每对象方法上限 8，故广告 1..8，
-     * 9..12 记 HOLD（主站 ACTION 回 DAR 3）。属性只读，SET 回 DAR 3。 */
+    /* 表184 的 A1..A15 与方法 1..12 全部只读广告。属性只读，SET 回 DAR 3。 */
     assert_int_equal(_acl_rights_for(0xF100, &acl), 0);
     assert_false(acl.seen[0]);
     for (uint8_t attr = 1; attr <= 15; attr++) {
@@ -392,26 +401,25 @@ static void test_class21_esam_acl_is_read_only(void **state) {
         assert_int_equal(acl.rights[attr], 1);
     }
     for (int attr = 16; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
-    for (uint8_t method = 1; method <= 8; method++) {
+    for (uint8_t method = 1; method <= 12; method++) {
         assert_true(acl.method_seen[method]);
         assert_int_equal(acl.method_rights[method], 1);
     }
-    for (int method = 9; method < ACL_MAX_RIGHTS; method++) assert_false(acl.method_seen[method]);
+    for (int method = 13; method < ACL_MAX_RIGHTS; method++) assert_false(acl.method_seen[method]);
 }
 
 static void test_class23_group_acl_is_read_only(void **state) {
     (void)state;
     acl_rights_t acl;
-    /* 表190 的 A1..A18、方法 1..5；ACL 属性 schema 只到 16，故广告 A1..A16，
-     * A17/A18 不广告（主站 DAR 3）。方法 1..5 全部广告，属性与方法都只读。 */
+    /* 表190 的 A1..A18、方法 1..5；属性与方法都只读。 */
     for (uint16_t oi = 0x2301; oi <= 0x2308; oi++) {
         assert_int_equal(_acl_rights_for(oi, &acl), 0);
         assert_false(acl.seen[0]);
-        for (uint8_t attr = 1; attr <= 16; attr++) {
+        for (uint8_t attr = 1; attr <= 18; attr++) {
             assert_true(acl.seen[attr]);
             assert_int_equal(acl.rights[attr], 1);
         }
-        for (int attr = 17; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
+        for (int attr = 19; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
         for (uint8_t method = 1; method <= 5; method++) {
             assert_true(acl.method_seen[method]);
             assert_int_equal(acl.method_rights[method], 1);
@@ -423,9 +431,10 @@ static void test_class23_group_acl_is_read_only(void **state) {
 static void test_class18_file_acl_is_read_only(void **state) {
     (void)state;
     acl_rights_t acl;
-    /* 表175/表A.11：F000 广告 A1..A5，F001/F002 广告 A1..A4；方法 1..8 全部广告。
-     * F001 的 OI 方法 9/10 已计入 resolver 定义，但 ACL 方法槽 8 已满，记 HOLD。 */
+    /* 表175/表A.11：F000 广告 A1..A5，F001/F002 广告 A1..A4；方法 1..8 全部广告，
+     * F001 另有 OI 方法 9/10。 */
     static const uint8_t max_attr[3] = {5, 4, 4};
+    static const uint8_t max_method[3] = {8, 10, 8};
     static const uint16_t ois[3] = {0xF000, 0xF001, 0xF002};
     for (size_t i = 0; i < 3; i++) {
         assert_int_equal(_acl_rights_for(ois[i], &acl), 0);
@@ -437,11 +446,13 @@ static void test_class18_file_acl_is_read_only(void **state) {
         for (int attr = max_attr[i] + 1; attr < ACL_MAX_RIGHTS; attr++) {
             assert_false(acl.seen[attr]);
         }
-        for (uint8_t method = 1; method <= 8; method++) {
+        for (uint8_t method = 1; method <= max_method[i]; method++) {
             assert_true(acl.method_seen[method]);
             assert_int_equal(acl.method_rights[method], 1);
         }
-        for (int method = 9; method < ACL_MAX_RIGHTS; method++) assert_false(acl.method_seen[method]);
+        for (int method = max_method[i] + 1; method < ACL_MAX_RIGHTS; method++) {
+            assert_false(acl.method_seen[method]);
+        }
     }
 }
 

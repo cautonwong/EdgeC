@@ -26,6 +26,7 @@
 #include "edge_authz_sqlite.h"
 #include "edgeos/edge_authz.h"
 #include "iems_app_host_ports.h"
+#include "iems_driver_adapter.h"
 #include "pipe_msg.h"
 #include "sqlite_service.h"
 
@@ -690,10 +691,163 @@ static void test_host_ports_end_to_end(void **state) {
     assert_int_equal(uv_loop_close(&loop), 0);
 }
 
+/* P1-04a 切片 1：旧名只读解析。期望值来自 iems_point_model.c 的 27 条名表与
+ * iems_v3 dev.node 规则（tag-config-map.md §1.1）：5 个健康旧名 9001..9005，
+ * 8 条旧名样例 tag_id=NONE 不可读，匹配按字节精确、不做归一化。 */
+static void test_host_ports_old_name_resolution(void **state) {
+    (void)state;
+    uv_loop_t loop;
+    assert_int_equal(uv_loop_init(&loop), 0);
+
+    const char *db_path = "test_iems_app_host_ports_old_name.db";
+    unlink(db_path);
+    sqlite_config_t cfg = {.strategy = STRATEGY_LITE, .db_path = db_path};
+    sqlite_svc_t *db = sqlite_svc_create(&loop, &cfg);
+    assert_non_null(db);
+    sqlite3 *raw = (sqlite3 *)sqlite_svc_get_db_handle(db);
+    sqlite3_stmt *stmt;
+    assert_int_equal(sqlite3_prepare_v2(
+                         raw,
+                         "INSERT INTO app_registry(id, version, state) VALUES('demo','1.0.0',1);",
+                         -1, &stmt, NULL),
+                     SQLITE_OK);
+    assert_int_equal(sqlite3_step(stmt), SQLITE_DONE);
+    sqlite3_finalize(stmt);
+    grant(db, "tags.read",
+          "[\"EMS_POWER\",\"EMS_CPU_HIGH\",\"EMS_MEM_HIGH\",\"EMS_EMMC_HIGH\",\"EMS_SSD_HIGH\"]");
+
+    datahub_t hub;
+    char shm_name[64];
+    snprintf(shm_name, sizeof(shm_name), "test_host_old_name_%d", (int)getpid());
+    char shm_path[96];
+    snprintf(shm_path, sizeof(shm_path), "/edgeos_shadow_%s", shm_name);
+    shm_unlink(shm_path);
+    assert_int_equal(datahub_init(&hub, NULL, shm_name, 64, APP_BASE + 4096, NULL, 0, NULL, NULL,
+                                  NULL),
+                     0);
+    datahub_set_tag_mapper_v2(&hub, iems_tag_map_fn);
+
+    uint32_t tag_count = 0;
+    const edge_tag_meta_t *product_tags = iems_get_tag_metadata(&tag_count);
+    iems_app_host_ctx_t ctx = {
+        .app_id = "demo",
+        .hub = &hub,
+        .db = db,
+        .product_tags = product_tags,
+        .product_tag_count = tag_count,
+        .app_base = APP_BASE,
+    };
+    app_host_ports_t ports;
+    iems_app_host_ports_init(&ports, &ctx);
+
+    static const struct {
+        const char *name;
+        uint32_t tag_id;
+        double value;
+    } health[] = {
+        {"EMS.EMSPower", IEMS_TAG_EMS_POWER, 1.0},
+        {"EMS.EMSCpuHigh", IEMS_TAG_EMS_CPU_HIGH, 2.0},
+        {"EMS.EMSMemHigh", IEMS_TAG_EMS_MEM_HIGH, 3.0},
+        {"EMS.EmmcDiskHigh", IEMS_TAG_EMS_EMMC_HIGH, 4.0},
+        {"EMS.SsdDiskHigh", IEMS_TAG_EMS_SSD_HIGH, 5.0},
+    };
+    char reason[160];
+    for (size_t i = 0; i < sizeof(health) / sizeof(health[0]); i++) {
+        pipe_msg_t seed;
+        pipe_msg_init_scalar(&seed, health[i].tag_id, health[i].value,
+                             7000000000ULL + (uint64_t)i * 1000000ULL);
+        assert_int_equal(datahub_write_shadow(&hub, &seed), 0);
+    }
+    for (size_t i = 0; i < sizeof(health) / sizeof(health[0]); i++) {
+        uint32_t handle = 0;
+        uint8_t access = 0;
+        assert_int_equal(ports.resolve(&ctx, health[i].name, &handle, &access, reason,
+                                       sizeof(reason)),
+                         0);
+        assert_int_equal(handle, health[i].tag_id);
+        assert_int_equal(access, APP_HOST_ACCESS_READ);
+
+        app_host_sample_t sample;
+        memset(&sample, 0, sizeof(sample));
+        assert_int_equal(ports.read(&ctx, handle, &sample, reason, sizeof(reason)), 0);
+        assert_float_equal(sample.number, health[i].value, 0.0);
+        assert_int_equal(sample.quality, APP_HOST_QUALITY_GOOD);
+        assert_int_equal(sample.source_ts, 7000ULL + i);
+    }
+
+    /* 14 条 canonical 短名解析优先级与 handle 不变。 */
+    static const struct {
+        const char *name;
+        uint32_t tag_id;
+    } short_names[] = {
+        {"VOLTAGE_PHASE_A", 1001},   {"CURRENT_PHASE_A", 1002}, {"GRID_POWER", 1003},
+        {"GRID_FREQUENCY", 1004},    {"ADC_RAW_DATA", 2001},    {"ADC_VOLTAGE_RMS", 2002},
+        {"ENERGY_ACTIVE_IMP", 3001}, {"BATTERY_SOC", 4001},     {"BATTERY_CURRENT", 4002},
+        {"BATTERY_POWER", 4003},     {"SOLAR_POWER", 8001},     {"SOLAR_VOLTS", 8003},
+        {"SOLAR_RELAY", 8004},       {"PCS_CONTROL", 8005},
+    };
+    for (size_t i = 0; i < sizeof(short_names) / sizeof(short_names[0]); i++) {
+        uint32_t handle = 0;
+        uint8_t access = 0;
+        assert_int_equal(ports.resolve(&ctx, short_names[i].name, &handle, &access, reason,
+                                       sizeof(reason)),
+                         0);
+        assert_int_equal(handle, short_names[i].tag_id);
+        assert_int_equal(access, APP_HOST_ACCESS_READ);
+    }
+
+    /* 旧名 handle 只读：publish 仍 denied_scope。 */
+    app_host_sample_t publish;
+    memset(&publish, 0, sizeof(publish));
+    publish.kind = APP_HOST_VALUE_FLOAT;
+    publish.number = 1.0;
+    assert_int_equal(ports.publish(&ctx, IEMS_TAG_EMS_POWER, &publish, reason, sizeof(reason)), -1);
+    assert_string_equal(reason, "denied_scope");
+
+    /* 8 条未映射旧名、未知名与大小写/空格/点号变体都 not_found，且不写输出。 */
+    static const char *not_found[] = {
+        "LC1.PCS.SmokeDetectStatus", "EMS.EMS.DcTotalVolUnusual", "EMS.ActivePower",
+        "EMS.SetConnect",            "PCS.AphaseApparentPower",  "PCS_METER.AphaseActivePower",
+        "EMS.EnIoProtect",           "pcs456.constant vol_chg_vol_setting",
+        "EMS.NotARealPoint",         "ems.emspower",             "EMS.EMSPower ",
+        " EMS.EMSPower",             "EMS_EMSPower",             "EMS EMSPower",
+    };
+    for (size_t i = 0; i < sizeof(not_found) / sizeof(not_found[0]); i++) {
+        uint32_t handle = 0xDEADBEEFu;
+        uint8_t access = 0xFF;
+        assert_int_equal(ports.resolve(&ctx, not_found[i], &handle, &access, reason,
+                                       sizeof(reason)),
+                         -1);
+        assert_string_equal(reason, "not_found");
+        assert_int_equal(handle, 0xDEADBEEFu);
+        assert_int_equal(access, 0xFF);
+    }
+
+    /* tag 在点模型里可查但产品元数据不存在时也不返回 handle。 */
+    static const edge_tag_meta_t kUnrelatedTag[] = {{.id = 9999, .name = "OTHER"}};
+    iems_app_host_ctx_t limited = ctx;
+    limited.product_tags = kUnrelatedTag;
+    limited.product_tag_count = 1;
+    uint32_t handle = 0xDEADBEEFu;
+    uint8_t access = 0xFF;
+    assert_int_equal(ports.resolve(&limited, "VOLTAGE_PHASE_A", &handle, &access, reason,
+                                   sizeof(reason)),
+                     -1);
+    assert_string_equal(reason, "not_found");
+    assert_int_equal(handle, 0xDEADBEEFu);
+    assert_int_equal(access, 0xFF);
+
+    datahub_destroy(&hub);
+    sqlite_svc_destroy(db);
+    unlink(db_path);
+    assert_int_equal(uv_loop_close(&loop), 0);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_host_quota_denies_the_33rd),
         cmocka_unit_test(test_two_apps_fill_hub_then_third_denied),
+        cmocka_unit_test(test_host_ports_old_name_resolution),
         cmocka_unit_test(test_host_ports_end_to_end),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

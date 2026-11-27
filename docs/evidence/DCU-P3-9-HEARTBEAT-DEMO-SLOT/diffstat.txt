@@ -1,0 +1,8 @@
+ cmd/dcu/dcu_heartbeat.c                            |  10 +-
+ .../DCU-P3-9-HEARTBEAT-DEMO-SLOT/comments.md       |   5 +
+ .../DCU-P3-9-HEARTBEAT-DEMO-SLOT/diffstat.txt      |   3 +
+ docs/evidence/DCU-P3-9-HEARTBEAT-DEMO-SLOT/red.log |  75 +++++++++
+ .../DCU-P3-9-HEARTBEAT-DEMO-SLOT/summary.md        |  73 +++++++++
+ .../DCU-P3-9-HEARTBEAT-DEMO-SLOT/tests.log         | 178 +++++++++++++++++++++
+ tests/test_dcu_runtime_health.c                    |  91 +++++++++++
+ 7 files changed, 433 insertions(+), 2 deletions(-)

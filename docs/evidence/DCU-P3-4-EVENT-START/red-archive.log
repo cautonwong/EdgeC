@@ -1,0 +1,24 @@
+Test project /tmp/edgec-land/p3-4-event-start-time/build
+    Start 19: test_dcu_advanced_modules
+1/1 Test #19: test_dcu_advanced_modules ........***Failed    0.01 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_event_archive_start_is_per_slot
+📝 [SNAPSHOT] 事件 3000 恢复 (表: 10000001)！记录更新。
+[  ERROR   ] --- 1700000001 != 1700000000
+[   LINE   ] --- /tmp/edgec-land/p3-4-event-start-time/tests/test_dcu_advanced_modules.c:921: error: Failure!
+[  FAILED  ] test_event_archive_start_is_per_slot
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_event_archive_start_is_per_slot
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.04 sec
+
+The following tests FAILED:
+	 19 - test_dcu_advanced_modules (Failed)
+Errors while running CTest

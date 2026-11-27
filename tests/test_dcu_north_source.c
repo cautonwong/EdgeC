@@ -88,7 +88,6 @@ static void test_names_derive_from_point_model(void** state) {
 static void test_names_exclude_points_absent_from_object_table(void** state) {
     (void)state;
     const edge_north_source_ops_t* ops = dcu_north_source_ops();
-    assert_null(ops->name(NULL, OAD_ZERO_SEQ_CURRENT));
     assert_null(ops->name(NULL, OAD_REACTIVE_POWER_TOTAL));
 }
 

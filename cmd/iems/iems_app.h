@@ -16,6 +16,7 @@
 #include <uv.h>
 
 #include "iems_node.h"
+#include "iems_lc_user_cfg.h"
 #include "iems_pcs_settings.h"
 
 #ifdef __cplusplus
@@ -47,7 +48,33 @@ typedef struct {
     // NULL/空串 = 不加载,沿用既有契约/数据库种子。由组合根从 EDGE_CONFIG_DIR
     // 读一次传进来。显式设置后加载失败会拒绝启动。
     const char *config_dir;
+    // P1-08a c1: 影子模式。true 时所有下行控制写在聚合根与执行出口被拒绝，
+    // 读/轮询/遥测照常。由组合根从 IEMS_SHADOW_MODE 解析一次传进来。
+    bool shadow_mode;
+    // P1-08a c1 round2: REST /api/v1/io/raw 原始帧写入口。默认关闭；只有
+    // IEMS_REST_RAW_IO=1 显式开启且非影子模式才放行。由组合根读一次传进来。
+    bool rest_raw_io_enabled;
 } iems_app_config_t;
+
+/**
+ * @brief 解析 IEMS_SHADOW_MODE 启动开关（组合根边界，只在这里读 raw 值）
+ *
+ * 未设或 "0" = 正常；"1" = 影子；其它值返回 -1，调用方必须拒绝启动。
+ *
+ * @param raw 环境变量原值（可为 NULL）
+ * @param out_shadow 出参：是否影子模式
+ * @return 0 合法，-1 非法
+ */
+int iems_app_shadow_mode_parse(const char *raw, bool *out_shadow);
+
+/**
+ * @brief 解析 IEMS_REST_RAW_IO：只有精确 "1" 开启，其它值（含未设）一律关闭。
+ *
+ * @param raw 环境变量原值（可为 NULL）
+ * @param out_enabled 出参：是否开启 REST 原始帧写入口
+ * @return 0（非法值按关闭处理，不拒绝启动）
+ */
+int iems_app_rest_raw_io_parse(const char *raw, bool *out_enabled);
 
 /**
  * @brief 启动 WAL：打开并回放；任一步失败时记录错误并关闭 WAL（明确降级）
@@ -123,6 +150,14 @@ iems_node_t *iems_app_get_node(iems_app_t *app);
  * 只读：调用方不得修改；策略接线（SOC/功率）属 P2-03/P5-03。
  */
 const iems_pcs_settings_t *iems_app_get_pcs_settings(iems_app_t *app);
+
+/**
+ * @brief 启动期加载的 per-LC 点位覆盖（只读）。
+ *
+ * 未配置 EDGE_CONFIG_DIR 或无 lc_devs 时 count 为 0；每项 state 区分缺失文件与
+ * 空文件。v3 的 125 默认合并留给消费方，加载器只保留源值。
+ */
+const iems_lc_user_cfgs_t *iems_app_get_lc_user_cfgs(iems_app_t *app);
 
 
 /* DataHub 影子布局：产品 tag 在 app_base 以下，应用点位在其上；容量必须覆盖

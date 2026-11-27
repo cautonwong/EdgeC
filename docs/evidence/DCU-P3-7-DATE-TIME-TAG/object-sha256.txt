@@ -1,0 +1,26 @@
+# 对象 sha256（改动前 / 改动后）
+
+worktree: /tmp/edgec-land/p3-7-date-time-tag
+基线: feat/dcu = main = 99318550
+配置: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WEB_BUILD=OFF
+目标: edge_codec（`build/foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o`）
+
+## 改动前（基线源码）
+
+```
+$ cmake --build build -j1 --target edge_codec
+$ sha256sum build/foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+eaa6b7c4bd1ba9c0f1119b02d0271306d24dfe531ba4938cf9c50dda39894dfc  build/foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+```
+
+## 改动后（本任务源码）
+
+```
+$ cmake --build build -j1 --target edge_codec
+[1/2] Building C object foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+[2/2] Linking C static library foundation/libedge_codec.a
+$ sha256sum build/foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+eaa6b7c4bd1ba9c0f1119b02d0271306d24dfe531ba4938cf9c50dda39894dfc  build/foundation/CMakeFiles/edge_codec.dir/src/protocol/dlt698_codec.c.o
+```
+
+结论：同一 worktree、同一配置下对象文件逐字节一致，命名收口未产生任何代码生成差异（Release 无调试段，符号常量与字面量编译结果相同）。

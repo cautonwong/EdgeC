@@ -1,0 +1,41 @@
+# Commits on dcu/P3-5-var-4510 (baseline 40d8dca5)
+docs commit (HEAD) docs(dcu): record P3-5 VAR-4510 spec, evidence and mutation guard
+c74f8ffd fix(dcu): return DAR 5 for 4510 A5 on the scalar path
+aff418ba test(dcu): assert 4510 A5 scalar path returns DAR 5
+
+# Code/test diffstat 40d8dca5..HEAD (docs commit included)
+ ci/mutation_guards.tsv                           |   1 +
+ cmd/dcu/dcu_698_var.c                            |   5 +-
+ docs/evidence/DCU-P3-5-VAR-4510/acceptance-1.log |  40 +++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/comments.md      |   4 +
+ docs/evidence/DCU-P3-5-VAR-4510/design.md        |  32 +++++++
+ docs/evidence/DCU-P3-5-VAR-4510/diffstat.txt     |  42 +++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/guard.log        |  12 +++
+ docs/evidence/DCU-P3-5-VAR-4510/red.log          |  45 ++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/spec.md          |  86 ++++++++++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/summary.md       |  75 ++++++++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/tests.log        | 106 +++++++++++++++++++++++
+ tests/test_dcu_698_var.c                         |  53 ++++++++++++
+ 12 files changed, 500 insertions(+), 1 deletion(-)
+
+# Per commit
+aff418ba test(dcu): assert 4510 A5 scalar path returns DAR 5
+ tests/test_dcu_698_var.c | 53 ++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 53 insertions(+)
+
+c74f8ffd fix(dcu): return DAR 5 for 4510 A5 on the scalar path
+ cmd/dcu/dcu_698_var.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+# Evidence commit files
+ ci/mutation_guards.tsv                           |   1 +
+ docs/evidence/DCU-P3-5-VAR-4510/acceptance-1.log |  40 +++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/comments.md      |   4 +
+ docs/evidence/DCU-P3-5-VAR-4510/design.md        |  32 +++++++
+ docs/evidence/DCU-P3-5-VAR-4510/diffstat.txt     |  42 +++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/guard.log        |  12 +++
+ docs/evidence/DCU-P3-5-VAR-4510/red.log          |  45 ++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/spec.md          |  86 ++++++++++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/summary.md       |  75 ++++++++++++++++
+ docs/evidence/DCU-P3-5-VAR-4510/tests.log        | 106 +++++++++++++++++++++++
+ 10 files changed, 443 insertions(+)

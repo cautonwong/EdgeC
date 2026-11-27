@@ -87,7 +87,7 @@ python3 tools/migration/parity/run_parity.py replay \
 
 ## 9. 自检覆盖
 
-`run_parity.py selftest` 的 10 个用例覆盖：
+`run_parity.py selftest` 的 22 个用例覆盖：
 
 1. mock 零差异；
 2. 注入 target 差异后报告首差并退出 `1`；
@@ -97,3 +97,26 @@ python3 tools/migration/parity/run_parity.py replay \
 6. 篡改首条 `value`（`0.0` → `999.0`）后带错误哈希回放，非零退出且错误含期望/实际哈希；
 7-9. 缺字段、坏版本、乱序轨迹即使带正确哈希，仍按 schema/排序规则拒绝（退出 `2`）。
 10. 合法 schema 且哈希正确、但 `value` 含溢出非有限数（`1e999`）→ 退出 `2`，stderr 为 `non-finite number at value` 且无 traceback。
+11. IEMS MQTT golden trace（8 条）回放零差异，且每条帧与 v3 注释一致；
+12. 注入载荷差异后轨迹比较器与注释检查双红，给字段与 `t_ms`，退出 `1`；
+13. 篡改注释 `payload_hex` → 退出 `1`，只报注释差异；
+14-16. 缺注释、未知注释字段、未知 key → 退出 `2`，不静默跳过；
+17. 篡改 IEMS 轨迹后 pinned 哈希退出 `2`，错误含期望/实际哈希。
+18. 有限 `value` 乘 scale 后溢出为 `inf`（`1e308`）或超出 S32 范围（`1e307`）→ 退出 `2`，错误含 `not representable as S32` 与 `value`，无 traceback；
+19. sidecar 重复顶层 `t_ms` 键 → 退出 `2`，不静默 last-wins；
+20. 只改注释 `topic` → 退出 `1`，报告 `field=topic` 与 `t_ms`；
+21. 只改注释 `fields.value` → 退出 `1`，报告 `field=fields.value` 与 `t_ms`；
+22. 注释字符串含 lone surrogate（`topic` 或 `fields` 的键/值）→ 退出 `2`，错误含 `not encodable as UTF-8`，不写 report。
+
+## 10. IEMS MQTT 注释 sidecar（P4-02d，不改 v1 schema）
+
+- 轨迹 `X.jsonl` 的 sidecar 是同目录的 `X.annotations.json`，只在 `--target iems-mqtt` 时读取。
+- 顶层键是十进制 `t_ms` 字符串，必须与轨迹记录一一对应且唯一；缺一条、多一条或重复键都退出 `2`。
+- 注释中的字符串（`topic`、`fields` 的键与值）必须可 UTF-8 编码；lone surrogate 等不可编码值 → 退出 `2`，且在写 report 前拒绝。
+- 每条值恰好三个字段：
+  - `topic`：按 P4-02c §1.1 渲染的 v3 主题；
+  - `payload_hex`：v3 binaryFlow 帧的载荷段（`block_num(1) + 块列表`，P4-02b §1.2），小写偶数长度十六进制；帧头 TransId/DevLen/CmdLen 不属于本切片比较范围；
+  - `fields`：从载荷段解出的业务字段。
+- 未知注释字段、非小写十六进制、非对象值 → 退出 `2`。
+- 注释与 target 输出不一致 → 退出 `1`，报告的 `annotations.mismatches` 给 `field`、`t_ms`、`expected`、`actual`；只改注释不改变轨迹比较器的结论，但整体 `ok=false`。
+- sidecar 是 target 级 oracle，不进入第 3 节的 v1 记录 schema；轨迹的未知顶层字段仍按第 6 节忽略并丢弃。

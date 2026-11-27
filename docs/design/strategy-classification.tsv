@@ -1,0 +1,14 @@
+form	kind	class	adr_family	target	effective	role	period_ms	decision_owner	execution_owner	safety	points_per_cycle	events_per_s	subscriptions	notes
+tou_current_ac	ac_Cutpeak_Fillvalley	TOU	TOU	app	module	DECIDE	500	iems_td_evaluate	iems_microgrid_coordinator	none	20	20	2	CONTRACT 1.2 行1；AC 并网状态机 500ms；决策归 iems_td_evaluate，coordinator 只做快照/仲裁/包络/执行
+tou_legacy_loop	ems_stratagy_period_ctrl	TOU	TOU	app	module	DECIDE	500	iems_td_evaluate	iems_microgrid_coordinator	none	10	20	0	CONTRACT 1.2 行2；v3 旧循环未启动（main.c:188 注释）；不得作为第二决策源复活
+demand_fixed	ems_demand_ctrl	DEMAND	DEMAND_FIXED	app	module	DECIDE	500	iems_td_evaluate	iems_microgrid_coordinator	none	12	20	2	CONTRACT 1.2 行3；固定与动态需量共用一个需量类端口，配置作变体
+demand_dynamic	demand_control_handler	DEMAND	DEMAND_DYNAMIC	app	module	DECIDE	500	iems_td_evaluate	iems_microgrid_coordinator	none	15	20	2	CONTRACT 1.2 行4；1s 采集线程与月度统计留模块；TOU/需量唯一决策源为 iems_td_evaluate
+anti_reflux_limit	ems_anti_backflow_with_pv_handler	LIMIT	ANTI_REFLUX	module	module	LIMIT	200	iems_microgrid_coordinator	iems_microgrid_coordinator	anti_reflux_limit	10	50	0	CONTRACT 1.2 行5 与 ADR 2.2；硬限幅是安全家族，只能留模块；app 决策部分不是独立 v3 形态，本表不拆
+pf_loop	pf_ctrl_thread	PF	PF	app	module	DECIDE	1000	iems_strategy_pf	iems_microgrid_coordinator	none	10	10	2	CONTRACT 1.2 行6；v3 直写 PCS，迁移后只出站级 Q/PF，分摊/斜坡/无响应回退留模块
+soc_keep	Strategy_SocKeep_Check	SOC	SOC_KEEP	app	module	OVERRIDE	500	iems_soc_keep_evaluate	iems_microgrid_coordinator	none	6	10	1	CONTRACT 1.2 行7；P5-03c 纯模块已实现；OVERRIDE 先于经济策略（CONTRACT 4.7）
+pcs_low_soc_protect	Pcs_ctrl	SOC	PROTECTION	module	module	OVERRIDE	0	iems_pcs_controller	iems_pcs_controller	protection	4	10	0	CONTRACT 1.2 行8；设备级事件保护（period 0 = 事件驱动），安全家族，永远留模块
+ev_capacity	ChargingPilesControl_Management	EV	EV_CAPACITY	app	module	DECIDE	500	iems_strategy_ev_capacity	iems_microgrid_coordinator	none	15	20	2	CONTRACT 1.2 行9 与 4.4；增容决策可进 app，分配线程留模块
+ev_allocation	evhub_ctrl_loop	EV	OVER_CAPACITY	module	module	DECIDE	2000	iems_ev_allocator	iems_ev_allocator	capacity	120	60	0	CONTRACT 1.2 行10 与 4.4；最多 30 桩，每桩读 2 写 2 = 120 点/周期 > 100，超容量，永远留模块
+pv_storage_self_use	ac_Photovol_Absorp	TOU	PV_PRIORITY	app	module	DECIDE	500	iems_td_evaluate	iems_microgrid_coordinator	none	12	20	2	CONTRACT 1.2 行11；与 TOU 同执行路径；CONTRACT 4.4 无独立 PV 类，归经济（TOU）类，ADR 家族按光伏优先
+standby_backup	ac_Meet_Standby	SOC	SOC_KEEP	app	module	OVERRIDE	500	iems_strategy_group_step	iems_microgrid_coordinator	none	6	10	1	CONTRACT 1.2 行12；应急备电按备电 SOC 家族，OVERRIDE 语义；c3 由 group_step 仲裁
+pv_priority	ems_pv_ctrl	TOU	PV_PRIORITY	app	module	DECIDE	1000	iems_strategy_pv	iems_microgrid_coordinator	none	8	10	1	CONTRACT 1.2 行13；1s；v3 线程存在但唯一调用循环未启动；限发只出设定值，硬限幅仍归模块

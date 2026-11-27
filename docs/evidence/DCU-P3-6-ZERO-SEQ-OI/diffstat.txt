@@ -1,0 +1,17 @@
+ ci/scripts/run_guard_selftest.py                | 14 +++++++
+ cmd/dcu/dcu_698_rules.c                         |  1 -
+ cmd/dcu/dcu_router.h                            |  1 -
+ docs/design/DCU_698_OAD_STATUS.md               |  3 +-
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/catalog.log  | 18 +++++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/comments.md  |  4 ++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/design.md    | 28 ++++++++++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/diffstat.txt | 13 +++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/red.log      | 15 ++++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/spec.md      | 46 +++++++++++++++++++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/summary.md   | 49 +++++++++++++++++++++++++
+ docs/evidence/DCU-P3-6-ZERO-SEQ-OI/tests.log    |  9 +++++
+ tests/test_dcu_698_router_oad_catalog.py        | 49 +++++++++++++++++++++++++
+ tests/test_dcu_698_rules.c                      |  1 -
+ tests/test_dcu_698_scheme_mgmt.c                |  7 +++-
+ tests/test_dcu_north_source.c                   |  1 -
+ 16 files changed, 252 insertions(+), 7 deletions(-)

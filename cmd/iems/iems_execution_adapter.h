@@ -7,6 +7,11 @@
 extern "C" {
 #endif
 
+/* 执行适配器组合根配置：ctx 指向本结构，生命周期须覆盖端口；NULL = 正常模式。 */
+typedef struct {
+    bool shadow_mode;
+} iems_execution_config_t;
+
 iems_execution_port_t iems_execution_port_create(void *ctx);
 
 /* 总线 cmd_status_t → 域完成状态（成功/失败/超时）。纯函数，便于单测覆盖所有总线状态：

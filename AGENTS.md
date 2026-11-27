@@ -53,6 +53,11 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - 对抗评审只报能用运行证明的发现（命令、实际输出、按意图应得的输出）；verifier 逐条复跑，只保留可复现且违背意图的发现，再打回实现方。风格、命名与需要未来改动才成立的推测不计。
 - 评审发现的缺陷与普通缺陷同规则：同一次改动里补可执行守卫或正反夹具，并登记 `ci/scripts/run_guard_selftest.py`。
 
+#### 规格先行与独立预期（DCU 单元起执行）
+
+- 规格先行：写代码前先写五栏规格，放单元 brief 或 `docs/evidence/DCU-<ID>/spec.md`。五栏是业务规则（输入到输出的判断）、不变量（任何时刻必须成立的状态）、可观测输出（DAR、GET 回读、ACL 广告、对象列表/会话字节、日志、ELF section 等用户或协议能看到的值）、验收判据（每条输出的期望值）、非目标（本单元明确不做的部分）。实现、测试与 `verify.md` 引用同一份规格；规格有歧义时停在规格，不带歧义实现。
+- 独立预期：测试的期望值必须来自规格，不能从实现代码或新实现输出反推。verifier 至少独立推导一个期望值，把推导过程写进 `verify.md`；baseline/treatment 对照只证明差异存在，不证明期望值正确；实现方写的断言不能单独作为独立证据。
+
 ### 架构约束
 
 - 依赖方向：外层依赖内层；domain 不依赖框架、数据库、UI。用 `check_plane_isolation.py`、`check_component_boundary.py`、`check_product_build_graph.py` 强制，不在本文重复。
@@ -106,12 +111,13 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - 掌管`feat/iems`分支,是`iems-v3`迁移任务(`/home/edge/migration/`)的唯一负责人/设计者,负责给`iems-dev`派活/调度,负责验证->验收(合并到`feat/iems`和清理)
 - 派活`一任务一worktree`
 - 以`poteto-mode`的夜间模式持续调度,除非被喊停`收工`或者任务全部达成
-
+- 以/verify和/interrogate 验证
 ---
 `dcu-verifier`
 - 掌管`feat/dcu`分支,是任务(`docs/plans/2026-11-21-dcu-698-production-plan.md)`)的唯一负责人/设计者,负责给`dcu-dev`派活/调度,负责验证->验收(合并到`feat/dcu`和清理)
 - 派活`一任务一worktree`
 - 以`poteto-mode`的夜间模式持续调度,除非被喊停`收工`或者任务全部达成
+- 以/verify和/interrogate 验证
 
 ---
 `edgec-verifier`
@@ -121,6 +127,7 @@ Multi-context: `CONTEXT-MAP.md` at the root points to per-context `CONTEXT.md` f
 - 负责此monorepo的架构设计和质量保证
 - 接受并处理到`main`的合入请求
 - 跑此monorepo的全量CI
+- 以/verify和/interrogate 验证
 - 收工流程见下面的`收工流程`
 ---
 `iems-dev`

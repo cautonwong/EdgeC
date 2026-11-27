@@ -55,6 +55,16 @@ typedef struct io_handle_s io_handle_t;
 
 typedef struct {
     int (*enable_read)(io_handle_t *h, bool enable);
+    /**
+     * @brief 异步发送一帧；成功后由实现接管一份缓冲引用。
+     *
+     * 调用方创建 net_buf（ref=1），调用返回后立即 net_buf_unref，无论 rc，
+     * 不再依赖该缓冲。返回 0 的实现必须自己保证帧内容在返回后仍然有效：
+     * 同步消费完的实现（拷贝或忽略）不持引用；需要跨调用使用内容的实现必须
+     * net_buf_ref 一份自持，并在完成/失败事件或 destroy 时释放。返回 <0 的
+     * 同步错误路径不接管任何引用（内部先 ref 的必须在返回前归还）。完成事件
+     * 在 loop 线程投递、payload 为 NULL；destroy 必须释放所有未完成的引用。
+     */
     int (*write_async)(io_handle_t *h, net_buf_t *buf);
     int (*ioctl)(io_handle_t *h, int cmd, void *arg);
     void (*destroy)(io_handle_t *h);

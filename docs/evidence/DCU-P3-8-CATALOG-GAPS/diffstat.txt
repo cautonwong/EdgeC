@@ -1,0 +1,15 @@
+ ci/mutation_guards.tsv                             |   1 +
+ .../DCU-P3-8-CATALOG-GAPS/acceptance-1.log         |  38 ++++++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/comments.md    |  18 +++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/design.md      |  89 ++++++++++++++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/diffstat.txt   |  18 +++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/guard.log      |  10 ++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/red.log        |  29 +++++
+ .../DCU-P3-8-CATALOG-GAPS/sha256-after.txt         |   4 +
+ .../DCU-P3-8-CATALOG-GAPS/sha256-before-after.txt  |  13 +++
+ .../DCU-P3-8-CATALOG-GAPS/sha256-before.txt        |   4 +
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/summary.md     |  94 +++++++++++++++
+ docs/evidence/DCU-P3-8-CATALOG-GAPS/tests.log      |  25 ++++
+ scripts/extract_dcu_698_catalog.py                 |  66 +++++++++++
+ tests/test_dcu_698_catalog_method_sets.py          | 128 +++++++++++++++++++++
+ 14 files changed, 537 insertions(+)

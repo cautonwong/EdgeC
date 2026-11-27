@@ -165,6 +165,21 @@ OI_CLASS_DECISIONS: dict[int, ClassDecision] = {
     0xF210: ClassDecision(8, 8, "表A.12 @9300", False),
 }
 
+CLASS_METHODS: dict[int, tuple[int, ...]] = {
+    1: (1, 2), 2: (1, 2), 3: (1, 2), 4: (1, 2), 5: (1, 2), 6: (1, 2),
+    7: (1, 2, 4, 5), 8: (1, 2), 9: (1, 2, 3, 4, 5, 7, 8), 10: (1, 2, 3),
+    11: (1, 2), 12: (1, 2, 3, 4), 13: (1, 2, 3, 4, 5, 6, 7),
+    14: (1, 2, 3, 4), 15: (1, 2, 3, 4), 16: (1, 2, 3, 4),
+    17: (1, 2, 3, 4, 5, 6), 18: (1, 2, 3, 4, 5, 6, 7, 8),
+    19: (1, 2, 3, 4, 5, 6), 20: (1, 2),
+    21: (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12),
+    22: (1, 2), 23: (1, 2, 3, 4, 5), 24: (1, 2, 4, 5), 25: (1,), 26: (1,),
+}
+
+OI_METHOD_EXCEPTIONS: dict[str, frozenset[int]] = {"F001": frozenset({9, 10})}
+OI_OWN_METHOD_MIN = 127
+
+
 def infer_class(oi: int) -> int:
     decision = OI_CLASS_DECISIONS.get(oi)
     if decision:
@@ -408,6 +423,50 @@ def parse_oi_attributes(lines: list[str], window: tuple[int, int]) -> dict[str, 
     return attrs
 
 
+def validate_class_methods(classes: list[dict]) -> list[str]:
+    errors = []
+    parsed_ids = {cls["class_id"] for cls in classes}
+    for cid in sorted(set(CLASS_METHODS) - parsed_ids):
+        errors.append(f"class {cid}: 7.3 class table missing from the source")
+    for cid in sorted(parsed_ids - set(CLASS_METHODS)):
+        errors.append(f"class {cid}: not a recorded 7.3 class")
+    for cls in classes:
+        cid = cls["class_id"]
+        expected = CLASS_METHODS.get(cid)
+        if expected is None:
+            continue
+        got = sorted(m["no"] for m in cls["methods"])
+        missing = sorted(set(expected) - set(got))
+        extra = sorted(set(got) - set(expected))
+        duplicated = sorted(n for n in set(got) if got.count(n) > 1)
+        if got == list(expected) and not duplicated:
+            continue
+        detail = []
+        if missing:
+            detail.append("missing " + ", ".join(map(str, missing)))
+        if extra:
+            detail.append("extra " + ", ".join(map(str, extra)))
+        if duplicated:
+            detail.append("duplicate " + ", ".join(map(str, duplicated)))
+        errors.append(f"class {cid}: expected methods {list(expected)}, got {got}"
+                      + ("; " + "; ".join(detail) if detail else ""))
+    return errors
+
+
+def validate_oi_methods(ois: list[dict], oi_methods: dict[str, set[int]]) -> list[str]:
+    errors = []
+    class_of = {row["oi"]: row["inferred_class"] for row in ois}
+    for oi in sorted(oi_methods, key=lambda key: int(key, 16)):
+        cid = class_of.get(oi)
+        allowed = OI_METHOD_EXCEPTIONS.get(oi, frozenset()) | set(CLASS_METHODS.get(cid, ()))
+        bad = sorted(m for m in oi_methods[oi] if m < OI_OWN_METHOD_MIN and m not in allowed)
+        if bad:
+            errors.append(f"OI {oi} (class {cid}): methods "
+                          + ", ".join(map(str, bad))
+                          + " are not defined by its 7.3 class table")
+    return errors
+
+
 def render_header(classes: list[dict], ois: list[dict], oi_methods: dict[str, set[int]],
                   oi_attrs: dict[str, set[int]]) -> str:
     class_attr = {cls["class_id"]: max((a["no"] for a in cls["attributes"]), default=0)
@@ -626,6 +685,13 @@ def main() -> int:
     ois = parse_ois(lines, {cls["class_id"] for cls in classes}, window)
     oi_methods = parse_oi_methods(lines, window)
     oi_attrs = parse_oi_attributes(lines, window)
+
+    method_errors = validate_class_methods(classes) + validate_oi_methods(ois, oi_methods)
+    if method_errors:
+        print("698 method sets do not match the 7.3 class tables:", file=sys.stderr)
+        for error in method_errors:
+            print(f"  {error}", file=sys.stderr)
+        return 1
 
     if len(classes) != 26:
         print(f"expected 26 classes, parsed {len(classes)}", file=sys.stderr)

@@ -6,6 +6,7 @@
 #ifndef IEMS_APP_MANAGER_ADAPTER_H
 #define IEMS_APP_MANAGER_ADAPTER_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -40,6 +41,9 @@ typedef struct {
     size_t consumer_count;
     edge_eapp_key_t package_keys[EDGE_EAPP_KEYRING_MAX]; /**< EDGEC_PACKAGE_KEYRING_FILE or single key */
     size_t package_key_count;
+    /* REST 下行写策略输入：组合根注入，适配器不读 env。影子优先于显式允许。 */
+    bool shadow_mode;
+    bool rest_raw_io_enabled;
 } iems_control_ctx_t;
 
 /** Attach the app-host runtime; NULL keeps the legacy in-process wasm stage. */

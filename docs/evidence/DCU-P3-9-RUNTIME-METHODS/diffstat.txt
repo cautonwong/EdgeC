@@ -1,0 +1,10 @@
+# 40d8dca5 -> working tree (commit 3 staged content), engineering changes
+ ci/mutation_guards.tsv              |  1 +
+ cmd/dcu/dcu_698_object_model.c      | 31 ++++++++++++-------
+ cmd/dcu/dcu_698_object_model.h      |  2 ++
+ docs/design/DCU_698_DEVIATIONS.md   |  1 +
+ docs/design/DCU_698_OBJECT_MODEL.md |  7 +++++
+ tests/test_dcu_698_object_model.c   | 61 +++++++++++++++++++++++++++++++++++++
+ 6 files changed, 92 insertions(+), 11 deletions(-)
+
+# evidence package files are not counted here

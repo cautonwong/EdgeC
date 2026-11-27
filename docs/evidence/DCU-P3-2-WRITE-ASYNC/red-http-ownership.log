@@ -1,0 +1,57 @@
+$ CMOCKA_TEST_FILTER=test_io_http_callback_destroy_keeps_pending_ref_count ctest --test-dir build -R '^test_io_executor$' --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 97: test_io_executor
+1/1 Test #97: test_io_executor .................***Failed    0.03 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_io_http_callback_destroy_keeps_pending_ref_count
+[NETBUF][INFO] NetBufPool 0x55a7bb3b3850: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x55a7bb3b3850: Ref (1 -> 2)
+[NETBUF][INFO] NetBufPool 0x55a7bb3b3850: Unref (2 -> 1)
+[  ERROR   ] --- 3 != 4
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_io_executor.c:610: error: Failure!
+[  FAILED  ] test_io_http_callback_destroy_keeps_pending_ref_count
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_io_http_callback_destroy_keeps_pending_ref_count
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.08 sec
+
+The following tests FAILED:
+	 97 - test_io_executor (Failed)
+Errors while running CTest
+exit=8
+
+$ CMOCKA_TEST_FILTER=test_io_http_write_after_enable_read_keeps_ref ctest --test-dir build -R '^test_io_executor$' --output-on-failure
+Test project /tmp/edgec-land/p3-2-write-async/build
+    Start 97: test_io_executor
+1/1 Test #97: test_io_executor .................***Failed    0.01 sec
+[==========] tests: Running 1 test(s).
+[ RUN      ] test_io_http_write_after_enable_read_keeps_ref
+[NETBUF][INFO] NetBufPool 0x63e136d86850: Created (Refs: 1)
+[NETBUF][INFO] NetBufPool 0x63e136d86850: Ref (1 -> 2)
+[  ERROR   ] --- 7 != 0
+[   LINE   ] --- /tmp/edgec-land/p3-2-write-async/tests/test_io_executor.c:658: error: Failure!
+[  FAILED  ] test_io_http_write_after_enable_read_keeps_ref
+[==========] tests: 1 test(s) run.
+[  PASSED  ] 0 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_io_http_write_after_enable_read_keeps_ref
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.06 sec
+
+The following tests FAILED:
+	 97 - test_io_executor (Failed)
+Errors while running CTest
+exit=8
+

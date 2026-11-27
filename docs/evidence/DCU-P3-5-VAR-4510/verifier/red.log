@@ -1,0 +1,39 @@
+Test project /tmp/edgec-land/p3-5-var-4510/build
+    Start 28: test_dcu_698_var
+1/1 Test #28: test_dcu_698_var .................***Failed    0.02 sec
+[==========] tests: Running 9 test(s).
+[ RUN      ] test_class3_voltage_array_and_scaler
+[       OK ] test_class3_voltage_array_and_scaler
+[ RUN      ] test_class3_current_array
+[       OK ] test_class3_current_array
+[ RUN      ] test_class4_power_array_and_power_factor
+[       OK ] test_class4_power_array_and_power_factor
+[ RUN      ] test_class6_frequency_is_scalar_with_scale
+[       OK ] test_class6_frequency_is_scalar_with_scale
+[ RUN      ] test_class1_energy_arrays
+[       OK ] test_class1_energy_arrays
+[ RUN      ] test_wrong_slot_and_attr
+[       OK ] test_wrong_slot_and_attr
+[ RUN      ] test_shadow_missing_is_not_found
+[       OK ] test_shadow_missing_is_not_found
+[ RUN      ] test_class_ids_and_masks
+[       OK ] test_class_ids_and_masks
+[ RUN      ] test_4510_a5_scalar_path_refuses_octet_string
+[  ERROR   ] --- -22 != -21
+[   LINE   ] --- /tmp/edgec-land/p3-5-var-4510/tests/test_dcu_698_var.c:334: error: Failure!
+[  FAILED  ] test_4510_a5_scalar_path_refuses_octet_string
+[==========] tests: 9 test(s) run.
+[  PASSED  ] 8 test(s).
+[  FAILED  ] tests: 1 test(s), listed below:
+[  FAILED  ] test_4510_a5_scalar_path_refuses_octet_string
+
+ 1 FAILED TEST(S)
+
+
+0% tests passed, 1 tests failed out of 1
+
+Total Test time (real) =   0.05 sec
+
+The following tests FAILED:
+	 28 - test_dcu_698_var (Failed)
+Errors while running CTest

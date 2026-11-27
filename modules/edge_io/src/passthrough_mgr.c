@@ -89,6 +89,7 @@ static void _on_read(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
                 memcpy(nb->b.data, buf->base, to_copy);
                 nb->b.len = (uint16_t)to_copy;
                 srv->hijacked_io->ops->write_async(srv->hijacked_io, nb);
+                net_buf_unref(nb);
             }
         }
     } else if (nread < 0) {

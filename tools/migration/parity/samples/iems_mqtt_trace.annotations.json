@@ -1,0 +1,58 @@
+{
+  "0": {
+    "fields": {
+      "value": 0.0
+    },
+    "payload_hex": "0100008021000c0001000400000000",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "100": {
+    "fields": {
+      "value": 0.0
+    },
+    "payload_hex": "010000802100100001000400000000",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "800": {
+    "fields": {
+      "value": 120.0
+    },
+    "payload_hex": "0100008021000c00010004000004b0",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "1000": {
+    "fields": {
+      "value": 260.0
+    },
+    "payload_hex": "0100008021000c0001000400000a28",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "1200": {
+    "fields": {
+      "value": 410.0
+    },
+    "payload_hex": "0100008021000c0001000400001004",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "1500": {
+    "fields": {
+      "value": 488.5
+    },
+    "payload_hex": "010000800100020001000400001315",
+    "topic": "ipc/E4B853F333/env/ems/emsctrl/GetResp/binaryFlow"
+  },
+  "2500": {
+    "fields": {
+      "value": 500.0
+    },
+    "payload_hex": "0100008021000c0001000400001388",
+    "topic": "ipc/E4B853F333/ems/pcs456/pcsdata/GetResp/binaryFlow"
+  },
+  "3600": {
+    "fields": {
+      "value": 491.2
+    },
+    "payload_hex": "010000800100020001000400001330",
+    "topic": "ipc/E4B853F333/env/ems/emsctrl/GetResp/binaryFlow"
+  }
+}

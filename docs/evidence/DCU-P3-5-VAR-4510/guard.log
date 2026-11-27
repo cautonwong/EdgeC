@@ -1,0 +1,12 @@
+# DCU-P3-5-VAR-4510 mutation guard: DCU-P3-5-VAR-4510-scalar-4510-a5
+# cmd: python3 ci/scripts/run_mutation_guards.py --build build --only DCU-P3-5-VAR-4510-scalar-4510-a5
+=== Mutation guards: 1 entries, build /tmp/edgec-land/p3-5-var-4510/build ===
+
+[MUTATION] DCU-P3-5-VAR-4510-scalar-4510-a5 (cmd/dcu/dcu_698_var.c)
+  [mutate] cmd/dcu/dcu_698_var.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_var.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-5-VAR-4510-scalar-4510-a5: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed
