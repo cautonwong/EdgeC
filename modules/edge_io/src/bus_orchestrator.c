@@ -166,6 +166,24 @@ struct net_buf_pool *bus_orchestrator_get_pool(bus_orchestrator_t *ctx) {
 
 void bus_orchestrator_destroy(bus_orchestrator_t *ctx) {
     if (!ctx) return;
+    for (int i = 0; i < ctx->max_buses && i < ARBITER_MAX_BUSES; i++) {
+        if (ctx->engines[i]) {
+            if (ctx->engines[i]->detach) {
+                ctx->engines[i]->detach(ctx->engines[i]);
+            }
+            ctx->engines[i] = NULL;
+        }
+        ctx->io_handles[i] = NULL;
+    }
+    if (ctx->loop && ctx->audit_timer.type == UV_TIMER &&
+        !uv_is_closing((uv_handle_t *)&ctx->audit_timer)) {
+        uv_timer_stop(&ctx->audit_timer);
+        uv_close((uv_handle_t *)&ctx->audit_timer, NULL);
+    }
+    if (ctx->pool) {
+        net_buf_pool_unref(ctx->pool);
+        ctx->pool = NULL;
+    }
     if (ctx->slave_pool) {
         net_buf_pool_unref(ctx->slave_pool);
         ctx->slave_pool = NULL;
