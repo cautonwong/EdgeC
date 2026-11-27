@@ -873,7 +873,7 @@ static void test_slave_accepts_product_object_list_42(void** state) {
     uint8_t list[EDGE_SLAVE_AXDR_MAX];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 118);
+    assert_int_equal(list[1], 126);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -1333,7 +1333,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 6014);
+    assert_int_equal(out->b.len, 6150);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1344,7 +1344,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     assert_int_equal(svc, DLT698_SVC_GET_RES);
     assert_int_equal(payload[4], 0x01); /* A-Result Data */
     assert_int_equal(payload[5], 0x01); /* array */
-    assert_int_equal(payload[6], 118);  /* 对象列表项数 */
+    assert_int_equal(payload[6], 126);  /* 对象列表项数 */
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
