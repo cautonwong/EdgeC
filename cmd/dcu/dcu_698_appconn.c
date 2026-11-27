@@ -49,6 +49,9 @@ static const acl_attr_t k_attrs_f209[] = {{2, 1}, {5, 1}, {6, 1}};
 static const acl_attr_t k_attrs_f20c[] = {{2, 1}, {4, 1}, {5, 1}};
 static const acl_attr_t k_attrs_4000[] = {{2, 3}, {3, 3}, {4, 3}};
 static const acl_attr_t k_attrs_param[] = {{2, 3}};
+/* 表142：Class 7 事件对象定义 A1..A10，产品无事件生产者，全部只读广告、不广告方法。 */
+static const acl_attr_t k_attrs_class7_event[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1},
+                                                  {6, 1}, {7, 1}, {8, 1}, {9, 1}, {10, 1}};
 /* A6 是只读记录表：写路径只接受 A11/A12，ACL 不能把 A6 广告成可写（能力与广告必须一致）。
  * A8/A9 的 mask 关闭由门面回 DAR 5；ACL 保留可写让该分类可达。 */
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1},  {4, 1},  {5, 1},  {6, 1}, {8, 3},
@@ -118,7 +121,10 @@ static const acl_object_t k_objects[] = {
     {0x2000, k_attrs_2000, 2, NULL, 0},           {0x2001, k_attrs_2001, 2, NULL, 0},
     {0x2004, k_attrs_2004, 2, NULL, 0},           {0x200A, k_attrs_200A, 2, NULL, 0},
     {0x200F, k_attrs_200F, 2, NULL, 0},           {0x3000, k_attrs_event, 11, NULL, 0},
-    {0x3005, k_attrs_event, 11, NULL, 0},         {0x5000, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5001, k_attrs_freeze, 2, k_methods_freeze, 5},
+    {0x3005, k_attrs_event, 11, NULL, 0},
+    {0x3009, k_attrs_class7_event, 10, NULL, 0},  {0x300C, k_attrs_class7_event, 10, NULL, 0},
+    {0x3011, k_attrs_class7_event, 10, NULL, 0},  {0x3013, k_attrs_class7_event, 10, NULL, 0},
+    {0x5000, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5001, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5002, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5003, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5004, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5005, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5006, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5007, k_attrs_freeze, 2, k_methods_freeze, 5},

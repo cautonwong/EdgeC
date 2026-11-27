@@ -417,6 +417,13 @@ static dcu_698_object_t g_objects[] = {
     {.oi = OI_FILE_SET, .class_id = IC_COLLECTION, .scope = DCU_OBJ_SINGLETON},
     {.oi = OI_SCRIPT_SET, .class_id = IC_COLLECTION, .scope = DCU_OBJ_SINGLETON},
 
+    /* 3009/300C/3011/3013：Class 7 事件对象骨架。产品没有事件引擎/生产者，空掩码
+     * 让 resolver 按类定义如实回 DAR 5，不伪造事件记录或状态。 */
+    {.oi = 0x3009, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x300C, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x3011, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
+    {.oi = 0x3013, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
+
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,
