@@ -32,11 +32,12 @@ static void test_object_list_shape_and_capacity(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
     assert_int_equal(dcu_698_appconn_object_list(buf, sizeof(buf), &len), 0);
-    assert_true(len > 0);
+    assert_true(len > 0 && len <= EDGE_SLAVE_AXDR_MAX);
     assert_int_equal(buf[0], 0x01); /* array */
-    assert_int_equal(buf[1], 126);
-    assert_int_equal(buf[2], 0x02); /* structure */
-    assert_int_equal(buf[3], 0x02);
+    assert_int_equal(buf[1], 0x81); /* A-XDR 长格式 1 字节长度 */
+    assert_int_equal(buf[2], 130);
+    assert_int_equal(buf[3], 0x02); /* structure */
+    assert_int_equal(buf[4], 0x02);
 
     static const uint8_t param_4000[] = {
         0x02, 0x02, 0x50, 0x40, 0x00, 0x02, 0x02, 0x01, 0x03, 0x02, 0x02, 0x11, 0x02, 0x16, 0x03,
@@ -66,9 +67,17 @@ static int _acl_rights_for(uint16_t oi, acl_rights_t *out) {
     if (dcu_698_appconn_object_list(buf, sizeof(buf), &len) != 0 || len < 2) return -1;
     memset(out, 0, sizeof(*out));
     size_t off = 0;
-    if (buf[off++] != 0x01) return -1;
-    uint8_t n = buf[off++];
-    for (uint8_t i = 0; i < n; i++) {
+    if (buf[off++] != 0x01 || off >= len) return -1;
+    uint16_t n = 0;
+    uint8_t first = buf[off++];
+    if (first & 0x80) {
+        uint8_t nbytes = (uint8_t)(first & 0x7Fu);
+        if (nbytes == 0 || nbytes > 2 || len - off < nbytes) return -1;
+        for (uint8_t b = 0; b < nbytes; b++) n = (uint16_t)((n << 8) | buf[off++]);
+    } else {
+        n = first;
+    }
+    for (uint16_t i = 0; i < n; i++) {
         if (off + 7 > len || buf[off++] != 0x02 || buf[off++] != 0x02 || buf[off++] != 0x50)
             return -1;
         uint16_t cur = (uint16_t)((buf[off] << 8) | buf[off + 1]);
@@ -559,6 +568,37 @@ static void test_class13_control_get_reaches_resolver_and_set_denied(void **stat
     assert_int_equal(_set_dar_oi(0x8103, 2, null_val, sizeof(null_val)), DLT698_DAR_DENIED);
 }
 
+static void test_class7_event_acl_is_read_only(void **state) {
+    (void)state;
+    static const uint16_t ois[] = {0x3009, 0x300C, 0x3011, 0x3013};
+    for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
+        acl_rights_t acl;
+        assert_int_equal(_acl_rights_for(ois[i], &acl), 0);
+        assert_true(acl.found);
+        assert_false(acl.seen[0]);
+        for (uint8_t attr = 1; attr <= 10; attr++) {
+            assert_true(acl.seen[attr]);
+            assert_int_equal(acl.rights[attr], 1);
+        }
+        for (int attr = 11; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
+        for (int method = 0; method < ACL_MAX_RIGHTS; method++) assert_false(acl.method_seen[method]);
+    }
+}
+
+static void test_class7_event_get_dar5_and_set_denied(void **state) {
+    (void)state;
+    static const uint16_t ois[] = {0x3009, 0x300C, 0x3011, 0x3013};
+    const uint8_t null_val[] = {0x00};
+    for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
+        for (uint8_t attr = 1; attr <= 10; attr++) {
+            assert_int_equal(_get_dar_oi(ois[i], attr), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        }
+        assert_int_equal(_get_dar_oi(ois[i], 11), DLT698_DAR_DENIED);
+        assert_int_equal(_set_dar_oi(ois[i], 2, null_val, sizeof(null_val)), DLT698_DAR_DENIED);
+        assert_int_equal(_set_dar_oi(ois[i], 8, null_val, sizeof(null_val)), DLT698_DAR_DENIED);
+    }
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_object_list_shape_and_capacity),
@@ -575,6 +615,9 @@ int main(void) {
         cmocka_unit_test(test_class13_control_acl_is_read_only),
         cmocka_unit_test_setup_teardown(test_class13_control_get_reaches_resolver_and_set_denied,
                                         setup_model, teardown_model),
+        cmocka_unit_test(test_class7_event_acl_is_read_only),
+        cmocka_unit_test_setup_teardown(test_class7_event_get_dar5_and_set_denied, setup_model,
+                                        teardown_model),
         cmocka_unit_test(test_class22_object_masks_are_covered_by_acl),
         cmocka_unit_test_setup_teardown(test_event_acl_advertises_only_a11_a12_writable,
                                         setup_model, teardown_model),

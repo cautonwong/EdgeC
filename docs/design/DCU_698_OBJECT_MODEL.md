@@ -63,7 +63,7 @@ void *out/in)`；**不存在** `dcu_attr_read_fn` / `dcu_axdr_buf_t` 之类类�
   6012→poller、6014→poller、F100→esam、6002→discovery、3000/3005→event 对象。
 - `dcu_698_object_model_reset()` 清空实例指针；未 init 时 `dcu_698_find()` 返回 NULL。
 - 表不拥有 `instance`；实例由 `dcu_node` 聚合根持有。
-- 表当前 131 行（`dcu_698_object_count()`），与目录/OI 列表的差异在 §4.2。
+- 表当前 135 行（`dcu_698_object_count()`），与目录/OI 列表的差异在 §4.2。
 
 ### 3.3 查表与掩码
 
@@ -100,8 +100,8 @@ param 白名单与对象/ACL 行。
 
 ### 4.2 对象数与 ACL 数（当前）
 
-- 对象表：**131** 行（`dcu_698_object_count()`）。
-- Class 20 ACL：**118** 个对象（107 个手写行 + 11 个 `DCU_698_PARAM_OIS` 生成行）。
+- 对象表：**135** 行（`dcu_698_object_count()`）。
+- Class 20 ACL：**130** 个对象（119 个手写行 + 11 个 `DCU_698_PARAM_OIS` 生成行）。
 - 每 ACL 对象：12 B（属性 id 1..18，2 bit/属性压 5 B；方法号每对象最多 12 个）。
   方法号放会话级 `method_ids[1024]` 池，累计超池整单拒绝（fail closed）。
 - 每会话存储：`DRIVER_PRIV_SIZE 4096`（D1-21，原 1024）；`EDGE_SLAVE_AXDR_MAX 10240`
@@ -161,7 +161,7 @@ A.9 控制族的 8 个 OI（`0x8001` A2..A5 只读、`0x8100/8101/8102/8103` A2 
 | 4 功率 | read | `dcu_698_var.c` |
 | 5 谐波 | DAR | 200D/200E 对象行（`object_model.c:183-184`，IC_HARMONIC=5），无 attr_mask，无来源 → DAR 5 |
 | 6 数据变量 | read | `dcu_698_var.c` |
-| 7 事件对象 | none | 目录 3009.. 无对象行（resolver DAR 6，主站 ACL DAR 3）；产品事件 OI 全按 Class 24 建模（§8.4）；归属任务 D3-05 |
+| 7 事件对象 | DAR（3009/300C/3011/3013） | `3009/300C/3011/3013` 对象行（`dcu_698_object_model.c`，`IC_EVENT`=7，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A10 只读、0 方法）；无事件引擎/生产者 → 经驱动 GET A1..A10 越过 ACL 到 resolver 如实回 DAR 5，A11 在 ACL 回 DAR 3（resolver 回 DAR 4），SET 回 DAR 3；方法 1/2/4/5 在 `dcu_698_call` 回 DAR 5、方法 3/6 回 DAR 4；其余 Class 7 目录 OI 仍无对象行（resolver DAR 6，主站 ACL DAR 3）；见 `docs/evidence/DCU-D3-08b/` |
 | 8 参数变量 | full（白名单） | `dcu_698_param.c`；4000–4004、401C–4021；`dcu_params`/审计。A.9 控制族里 IC 8 的七个 OI 也在本类（698_parsed 8756/8821/8822/8824/8931/8932/8933，对象行 IC_PARAM，落点 `dcu_698_axdr.c`），均已按只读进 Class 20 ACL（`dcu_698_appconn.c`）：8001（A2..A5 只读）与 8100/8101/8102（A2 只读）主站 GET 越过 ACL 到 resolver 回 DAR 2、SET 回 DAR 3；810E/810F/8110 在 ACL 仅保留 0 属性存在性（主站访问 DAR 3），类定义但实例未声明 → resolver 回 DAR 5（单测 test_dcu_698_axdr.c:2207 断言 810E0200） |
 | 9 冻结数据 | full (5000–5007) | `dcu_698_freeze.{c,h}`、`dcu_698_freeze_cfg.{c,h}`、`dcu_698_record.c`；5008–5011 只有对象行 |
 | 10 采集监控 | full | `dcu_698_class_acq.c`、`dcu_698_scheme_axdr.c`、`dcu_698_rules.c` |
@@ -221,25 +221,28 @@ IC 10（reconciliation:48）。档案/任务/方案/规则的管理面在
 ### 8.4 Class 24 与 Class 7
 
 Class 24 标准名单是 3000–3008（3006 断流、3007 功率反向、3008 过载）与 300B；
-300C–3010 属于 Class 7，不在 Class 24。产品只实现 3000/3005（失压/过流），属性
+3009、300C–3010、3011、3013 等属于 Class 7，不在 Class 24。产品只实现 3000/3005（失压/过流），属性
 A2 关联 OAD 数组、A3 四表计数、A4、A6、A11/A12/A14；A5 因结构随 OI 变化且未存储
-回 DAR 5。Class 7 的目录 OI（3009..）在产品无对象行：resolver 回 DAR 6（D3-08 单测），主站请求因不在 ACL 先回 DAR 3（§4.1）。
+回 DAR 5；未实现的 Class 24 `300B` 仍无对象行（resolver 回 DAR 6）。Class 7 的 `3009/300C/3011/3013`
+已登记为空掩码对象行（`IC_EVENT`）并按 A1..A10 只读、0 方法进 Class 20 ACL：GET 越过 ACL 到 resolver
+如实回 DAR 5（非 DAR 6、非 DAR 3），SET 回 DAR 3，不伪造事件记录；其余 Class 7 目录 OI 仍无对象行
+（resolver 回 DAR 6，主站请求先回 DAR 3，§4.1）。
 
 7.3.7 与 7.3.24 的方法集合都是 1/2/4/5（无 3）：3000/3005 的方法 3 在
 `dcu_698_check_call` 回 DAR 4，方法 2/4/5 类定义但无处理器回 DAR 5，方法 1 仍执行
-复位；Class 7 无实例，同一判定由 `dcu_698_class_defines_method` 表达。
+复位；Class 7 骨架 `3009/300C/3011/3013` 无方法处理器，方法 1/2/4/5 回 DAR 5、方法 3/6 回 DAR 4。
 
 ### 8.5 Class 20 与 ACL 加载
 
 `dcu_698_appconn_object_list()` 编码 `array { structure { OI, { 属性[], 方法[] } } }`；
-118 项列表当前编码 5806 字节（D1-21 测量方法；115 项时为 5551 字节），>127 项时使用
+130 项列表当前编码 6413 字节（A-XDR 长格式头 `0x81 0x82`，D1-21 测量方法；118 项时为 5806 字节、115 项时为 5551 字节），>127 项时使用
 A-XDR 长格式长度（D1-21）。
 驱动在会话建立时加载并缓存 ACL，不是每请求重查；`0x4400` 由 resolver 与驱动特判，
 不在对象表。对象列表是**手写表 + 参数宏生成行**，不是“对象表单一来源”；`OBJECT_COUNT
 <= ACL_MAX` 由静态断言守住，对象表与目录的一致性由目录测试守住。**两者不做 ACL 与
 对象表的逐项交叉校验**（没有脚本比对 k_objects 与 g_objects）。
 
-从站响应不能复用采集/上报尺寸的共享池：118 项对象列表 5806 B 加 22 B 帧是 5828 B，
+从站响应不能复用采集/上报尺寸的共享池：130 项对象列表 6413 B 加 22 B 帧是 6435 B，
 超过共享池 4096 B。`bus_orchestrator_setup_slave` 因此给从站单独建
 `BUS_SLAVE_POOL_BUF_SIZE = EDGE_SLAVE_AXDR_MAX + 256` 的池（32 项，约 328 KB），
 而不是把 8192 × 4096 的共享池抬到约 85 MB；编码器（`dlt698_codec.c`）在放不下时回
