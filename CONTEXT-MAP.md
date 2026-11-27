@@ -66,7 +66,7 @@ graph TD
   - **台区拓扑与分支线损聚合 (DistributionArea & LineLoss)**: 16 分支动态线损分析、相别拓扑识别；
   - **四遥测控聚合 (Telecontrol: YC/YX/YK/YT)**: 16-DI 遥信采集、8-DO 遥控分合闸与防误闭锁；
   - **停电主动上报与 SOE 事件聚合 (OutageDetector & SOE)**: 超级电容掉电毫秒级侦测、事件顺序记录；
-  - **规约管理与国密安全聚合 (DLT698 & ESAM)**: DLT698.45 树状对象字典、0xF001 安全 DFU 升级、SM2/SM3/SM4 硬件加密。
+  - **规约管理与对象模型聚合 (DLT698.45 & Class 20 ACL)**: DL/T 698.45 北向从站全服务（GET-Normal/List/Record、SET、ACTION、CONNECT/RELEASE、REPORT.notification）、132 行对象表与 126 对象 Class 20（`0x4400`）ACL 权限控制，以及基于 CBMC 的帧解码形式化证明（`formal/manifest/dcu.tsv`）；`F100`（ESAM）与 `F001`（DFU）无硬件/文件存储来源，698 面按类定义如实回 DAR 5（软件模拟仅保留 C API）。
 - **详见**: [cmd/dcu/CONTEXT.md](cmd/dcu/CONTEXT.md)
 
 ### 2.3 工商业储能与微电网上下文 (IEMS Context)
