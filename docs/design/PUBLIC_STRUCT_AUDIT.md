@@ -1,7 +1,7 @@
 # 公共结构体审计
 
-状态：2026-11-13。扫描范围：`modules/*/include/**/*.h` 和 `include/**/*.h` 中的具名
-`struct X { ... }` 定义。当前共 10 个。
+状态：2026-11-27。扫描范围：`modules/*/include/**/*.h` 和 `include/**/*.h` 中的具名
+`struct X { ... }` 定义。当前共 10 个（与 `ci/baseline/public_structs.txt` 一致）。
 
 分类：
 
@@ -29,6 +29,7 @@
   调用方存储设计，代价是布局变化会破坏 ABI；项目当前 `abi_stability=source-only`，可接受。
 - `ui_service_s` 是唯一明确的遗留项，但代码不在构建里，先标记，不删。
 - `pipeline_stage_s` 的公开布局和零分配绑定，改动它要同时改加载器、池和测试，不划算。
+- DCU 698 迭代（`feat/dcu`）未在 `modules/*/include/**/*.h` 与 `include/**/*.h` 中新增公共具名结构体（`check_public_structs.py` 维持 10 项）；DCU 从站取数、记录分页、主动上报与 Class 20 ACL 端口统一收敛在 `foundation/include/edge_slave_plane.h`，产品侧对象模型与存储结构体保留在 `cmd/dcu/` 内部。
 
 ## 门禁
 
