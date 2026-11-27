@@ -21,7 +21,7 @@ typedef enum {
     OAD_EVT_UNDERVOLTAGE = 0x3001,      // 3001: 欠压事件 (Undervoltage)
     OAD_EVT_OVERLOAD = 0x3002,          // 3002: 过负荷/过流 (Overload)
     OAD_EVT_UNBALANCE = 0x3005,         // 3005: 三相不平衡越限 (3-Phase Unbalance)
-    OAD_EVT_ZERO_SEQ_CURRENT = 0x3006,  // 3006: 零序电流超限 (Zero-Sequence Current Exceeded)
+    OAD_EVT_ZERO_SEQ_CURRENT = 0x3006,  // 3006: 电能表断流事件 (Meter Current-Loss Event, 698_parsed.md:6906)
     OAD_EVT_PHASE_LOSS = 0x3008,        // 3008: 缺相/断相事件 (Phase Loss)
     OAD_EVT_OUTAGE_LASTGASP = 0x3011,  // 3011: 停电事件/最后一公报 (Power Outage Last-Gasp)
     OAD_EVT_VOLTAGE_SAG = 0x3012,      // 3012: 电压暂降 (Voltage Sag)

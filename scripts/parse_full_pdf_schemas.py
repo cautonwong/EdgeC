@@ -46,7 +46,7 @@ def generate_full_dlt698_idl():
             (0x20010200, "OAD_CURRENT_PHASE_A", "A相电流 (A)"),
             (0x20010300, "OAD_CURRENT_PHASE_B", "B相电流 (A)"),
             (0x20010400, "OAD_CURRENT_PHASE_C", "C相电流 (A)"),
-            (0x20020200, "OAD_ZERO_SEQUENCE_CURRENT", "零序电流 (A)"),
+            (0x20020200, "OAD_VOLTAGE_PHASE_ANGLE", "电压相角 (度)"),
             (0x20040200, "OAD_ACTIVE_POWER_TOTAL", "总有功功率 (kW)"),
             (0x20040300, "OAD_ACTIVE_POWER_PHASE_A", "A相有功功率 (kW)"),
             (0x20040400, "OAD_ACTIVE_POWER_PHASE_B", "B相有功功率 (kW)"),
