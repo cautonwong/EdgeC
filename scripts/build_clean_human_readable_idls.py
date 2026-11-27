@@ -23,7 +23,7 @@ def build_clean_idls():
         ("OAD_MAX_DEMAND_ACTIVE_EXPORT", "0x10200200", "反向有功最大需量"),
         ("OAD_VOLTAGE_PHASE_A", "0x20000200", "A相电压"),
         ("OAD_VOLTAGE_PHASE_B", "0x20010200", "B相电压"),
-        ("OAD_VOLTAGE_PHASE_C", "0x20020200", "C相电压"),
+        ("OAD_VOLTAGE_PHASE_ANGLE", "0x20020200", "电压相角"),
         ("OAD_CURRENT_PHASE_A", "0x20030200", "A相电流"),
         ("OAD_CURRENT_PHASE_B", "0x20040200", "B相电流"),
         ("OAD_CURRENT_PHASE_C", "0x20050200", "C相电流"),

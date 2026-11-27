@@ -85,7 +85,7 @@ static const expected_rule_t k_expected[] = {
 
 static int _bench_init(rules_bench_t *b) {
     memset(b, 0, sizeof(*b));
-    strcpy(b->path, "/tmp/dcu_698_rules_XXXXXX");
+    snprintf(b->path, sizeof(b->path), "/tmp/dcu_698_rules_XXXXXX");
     int fd = mkstemp(b->path);
     if (fd < 0) return -1;
     close(fd);
