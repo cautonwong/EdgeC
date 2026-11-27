@@ -1,0 +1,11 @@
+ ci/mutation_guards.tsv               |   1 +
+ cmd/dcu/dcu_698_appconn.c            |  13 +++-
+ docs/design/DCU_698_OBJECT_MODEL.md  |  14 ++---
+ docs/evidence/DCU-D4-02b/comments.md |  12 ++++
+ docs/evidence/DCU-D4-02b/spec.md     |   5 ++
+ docs/evidence/DCU-D4-02b/summary.md  |  23 +++++++
+ docs/evidence/DCU-D4-02b/tests.log   |  16 +++++
+ tests/test_dcu_698_appconn.c         | 113 ++++++++++++++++++++++++++++++-----
+ tests/test_dcu_698_scheme_mgmt.c     |   2 +-
+ tests/test_driver_dlt698.c           |   6 +-
+ 10 files changed, 175 insertions(+), 30 deletions(-)

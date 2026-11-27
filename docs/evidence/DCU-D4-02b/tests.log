@@ -1,0 +1,16 @@
+Internal ctest changing into directory: /tmp/dcu-D4-02b/build
+Test project /tmp/dcu-D4-02b/build
+    Start  25: test_dcu_698_object_model
+1/5 Test  #25: test_dcu_698_object_model ........   Passed    0.01 sec
+    Start  30: test_dcu_698_axdr
+2/5 Test  #30: test_dcu_698_axdr ................   Passed    0.04 sec
+    Start  37: test_dcu_698_scheme_mgmt
+3/5 Test  #37: test_dcu_698_scheme_mgmt .........   Passed    0.58 sec
+    Start 102: test_driver_dlt698
+4/5 Test #102: test_driver_dlt698 ...............   Passed    5.14 sec
+    Start 104: test_dcu_698_appconn
+5/5 Test #104: test_dcu_698_appconn .............   Passed    0.01 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   5.80 sec

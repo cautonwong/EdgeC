@@ -110,13 +110,9 @@ param 白名单与对象/ACL 行。
 - **对象数上限不是设计常量**；上表数值是 D1-21 的当前容量，未来扩容按同一测量方法
   调整。
 
-有对象行但**不进 ACL** 的 13 个 OI（主站访问 DAR 3）：
-`0x5008/5009/500A/500B/5011`、`0x8001`、
-`0x8100/8101/8102/8103/810E/810F/8110`。
-原因：5008–5011 无切换触发源；A.9 控制族里 IC 8 的
-8001/8100/8101/8102（resolver DAR 2）、810E/810F/8110（仅对象存在性，resolver DAR 5）
-与 IC 13 的 8103（DAR 2）都只有对象行；ACL 当时只复用 8000。D1-21 已解除数量上限，但把
-它们加进 ACL 需要产品把对应能力从“仅 DAR”升级为可发布，属后续任务。
+有对象行但**不进 ACL** 的 5 个 OI（主站访问 DAR 3）：
+`0x5008/5009/500A/500B/5011`（无切换触发源）。
+A.9 控制族的 8 个 OI（`0x8001` A2..A5 只读、`0x8100/8101/8102/8103` A2 只读、`0x810E/810F/8110` 0 属性存在性）已按只读进 Class 20 ACL（见 `docs/evidence/DCU-D4-02b/`）；主站 GET `8001 A2..A5` 与 `8100..8103 A2` 越过 ACL 到 resolver 如实回 DAR 2，SET 回 DAR 3，无伪造值或伪造 ACTION 方法。
 
 ## 5. DAR 映射（代码事实）
 
@@ -166,12 +162,12 @@ param 白名单与对象/ACL 行。
 | 5 谐波 | DAR | 200D/200E 对象行（`object_model.c:183-184`，IC_HARMONIC=5），无 attr_mask，无来源 → DAR 5 |
 | 6 数据变量 | read | `dcu_698_var.c` |
 | 7 事件对象 | none | 目录 3009.. 无对象行（resolver DAR 6，主站 ACL DAR 3）；产品事件 OI 全按 Class 24 建模（§8.4）；归属任务 D3-05 |
-| 8 参数变量 | full（白名单） | `dcu_698_param.c`；4000–4004、401C–4021；`dcu_params`/审计。A.9 控制族里 IC 8 的七个 OI 也在本类（698_parsed 8756/8821/8822/8824/8931/8932/8933，对象行 IC_PARAM，落点 `dcu_698_axdr.c`）：8001/8100/8101/8102 resolver 回 DAR 2；810E/810F/8110 仅对象存在性、无 attr_mask，类定义但实例未声明 → resolver DAR 5（单测 test_dcu_698_axdr.c:1548 断言 810E0200）；七者均不在 ACL，主站先回 DAR 3 |
+| 8 参数变量 | full（白名单） | `dcu_698_param.c`；4000–4004、401C–4021；`dcu_params`/审计。A.9 控制族里 IC 8 的七个 OI 也在本类（698_parsed 8756/8821/8822/8824/8931/8932/8933，对象行 IC_PARAM，落点 `dcu_698_axdr.c`），均已按只读进 Class 20 ACL（`dcu_698_appconn.c`）：8001（A2..A5 只读）与 8100/8101/8102（A2 只读）主站 GET 越过 ACL 到 resolver 回 DAR 2、SET 回 DAR 3；810E/810F/8110 在 ACL 仅保留 0 属性存在性（主站访问 DAR 3），类定义但实例未声明 → resolver 回 DAR 5（单测 test_dcu_698_axdr.c:2207 断言 810E0200） |
 | 9 冻结数据 | full (5000–5007) | `dcu_698_freeze.{c,h}`、`dcu_698_freeze_cfg.{c,h}`、`dcu_698_record.c`；5008–5011 只有对象行 |
 | 10 采集监控 | full | `dcu_698_class_acq.c`、`dcu_698_scheme_axdr.c`、`dcu_698_rules.c` |
 | 11 集合类 | full / DAR | `dcu_698_class_acq.c`、`dcu_698_scheme_axdr.c`、`dcu_698_rules.c`：6014/6016/6018/601A/601C/601E/6032/6034 与 6002 均 IC_COLLECTION（6032 A2 仍回 DAR 2）；6000 的 A.7 偏差（标准 11、产品 10，reconciliation:48）；6001 是 IC 8。A.8 的 7000（`OI_FILE_SET`）与 7010（`OI_SCRIPT_SET`）只有对象行与只读 ACL（空掩码）：7010 A2 在 `dcu_north_resolve_axdr` 回 DAR 5，7000 方法 127–129 与 7010 方法 127–130 在 `dcu_698_check_call` 回 DAR 5，类未定义回 DAR 4，主站未在 ACL 先回 DAR 3；无文件/脚本集合存储，不返回空集合或伪造元素；见 `docs/evidence/DCU-D5-03/` |
 | 12 脉冲计量 | DAR | 2401 对象行（`dcu_698_object_model.c`，IC_PULSE=12，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 1..15 只读、方法 1..4）；无脉冲量来源 → resolver 对表157 定义的 A1..A19 回 DAR 5、A20 回 DAR 4；16/17 的归属在表157/158 之间冲突（`698_parsed.md:4365-4366` vs `:4423-4425`），按类定义表157 记为已定义但 ACL 不广告（HOLD，主站先 DAR 3）；A18/A19 仍不广告（ACL 只放 1..15，schema 已支持到 18）；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-04/` |
-| 13 控制 | read/DAR | `dcu_698_class_control.c`、`dcu_698_axdr.c`；8000（A.9 IC 8、产品偏差 13，reconciliation:76）只读 A2/A4/A5 DAR 2（无继电器来源，D4-02a），方法 129–131 无继电器 OAD→表地址映射 → DAR 2；8103（A.9 IC 13）A2 只读 DAR 2，且不在 ACL → 主站 DAR 3 |
+| 13 控制 | read/DAR | `dcu_698_class_control.c`、`dcu_698_axdr.c`；8000（A.9 IC 8、产品偏差 13，reconciliation:76）只读 A2/A4/A5 DAR 2（无继电器来源，D4-02a），方法 129–131 无继电器 OAD→表地址映射 → DAR 2；8103（A.9 IC 13）已进 Class 20 ACL（A2 只读，0 方法），主站 GET 越过 ACL 到 resolver 回 DAR 2，SET 回 DAR 3 |
 | 14 区间统计 | DAR | 2100–2104 对象行（`dcu_698_object_model.c`，IC_INTERVAL_STAT=14，空掩码）并进 ACL（`dcu_698_appconn.c`，属性 1..3 只读、方法 1..4）；无统计生产者，resolver 回 DAR 5、类未定义 DAR 4（主站先被 ACL 拒为 DAR 3）；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D5-05/` |
 | 15 累加平均 | DAR | 2110–2114 对象行（IC_AVERAGE=15，空掩码）并进 ACL（属性 1..3 只读、方法 1..4）；无生产者 → resolver DAR 5/4、主站未广告先 DAR 3；不伪造统计值 |
 | 16 极值工具 | DAR | 2120–2124 对象行（IC_EXTREMUM=16，空掩码）并进 ACL（属性 1..3 只读、方法 1..4）；无生产者 → resolver DAR 5/4、主站未广告先 DAR 3；`_class_max_method` 按表 171 修正为 4 |

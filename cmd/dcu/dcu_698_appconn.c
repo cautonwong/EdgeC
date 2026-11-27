@@ -99,6 +99,8 @@ static const uint8_t k_methods_pulse[] = {1, 2, 3, 4};
 static const uint8_t k_methods_display[] = {1, 2, 3, 4, 5, 6};
 static const uint8_t k_methods_freeze[] = {3, 4, 5, 7, 8};
 static const acl_attr_t k_attrs_8000[] = {{2, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_8001[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_ctrl_a2[] = {{2, 1}};
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_methods_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_methods_6002[] = {127, 128, 129};
@@ -178,7 +180,16 @@ static const acl_object_t k_objects[] = {
     {0x4517, k_attrs_ethernet, 5, k_methods_comm_reset, 1},
     {0xF300, k_attrs_display, 3, k_methods_display, 6},
     {0xF301, k_attrs_display, 3, k_methods_display, 6},
-    {0x8000, k_attrs_8000, 3, k_methods_8000, 5},         {0xF200, k_attrs_f200, 3, NULL, 0},
+    {0x8000, k_attrs_8000, 3, k_methods_8000, 5},
+    {0x8001, k_attrs_8001, 4, NULL, 0},
+    {0x8100, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8101, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8102, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8103, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x810E, NULL, 0, NULL, 0},
+    {0x810F, NULL, 0, NULL, 0},
+    {0x8110, NULL, 0, NULL, 0},
+    {0xF200, k_attrs_f200, 3, NULL, 0},
     {0xF201, k_attrs_f2, 1, NULL, 0},             {0xF202, k_attrs_f2, 1, NULL, 0},
     {0xF203, k_attrs_f203, 2, NULL, 0},           {0xF204, k_attrs_f203, 2, NULL, 0},
     {0xF205, k_attrs_f2, 1, NULL, 0},             {0xF206, k_attrs_f203, 2, NULL, 0},

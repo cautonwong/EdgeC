@@ -1322,7 +1322,7 @@ static void test_object_list_advertises_new_ois(void **state) {
     size_t len = 0;
     assert_int_equal(dcu_698_appconn_object_list(buf, sizeof(buf), &len), 0);
     assert_int_equal(buf[0], DLT698_TAG_ARRAY);
-    assert_int_equal(buf[1], 118);
+    assert_int_equal(buf[1], 126);
     static const uint8_t ev_scheme[] = {0x02, 0x02, 0x50, 0x60, 0x16};
     static const uint8_t tp_scheme[] = {0x02, 0x02, 0x50, 0x60, 0x18};
     static const uint8_t tp_result[] = {0x02, 0x02, 0x50, 0x60, 0x1A};
