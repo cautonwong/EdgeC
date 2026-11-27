@@ -958,6 +958,9 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 2026-11-27 | P3-10 | 已合并 feat/dcu | `docs/evidence/DCU-P3-10/` | 合并 `b25ff9af`；A6 事件记录序号严格单调递增不回绕；变异守卫 `DCU-P3-10-event-record-index` 红(rc=8)/绿(rc=0)；合并树 ctest 380/380、warning 0、ASAN 绿、守卫自检全绿 |
 | 2026-11-27 | P3-11 | 已合并 feat/dcu | `docs/evidence/DCU-P3-11/` | 合并 `53a7b96b`；`bus_orchestrator_destroy` 完整释放 engine/session/timer/pool 并修 `_slave_detach` UAF；变异守卫 `DCU-P3-11-orch-destroy-teardown` 红(rc=8)/绿(rc=0)；ASAN/LSAN 0 泄漏、`uv_loop_close == 0` |
 | 2026-11-27 | P3-12 | 已合并 feat/dcu | `docs/evidence/DCU-P3-12/` | 合并 `56c3ca51`；4000 A2 SET 失败 DAR 契约（0/2/7/3）在实现/单测/验收/文档四方对齐；变异守卫 `DCU-P3-12-4000-set-dar` 红(rc=8)/绿(rc=0)；ASAN 绿、守卫自检全绿 |
+| 2026-11-27 | P3-13 | 已合并 feat/dcu | `docs/evidence/DCU-P3-13/` | 合并 `22fdfffc`；3006 注释订正、4 脚本 `0x20020200` 改为电压相角、`OAD_REACTIVE_ENERGY` 偏差登记、`test_dcu_698_rules.c` `strcpy→snprintf`；pytest 2/2、ctest 380/380、warning 0 |
+| 2026-11-27 | D4-02b | 已合并 feat/dcu | `docs/evidence/DCU-D4-02b/` | 合并 `63bfc8a5`；A.9 8 个控制/参数 OI 只读进入 Class 20 ACL（126 对象 / 6150 B）；GET 诚实回 DAR 2、SET 回 DAR 3；变异守卫 `DCU-D4-02b-class13-acl` 红(rc=8)/绿(rc=0) |
+| 2026-11-27 | FORMAL-01 | 已合并 feat/dcu | `docs/evidence/DCU-FORMAL-01/` | 合并 `461a0ee0`；建立 `formal/manifest/dcu.tsv` + `formal/cbmc/dlt698_decode.c`（2740 属性 0 失败、`cover` 满足、`fcs_reject` 通过）+ 负向变异脚本 `dlt698_guard_mutation.sh` 捕获越界 |
 
 ### 12.4 并行工作树
 
@@ -990,7 +993,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | D3-02 冻结字段 | 表 A.6 只列 OI；Class 9 属性 3 是 `array structure {冻结周期, 关联 OAD, 存储深度}`（`698_parsed.md` 4190–4215），prd 正确；计划原写的 ACTION 8010 与“曲线冻结”无标准依据；DLT698 驱动会话上限 `DRIVER_PRIV_SIZE` 1024 字节（ACL 对象 16 字节，60 项约 1000 字节，65 项必炸） | D3-02 用标准默认节奏（周期=1）作占位；主站可配周期/深度是 D3-03；手动触发走方法 3（D3-03）；5008/5009/500A/500B/5011 无切换触发源且不进 ACL/Class 20 列表（GET A2 实测 DAR 5）；结算日默认每月 1 日 00:00 结算上月（标准为每次月结算动作，产品结算日参数未实现） | D3-03 实现属性 3 后调度器改为消费配置；切换类如需发布仍需触发源；ACL 会话上限已由 D1-21 提升（224/4096/10240），不再是阻塞；结算日可配另立参数任务 |
 | D3-02 秒冻结写放大 | 5001 秒冻结按标准每秒写 40 表 × 3 源 = 120 行；本单只用虚拟时钟跨 1 个零点、未做秒级长跑 | 生产启用 5001 会持续写放大 | P6 性能评估：批量/降采样/存储层合并；D3-02 证据已记录 |
 | D3-03b 属性 3 完整语义 | 2026-11-24 由 D3-03b 收口：每 (OI, 条目) 独立周期、方法 3 延时触发、按深度裁剪、超上限 DAR 3 整单回滚、历史截断诊断 | 剩余限制：pending 池容量 8 是产品常量；同一 OAD 多方案（属性特征 0..7）未建模；属性 3 无 RSD（标准只对属性 2 记录定义）；历史超限行只诊断不迁移 | 更大池或按方案建模时另立任务 |
-| D4-02a Class 13 只读边界 | 8000 已有 ACL，A2/A4/A5 因无继电器来源回 DAR 2；8001/8100–8103/810E–8110 只进对象模型，主站访问回 DAR 3 | 控制执行 129/130/131、A2 SET、真实继电器/功控来源，以及这些 OI 进 Class 20 未做 | ACL 会话上限已由 D1-21 解除（224/4096/10240），8001/8100–8103 等加入 Class 20 待后续任务；真实来源另立任务 |
+| D4-02a Class 13 只读边界 | 已收口（2026-11-27，D4-02b，`63bfc8a5`）：8001、8100–8103、810E–8110 已只读加入 Class 20 对象列表/ACL（126 对象 / 6150 B）；GET 诚实回 DAR 2、SET 回 DAR 3 | 真实继电器/功控执行来源与 129/130/131 执行仍未接线 | ACL/Class 20 广告已收口（证据 `docs/evidence/DCU-D4-02b/`）；真实控制执行另立任务 |
 | D3-08 Class 7 事件对象缺口 | 产品对象表无 `IC_EVENT`(7) 实例，事件全部按 `IC_SUB_EVENT`(24) 建模；3009/300C/3011/3013/300B 的 GET 回 DAR 6 | D3-05 的 Class 7 覆盖与 D3-07 停电/停上电上报未实现 | 按 A.8 建 Class 7 对象并接事件引擎后另立任务 |
 | Class 12 表157/表158 冲突 | 标准内部 16/17 归属相反（`698_parsed.md:4365-4366` vs `:4423-4425`）；D5-04 按类定义表157 登记 2401，ACL 只放属性 1..15，16/17 不广告 | 16/17 的映射仍未由 PDF 所有者裁决 | HOLD；裁决后 16 可进 ACL，17 仍超 schema | PDF 所有者裁决后写死并加对拍 |
 | Class 12 2402-2408 与脉冲 producer | 2401 对象行/ACL 已就绪（D5-04）；2402-2408 未注册，无脉冲输入/电能示值来源 | 除 2401 外的脉冲计量对象不可读；2401 值回 DAR 5 | 有脉冲 producer 后补对象行、mask、resolver 编码与验收值 | 另立任务 |
@@ -1016,7 +1019,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 从站响应池 32 项容量 | D4-04 独立池 32×10496；slave 只用 poll；IEMS_MAX_VBUS=32 多从站可能耗尽并静默丢响应 | DCU 单从站不受影响 | 多从站产品按总线数扩容或加背压；另立任务 |
 | bus_orchestrator destroy 不释放 engine/session | 已收口（2026-11-27，P3-11，`53a7b96b`）：`bus_orchestrator_destroy` 逐路 detach engine、停关 `audit_timer`、unref `pool`/`slave_pool`，并修 `_slave_detach` 对调用方 `io` 的 UAF | ASAN/LSAN 0 泄漏、`uv_loop_close == 0` | 已完成；证据 `docs/evidence/DCU-P3-11/`；变异守卫 `DCU-P3-11-orch-destroy-teardown` |
 | dcu_698_value_for_oad 的 4510 A5 标量路径 | 标量端口 `dcu_value_t` 无 octet-string，6 字节 MAC 不可承载；主站 GET 走 `resolve_axdr` 正常 | 标量路径旧回 DAR 7（类型不符） | 已收口（2026-11-27，P3-5）：按 DEVIATIONS 无来源口径回 DAR 5；证据 `docs/evidence/DCU-P3-5-VAR-4510/`；已合并 feat/dcu（merge `9c45f835`） |
-| 3006 注释与 OAD 脚本硬编码（follow-up） | P3-6 发现：`dcu_soe_event_engine.h:24` 把 3006 注释成零序超限；`scripts/parse_*`、`build_exhaustive_idls.py` 硬编码 0x20020200 为零序；`OAD_REACTIVE_ENERGY=0x0020` 命名疑似错位 | 文档/脚本误导，不影响当前产品查表 | 另立任务逐项订正；不在 P3-6 范围 |
+| 3006 注释与 OAD 脚本硬编码（follow-up） | 已收口（2026-11-27，P3-13，`22fdfffc`）：`dcu_soe_event_engine.h:24` 注释订正为电能表断流事件；4 脚本 `0x20020200` 订正为电压相角；`OAD_REACTIVE_ENERGY` 偏差记入 `DCU_698_DEVIATIONS.md`；`test_dcu_698_rules.c` `strcpy→snprintf` | 文档/脚本误导与 `strcpy` 已消除，pytest 守卫防回归 | 已完成；证据 `docs/evidence/DCU-P3-13/` |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 
