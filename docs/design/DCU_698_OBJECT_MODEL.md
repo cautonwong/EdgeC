@@ -193,10 +193,11 @@ param 白名单与对象/ACL 行。
 `cmd/dcu/dcu_698_param.c` 的实际白名单：4000 A2 date_time_s、A3 enum、A4 structure；
 4001–4003 A2 octet-string；4004 A2 地理位置结构；401C/401D A2 double-long-unsigned；
 401E/4020 A2 2×double-long-unsigned；401F/4021 A2 3×double-long-unsigned（A.5 顺序）。
-4000 A2 GET/SET 走注入的 `dcu_clock_port_t`；SET 失败代码回 DAR 2（时钟端口）
-或 7（类型，`dcu_698_param.c:432-444`），没有 DAR 3；验收条款
-（`test_dcu_northbound.py:927`）写 2/3，属文档/代码/合同三方不一致，验收条款待修
-（另立缺陷评估）。其余参数写
+4000 A2 GET/SET 走注入的 `dcu_clock_port_t`；SET 契约已对齐（`DCU-P3-12`）：
+授权且合法 `date_time_s` 成功回 DAR 0、时钟端口缺失或 `clock->set` 失败回 DAR 2
+（`dcu_698_param.c:432-444`，不回退假 RAM 影子）、授权但 A-XDR 载荷畸形回 DAR 7、
+未授权会话由驱动 ACL 拦截回 DAR 3；验收条款（`test_dcu_northbound.py:927`）与
+单测一致。其余参数写
 `dcu_params` 并记 `dcu_param_audit`；产品目前没有功能消费这些配置，SET 成功不等于
 设备行为改变。
 

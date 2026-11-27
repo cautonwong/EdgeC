@@ -21,7 +21,7 @@
 3. ACTION（OI 8000 方法 129 跳闸）必须回 **DAR=2 暂时失效**，不能回 0
 4. SET 3000 A11/A12 合法值回 DAR 0 且可读回；类型不符 DAR 7；未声明属性 DAR 5
 5. Class 20：同一 socket 上预连接 → CONNECT → ACL → RELEASE 全链路
-6. SET 4000 A2 date_time_s：DAR 0 必须伴随系统时钟真的改变，拒绝时 DAR 2/3 且时间不变
+6. SET 4000 A2 date_time_s：DAR 0 必须伴随系统时钟真的改变，时钟失败 DAR 2、畸形载荷 DAR 7、未授权 ACL DAR 3，拒绝时时间不变
 
 第 3 条刻意"验失败"：参数结构（标准表 A.9 的 array<structure>）还没实现，
 如果它回 0，主站会以为继电器动了 —— 那是最危险的假成功。
@@ -924,7 +924,7 @@ def test_set_event_wrong_type_returns_type_mismatch():
 
 @case(
     id="D_00_00_02_000022",
-    clause="free: SET 4000 A2 时 DAR 0 必须真改时钟，失败则 DAR 2/3 且时间不变",
+    clause="free: SET 4000 A2 时 DAR 0 必须真改时钟，时钟失败回 DAR 2、畸形载荷回 DAR 7 且时间不变",
     tags=["北向"],
 )
 @pytest.mark.contract
@@ -941,7 +941,7 @@ def test_set_datetime_moves_clock_or_reports_failure():
     assert res[0] == 0x86 and res[1] == 0x01, f"不是 SET 响应：{res.hex()}"
     assert res[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
     dar = res[7]
-    assert dar in (0, 2, 3), f"时钟 SET 只允许 DAR 0/2/3，收到 {dar}（{res.hex()}）"
+    assert dar in (0, 2), f"合法 date_time_s 时钟 SET 只允许 DAR 0/2，收到 {dar}（{res.hex()}）"
 
     apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
     assert apdu[7] == 0x01, f"Get-Result 应为 Data：{apdu.hex()}"
@@ -951,6 +951,14 @@ def test_set_datetime_moves_clock_or_reports_failure():
         assert restored[7] == 0, f"恢复台架时间失败，DAR {restored[7]}（{restored.hex()}）"
     else:
         assert apdu[8:16] != when, f"DAR {dar} 却把时间改成了 {when.hex()}"
+
+    bad = _exchange(_set_request(0x01, oad, bytes([0x11, 0x01]))).apdu
+    assert bad[0] == 0x86 and bad[1] == 0x01, f"不是 SET 响应：{bad.hex()}"
+    assert bad[3:7] == oad.to_bytes(4, "big"), "响应 OAD 与请求不一致"
+    assert bad[7] == 7, f"畸形 date_time_s 载荷应回 DAR 7，收到 {bad[7]}（{bad.hex()}）"
+    after_bad = _exchange(dlt698.get_request(0x01, oad)).apdu
+    assert after_bad[7] == 0x01, f"Get-Result 应为 Data：{after_bad.hex()}"
+    assert after_bad[8:16] != when, f"DAR 7 却把时间改成了 {when.hex()}"
 
 
 @case(
