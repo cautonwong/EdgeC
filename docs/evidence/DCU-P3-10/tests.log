@@ -1,0 +1,10 @@
+Internal ctest changing into directory: /tmp/dcu-P3-10/build
+Test project /tmp/dcu-P3-10/build
+    Start 19: test_dcu_advanced_modules
+1/2 Test #19: test_dcu_advanced_modules ........   Passed    0.02 sec
+    Start 30: test_dcu_698_axdr
+2/2 Test #30: test_dcu_698_axdr ................   Passed    0.03 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =   0.06 sec

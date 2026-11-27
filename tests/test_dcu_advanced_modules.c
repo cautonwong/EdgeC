@@ -982,6 +982,94 @@ static void test_event_recovery_evicted_occurrence_does_not_archive(void** state
     dcu_inventory_destroy(&inv);
 }
 
+static void test_event_record_index_monotonic_after_eviction(void** state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_inventory_init(&inv);
+    assert_int_equal(dcu_inventory_add(&inv, "10000001", "DLT698", 9600, 1), 0);
+    assert_int_equal(dcu_inventory_add(&inv, "10000002", "DLT698", 9600, 1), 0);
+
+    dcu_event_obj_t evt_3000;
+    memset(&evt_3000, 0, sizeof(evt_3000));
+    evt_3000.oi = OI_VOLTAGE_DROP;
+    evt_3000.is_enabled = true;
+    dcu_event_obj_t evt_3005;
+    memset(&evt_3005, 0, sizeof(evt_3005));
+
+    pipeline_stage_t* log_stage =
+        stage_event_logger_create(&inv, &evt_3000, &evt_3005, NULL, (event_sink_ops_t){0});
+    assert_non_null(log_stage);
+
+    pipe_msg_t msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = PIPEMSG_TYPE_EVENT;
+    msg.tag_id = OI_VOLTAGE_DROP;
+    msg.device_id = 0;
+    msg.ts = 1000ULL * 1000000000ULL;
+    msg.payload.val.f = 190.0f;
+    assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+
+    for (int i = 0; i < MAX_EVENT_RECORDS; i++) {
+        msg.device_id = 1;
+        msg.ts = (UINT64_C(2000) + (uint64_t)i) * UINT64_C(1000000000);
+        msg.payload.val.f = (i % 2 == 0) ? 190.0f : -220.0f;
+        assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+    }
+
+    msg.device_id = 0;
+    msg.ts = 3000ULL * 1000000000ULL;
+    msg.payload.val.f = -220.0f;
+    assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+    assert_int_equal(evt_3000.record_count, MAX_EVENT_RECORDS);
+    assert_int_equal(evt_3000.records[0].index, 11);
+
+    msg.device_id = 1;
+    msg.ts = 3001ULL * 1000000000ULL;
+    msg.payload.val.f = 190.0f;
+    assert_int_equal(log_stage->process(log_stage, &msg), STAGE_DROP);
+
+    assert_int_equal(evt_3000.record_count, MAX_EVENT_RECORDS);
+    for (uint16_t i = 0; i < evt_3000.record_count; i++) {
+        assert_int_equal(evt_3000.records[i].index, (uint16_t)(12 - i));
+        if (i > 0) {
+            assert_true(evt_3000.records[i - 1].index > evt_3000.records[i].index);
+        }
+    }
+
+    dcu_poller_t poller;
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink_ops = {0};
+    router_bus_ops_t bus_ops = {.msg_size = sizeof(pipe_msg_t)};
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink_ops, NULL, NULL, &evt_3000,
+                                               &evt_3005, bus_ops),
+                     0);
+
+    uint8_t axdr[512];
+    size_t axdr_len = 0;
+    assert_int_equal(
+        dcu_north_resolve_axdr(NULL, MK_OAD(OI_VOLTAGE_DROP, 6), axdr, sizeof(axdr), &axdr_len),
+        0);
+    assert_int_equal(axdr[0], 0x01);
+    assert_int_equal(axdr[1], MAX_EVENT_RECORDS);
+    assert_int_equal(axdr_len, 2u + (size_t)MAX_EVENT_RECORDS * 25u);
+    for (uint16_t i = 0; i < MAX_EVENT_RECORDS; i++) {
+        size_t rec_off = 2u + (size_t)i * 25u;
+        assert_int_equal(axdr[rec_off], 0x02);
+        assert_int_equal(axdr[rec_off + 1], 4);
+        assert_int_equal(axdr[rec_off + 2], 0x06);
+        uint32_t encoded_idx = ((uint32_t)axdr[rec_off + 3] << 24) |
+                               ((uint32_t)axdr[rec_off + 4] << 16) |
+                               ((uint32_t)axdr[rec_off + 5] << 8) | (uint32_t)axdr[rec_off + 6];
+        assert_int_equal(encoded_idx, (uint32_t)(12u - i));
+    }
+
+    dcu_698_object_model_reset();
+    dcu_poller_destroy(&poller);
+    log_stage->cleanup_state(log_stage->priv_state);
+    free(log_stage);
+    dcu_inventory_destroy(&inv);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_dcu_advanced_features_dispatch),
@@ -989,6 +1077,7 @@ int main(void) {
         cmocka_unit_test(test_event_recovery_start_time_is_per_slot),
         cmocka_unit_test(test_event_archive_start_is_per_slot),
         cmocka_unit_test(test_event_recovery_evicted_occurrence_does_not_archive),
+        cmocka_unit_test(test_event_record_index_monotonic_after_eviction),
     };
     return cmocka_run_group_tests(tests, setup_timezone, teardown_timezone);
 }
