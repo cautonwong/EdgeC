@@ -1,0 +1,52 @@
+# DCU-P3-11 Test & Verification Log
+
+## 1. ASAN + LSAN Direct Execution (`detect_leaks=1`)
+
+Command:
+```bash
+ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 /tmp/dcu-P3-11/build-asan/tests/test_bus_orchestrator
+```
+Result: Exit code `0`, 2/2 tests passed, 0 leaked bytes, 0 ASAN/LSAN errors:
+- `test_bus_orchestrator_dynamic_create`: `[  OK  ]` (pool `Unref (1 -> 0)`)
+- `test_bus_orchestrator_destroy_releases_engines_and_pools`: `[  OK  ]` (master pool `Unref (2 -> 1) -> Unref (1 -> 0)`, slave pool `Unref (3 -> 2) -> Unref (2 -> 1) -> Unref (1 -> 0)`, `uv_loop_close(&loop) == 0`)
+
+## 2. ASAN `edge_io`, `dcu`, and `iems` Test Suite
+
+Command:
+```bash
+ctest --test-dir /tmp/dcu-P3-11/build-asan -R '^(test_bus_orchestrator|test_protocol_loopback|test_protocol_bridge|test_master_link_lifecycle|test_omnis_integration|test_passthrough|test_caller_allocated_storage|test_dcu.*|test_iems.*)$' --output-on-failure -j4
+```
+Result: `100% tests passed, 0 tests failed out of 84` (55.25 sec).
+
+## 3. Clean Build & Compiler Warnings Gate
+
+Command:
+```bash
+cmake -B build -GNinja -DCMAKE_BUILD_TYPE=Debug && cmake --build build -j$(nproc) > build.log 2>&1
+python3 ci/scripts/check_build_warnings.py --log /tmp/dcu-P3-11/build.log
+```
+Result: `✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.` (exit code `0`).
+
+## 4. Architecture Guard Self-Test
+
+Command:
+```bash
+python3 ci/scripts/run_guard_selftest.py
+```
+Result: `291/291` refutation tests passed (100% sensitivity), all live architecture guards passed (exit code `0`).
+
+## 5. Mutation Guard (`ci/mutation_guards.tsv`)
+
+Command:
+```bash
+python3 ci/scripts/run_mutation_guards.py --build build-asan --only DCU-P3-11-orch-destroy-teardown
+```
+Result:
+```
+[MUTATION] DCU-P3-11-orch-destroy-teardown (modules/edge_io/src/bus_orchestrator.c)
+  [mutate] modules/edge_io/src/bus_orchestrator.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] modules/edge_io/src/bus_orchestrator.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-11-orch-destroy-teardown: red under mutation (rc=8), green after restore
+```
