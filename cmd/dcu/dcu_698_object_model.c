@@ -3,6 +3,7 @@
 #include "dcu_comm_info.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
+#include "dcu_698_stat.h"
 #include "dcu_698_var.h"
 #include "edge_slave_plane.h"
 
@@ -184,23 +185,31 @@ static dcu_698_object_t g_objects[] = {
     {.oi = 0x200D, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
     {.oi = 0x200E, .class_id = IC_HARMONIC, .scope = DCU_OBJ_PER_METER},
 
-    /* 2100–2104/2110–2114/2120–2124：Class 14/15/16 没有统计生产者，空掩码
-     * 让 resolver 按类定义如实回 DAR 5，不伪造统计值。 */
-    {.oi = 0x2100, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2101, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2102, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2103, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2104, .class_id = IC_INTERVAL_STAT, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2110, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2111, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2112, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2113, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2114, .class_id = IC_AVERAGE, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2120, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2121, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2122, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2123, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
-    {.oi = 0x2124, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
+    /* 2100–2104/2110–2114/2120–2124：Class 14/15/16 统计/累加平均/极值引擎（A2 + M1/M3/M4）。 */
+#define STAT_ROW(v, cls)                                      \
+    {.oi = (v),                                               \
+     .class_id = (cls),                                       \
+     .scope = DCU_OBJ_SHARED,                                 \
+     .read = dcu_698_stat_read,                               \
+     .method = dcu_698_stat_execute,                          \
+     .attr_mask = {[BYTE(2)] = BIT(2)},                       \
+     .method_mask = {[BYTE(1)] = BIT(1) | BIT(3) | BIT(4)}}
+    STAT_ROW(0x2100, IC_INTERVAL_STAT),
+    STAT_ROW(0x2101, IC_INTERVAL_STAT),
+    STAT_ROW(0x2102, IC_INTERVAL_STAT),
+    STAT_ROW(0x2103, IC_INTERVAL_STAT),
+    STAT_ROW(0x2104, IC_INTERVAL_STAT),
+    STAT_ROW(0x2110, IC_AVERAGE),
+    STAT_ROW(0x2111, IC_AVERAGE),
+    STAT_ROW(0x2112, IC_AVERAGE),
+    STAT_ROW(0x2113, IC_AVERAGE),
+    STAT_ROW(0x2114, IC_AVERAGE),
+    STAT_ROW(0x2120, IC_EXTREMUM),
+    STAT_ROW(0x2121, IC_EXTREMUM),
+    STAT_ROW(0x2122, IC_EXTREMUM),
+    STAT_ROW(0x2123, IC_EXTREMUM),
+    STAT_ROW(0x2124, IC_EXTREMUM),
+#undef STAT_ROW
 
     /* 2401–2408：Class 12 脉冲计量没有脉冲量来源，空掩码让 resolver 按类定义
      * 如实回 DAR 5，不返回空数组或伪造脉冲量。 */
@@ -510,6 +519,7 @@ void dcu_698_object_model_reset(void) {
     s_router_inv = NULL;
     dcu_comm_info_reset();
     dcu_698_param_reset();
+    dcu_698_stat_reset();
 }
 
 void dcu_698_object_model_set_control_sink(dcu_control_sink_t fn, void *ctx) {

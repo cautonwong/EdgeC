@@ -609,7 +609,7 @@ static void test_discovery_snapshot_and_clear(void **state) {
     dcu_discovery_destroy(&disc);
 }
 
-static void test_class14_15_16_stats_rows_are_empty(void **state) {
+static void test_class14_15_16_stats_rows_are_wired(void **state) {
     (void)state;
     dcu_inventory_t inv;
     dcu_poller_t poller;
@@ -623,12 +623,16 @@ static void test_class14_15_16_stats_rows_are_empty(void **state) {
         {0x2110, 15}, {0x2111, 15}, {0x2112, 15}, {0x2113, 15}, {0x2114, 15},
         {0x2120, 16}, {0x2121, 16}, {0x2122, 16}, {0x2123, 16}, {0x2124, 16},
     };
+    static const uint8_t want_attrs[] = {2};
+    static const uint8_t want_methods[] = {1, 3, 4};
     for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(rows[i].oi);
         assert_non_null(obj);
         assert_int_equal(obj->class_id, rows[i].class_id);
-        assert_mask_matches(obj->attr_mask, NULL, 0);
-        assert_mask_matches(obj->method_mask, NULL, 0);
+        assert_non_null(obj->read);
+        assert_non_null(obj->method);
+        assert_mask_matches(obj->attr_mask, want_attrs, 1);
+        assert_mask_matches(obj->method_mask, want_methods, 3);
     }
 
     dcu_poller_destroy(&poller);
@@ -920,7 +924,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_event_method1_resets_records, setup, teardown),
         cmocka_unit_test_setup_teardown(test_facade_and_table_api_agree, setup, teardown),
         cmocka_unit_test_setup_teardown(test_discovery_snapshot_and_clear, setup, teardown),
-        cmocka_unit_test_setup_teardown(test_class14_15_16_stats_rows_are_empty, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class14_15_16_stats_rows_are_wired, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class17_display_rows_are_empty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class11_collection_rows_are_empty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class12_pulse_row_is_empty, setup, teardown),
