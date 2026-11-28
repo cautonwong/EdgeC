@@ -1,6 +1,8 @@
 #include <stdint.h>
 
 #include "dcu_comm_info.h"
+#include "dcu_698_devmgr.h"
+#include "dcu_698_group.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
 #include "dcu_698_stat.h"
@@ -9,6 +11,107 @@
 
 #define BIT(id) ((uint8_t)(1U << ((id)&7)))
 #define BYTE(id) ((id) >> 3)
+
+static int _group_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
+                       void *out_val) {
+    (void)elem_idx;
+    if (!obj || obj->oi < DCU_GROUP_OI_BASE || obj->oi >= DCU_GROUP_OI_BASE + DCU_GROUP_COUNT)
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    const dcu_group_state_t *g = dcu_698_group_get((uint8_t)(obj->oi - DCU_GROUP_OI_BASE));
+    if (!g) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (attr_id < 2 || attr_id > 10) {
+        return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                  : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    if (!out_val) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (attr_id == 2) {
+        *(uint32_t *)out_val = (uint32_t)g->member_count;
+        return 0;
+    }
+    if (!g->has_sample) return EDGE_SLAVE_SRC_TEMPORARY;
+    switch (attr_id) {
+        case 3: *(int64_t *)out_val = g->active_power; return 0;
+        case 4: *(int64_t *)out_val = g->reactive_power; return 0;
+        case 5: *(int64_t *)out_val = g->slip_active_power; return 0;
+        case 6: *(int64_t *)out_val = g->slip_reactive_power; return 0;
+        case 7: *(int64_t *)out_val = g->pos_active_energy; return 0;
+        case 8: *(int64_t *)out_val = g->neg_active_energy; return 0;
+        case 9: *(int64_t *)out_val = g->pos_reactive_energy; return 0;
+        case 10: *(int64_t *)out_val = g->neg_reactive_energy; return 0;
+        default: return EDGE_SLAVE_SRC_UNDEFINED;
+    }
+}
+
+static int _group_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                          void *result) {
+    (void)result;
+    if (!obj || obj->oi < DCU_GROUP_OI_BASE || obj->oi >= DCU_GROUP_OI_BASE + DCU_GROUP_COUNT)
+        return EDGE_SLAVE_SRC_NOT_FOUND;
+    uint8_t idx = (uint8_t)(obj->oi - DCU_GROUP_OI_BASE);
+    if (method_id == 3) {
+        const dcu_group_member_t *m = (const dcu_group_member_t *)param;
+        if (!m) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_group_add_member(idx, m) == 0 ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
+    }
+    if (method_id == 4) {
+        const dcu_group_member_t *m = (const dcu_group_member_t *)param;
+        if (!m) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return dcu_698_group_delete_member(idx, m->slot_id, m->tsa_len ? m->tsa : NULL,
+                                           m->tsa_len) == 0
+                   ? 0
+                   : EDGE_SLAVE_SRC_NOT_FOUND;
+    }
+    if (method_id == 5) {
+        return dcu_698_group_clear(idx) == 0 ? 0 : EDGE_SLAVE_SRC_TEMPORARY;
+    }
+    return dcu_698_class_defines_method(obj->class_id, method_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                : EDGE_SLAVE_SRC_UNDEFINED;
+}
+
+static int _devmgr_data_init(void *ctx) {
+    (void)ctx;
+    dcu_698_stat_reset();
+    dcu_698_group_init();
+    return 0;
+}
+
+static int _devmgr_event_init(void *ctx) {
+    (void)ctx;
+    return 0;
+}
+
+static int _devmgr_demand_init(void *ctx) {
+    (void)ctx;
+    return 0;
+}
+
+static const dcu_devmgr_ops_t k_devmgr_ops = {
+    .data_init = _devmgr_data_init,
+    .event_init = _devmgr_event_init,
+    .demand_init = _devmgr_demand_init,
+};
+
+static int _devmgr_read(const dcu_698_object_t *obj, uint8_t attr_id, uint8_t elem_idx,
+                        void *out_val) {
+    (void)elem_idx;
+    if (!obj || obj->oi != OI_DEVICE_ELECTRIC) return EDGE_SLAVE_SRC_NOT_FOUND;
+    if (attr_id < 2 || attr_id > 5) {
+        return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                  : EDGE_SLAVE_SRC_UNDEFINED;
+    }
+    if (!out_val) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    const dcu_devmgr_info_t *info = dcu_698_devmgr_get_info();
+    *(uint32_t *)out_val = (attr_id == 5) ? (uint32_t)info->protocol_count : 1u;
+    return 0;
+}
+
+static int _devmgr_execute(const dcu_698_object_t *obj, uint8_t method_id, const void *param,
+                           void *result) {
+    (void)param;
+    (void)result;
+    if (!obj || obj->oi != OI_DEVICE_ELECTRIC) return EDGE_SLAVE_SRC_NOT_FOUND;
+    return dcu_698_devmgr_call(method_id, &k_devmgr_ops, NULL);
+}
 
 static dcu_698_object_t g_objects[] = {
     {.oi = OI_METER_ARCHIVE,
@@ -222,16 +325,25 @@ static dcu_698_object_t g_objects[] = {
     {.oi = 0x2407, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
     {.oi = 0x2408, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
 
-    /* 2301–2308：Class 23 总加组。产品没有总加配置/总加值/滑差/功控来源，空掩码
-     * 让 resolver 按类定义如实回 DAR 5；总加与功控方法没有处理器，绝不执行。 */
-    {.oi = OI_GROUP_FIRST, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 1, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 2, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 3, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 4, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 5, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_FIRST + 6, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
-    {.oi = OI_GROUP_LAST, .class_id = IC_GROUP, .scope = DCU_OBJ_SINGLETON},
+    /* 2301–2308：Class 23 总加组（A2..A10，M3 加成员/M4 删成员/M5 清空）。 */
+#define GROUP_ROW(v)                                                                       \
+    {.oi = (v),                                                                            \
+     .class_id = IC_GROUP,                                                                 \
+     .scope = DCU_OBJ_SINGLETON,                                                           \
+     .read = _group_read,                                                                  \
+     .method = _group_execute,                                                             \
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5) | BIT(6) | BIT(7),        \
+                   [BYTE(8)] = BIT(8) | BIT(9) | BIT(10)},                                 \
+     .method_mask = {[BYTE(3)] = BIT(3) | BIT(4) | BIT(5)}}
+    GROUP_ROW(OI_GROUP_FIRST),
+    GROUP_ROW(OI_GROUP_FIRST + 1),
+    GROUP_ROW(OI_GROUP_FIRST + 2),
+    GROUP_ROW(OI_GROUP_FIRST + 3),
+    GROUP_ROW(OI_GROUP_FIRST + 4),
+    GROUP_ROW(OI_GROUP_FIRST + 5),
+    GROUP_ROW(OI_GROUP_FIRST + 6),
+    GROUP_ROW(OI_GROUP_LAST),
+#undef GROUP_ROW
 
     /* F000/F001/F002：Class 18 文件传输。产品没有文件存储/DFU 激活/校验/回滚来源，
      * 空掩码让 resolver 按类定义如实回 DAR 5；传输/校验/上传/下载方法没有处理器，
@@ -240,10 +352,15 @@ static dcu_698_object_t g_objects[] = {
     {.oi = OI_FILE_CHUNK, .class_id = IC_FILE_TRANSFER, .scope = DCU_OBJ_SINGLETON},
     {.oi = OI_FILE_EXT, .class_id = IC_FILE_TRANSFER, .scope = DCU_OBJ_SINGLETON},
 
-    /* 4300/4307–4309：Class 19 设备管理。产品没有设备描述/版本/复位/初始化端口，
-     * 空掩码让 resolver 按类定义如实回 DAR 5；复位与初始化方法没有处理器，
-     * 绝不真正重启或清数据。 */
-    {.oi = OI_DEVICE_ELECTRIC, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
+    /* 4300：Class 19 电气设备管理（A2..A5，M3/M5/M6 软件初始化端口，M1/M4 诚实回 DAR 5）；
+     * 4307–4309：无子设备管理端口，空掩码回 DAR 5。 */
+    {.oi = OI_DEVICE_ELECTRIC,
+     .class_id = IC_DEVICE_MGMT,
+     .scope = DCU_OBJ_SINGLETON,
+     .read = _devmgr_read,
+     .method = _devmgr_execute,
+     .attr_mask = {[BYTE(2)] = BIT(2) | BIT(3) | BIT(4) | BIT(5)},
+     .method_mask = {[BYTE(1)] = BIT(1) | BIT(3) | BIT(4) | BIT(5) | BIT(6)}},
     {.oi = OI_DEVICE_WATER, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
     {.oi = OI_DEVICE_GAS, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
     {.oi = OI_DEVICE_HEAT, .class_id = IC_DEVICE_MGMT, .scope = DCU_OBJ_SINGLETON},
@@ -520,6 +637,8 @@ void dcu_698_object_model_reset(void) {
     dcu_comm_info_reset();
     dcu_698_param_reset();
     dcu_698_stat_reset();
+    dcu_698_group_init();
+    dcu_698_devmgr_reset_info();
 }
 
 void dcu_698_object_model_set_control_sink(dcu_control_sink_t fn, void *ctx) {

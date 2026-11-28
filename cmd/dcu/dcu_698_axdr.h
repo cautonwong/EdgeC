@@ -1,6 +1,7 @@
 #ifndef DCU_698_AXDR_H
 #define DCU_698_AXDR_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -14,6 +15,7 @@ extern "C" {
 
 int dcu_north_resolve_axdr(void *ctx, uint32_t oad, uint8_t *buf, size_t cap, size_t *len);
 int dcu_north_accept_axdr(void *ctx, uint32_t oad, const uint8_t *axdr, size_t len);
+bool dcu_698_axdr_handles_action_oi(uint16_t oi);
 
 /**
  * @brief 携带长度的原始 ACTION 入口（D1-20a 的 rebase 调用这一行）。
