@@ -895,7 +895,10 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | DCU-FORMAL-07 | 阻塞（记录） | `dcu/FORMAL-07-decode-data` | - | `docs/evidence/DCU-FORMAL-07/` | 迭代版 `dlt698_decode_data` 在 CBMC 5.12 `converting SSA` 阶段因 `g_dlt698_item_pool[64]` 指针写回超 60s 超时（`FORMAL_MAX_LEN=3` 亦超时），未放宽断言，已记 §12.5 |
 | DCU-D5-05b | 已合并 feat/dcu | `dcu/D5-05b-stat-engine` | `5ec2b31c` | `docs/evidence/DCU-D5-05b/` | Class 14/15/16（`2100..2124`）区间统计/累加平均/极值纯软件引擎 `dcu_698_stat.{h,c}` 落地并接入对象模型与 north adapter（A2 + M1/M3/M4），零动态内存；`test_dcu_698_stat` 4/4、`dcu|dlt698` 48/48、ASAN 绿 |
 | DCU-D4-09b | 已合并 feat/dcu | `dcu/D4-09b-group-engine` | `e0d6fa41` | `docs/evidence/DCU-D4-09b/` | Class 23 总加组（`2301..2308`）领域引擎 `dcu_698_group.{h,c}` 落地：成员增删清、加减/参与标志、15 样本环形滑差窗口、A2..A10 A-XDR 编码，零动态内存；`test_dcu_698_group` 5/5、ASAN 绿（待下一批接对象模型） |
-| DCU-D4-04b | 已合并 feat/dcu | `dcu/D4-04b-devmgr-engine` | `c49875d6` | `docs/evidence/DCU-D4-04b/` | Class 19 `4300` 设备管理软件面领域引擎 `dcu_698_devmgr.{h,c}` 落地：A2..A5 A-XDR 编码、M3/M5/M6 软件初始化端口分派、M1/M4 诚实 DAR 5，零动态内存；`test_dcu_698_devmgr` 6/6、ASAN 绿（待下一批接对象模型） |
+| DCU-D4-04b | 已合并 feat/dcu | `dcu/D4-04b-devmgr-engine` | `c49875d6` | `docs/evidence/DCU-D4-04b/` | Class 19 `4300` 设备管理软件面领域引擎 `dcu_698_devmgr.{h,c}` 落地：A2..A5 A-XDR 编码、M3/M5/M6 软件初始化端口分派、M1/M4 诚实 DAR 5，零动态内存；`test_dcu_698_devmgr` 6/6、ASAN 绿 |
+| DCU-D4-WIRING | 已合并 feat/dcu | `dcu/D4-wiring-group-devmgr` | `baaf01c8` | `docs/evidence/DCU-D4-WIRING/` | 将 `dcu_698_group`（`2301..2308`）与 `dcu_698_devmgr`（`4300`）接入 `dcu_698_object_model.c` 与 `dcu_698_axdr.c`，抽取 `dcu_698_axdr_handles_action_oi` 使 `dcu_north_adapter.c` 缩至 201 行；`dcu|dlt698` 全绿、ASAN 绿 |
+| DCU-D4-06b | 已合并 feat/dcu | `dcu/D4-06b-file-engine` | `daa06bbd` | `docs/evidence/DCU-D4-06b/` | Class 18 文件传输（`F000..F002`）纯软件领域引擎 `dcu_698_file.{h,c}` 落地：静态 64×256 B 分块缓冲、位图、IEEE CRC32 校验与 A-XDR 编码，无硬件 DFU 端口诚实 DAR 5，零动态内存；`test_dcu_698_file` 6/6、ASAN 绿（待接对象模型） |
+| DCU-D4-10b | 已合并 feat/dcu | `dcu/D4-10b-comm-engine` | `7650e40b` | `docs/evidence/DCU-D4-10b/` | Class 25/26 通信参数（`4500..4517`）纯软件配置领域引擎 `dcu_698_comm.{h,c}` 落地：无线 APN/IP 与以太网 IP/掩码/网关/端口、A-XDR 编解码、持久化失败原子回滚，零动态内存；`test_dcu_698_comm` 4/4、ASAN 绿（待接对象模型） |
 
 ### 12.3 本轮验收记录
 
