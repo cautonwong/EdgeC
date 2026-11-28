@@ -28,6 +28,7 @@ add_library(dcu_app_lib STATIC
     dcu_698_record.c
     dcu_698_freeze.c
     dcu_698_freeze_cfg.c
+    dcu_698_stat.c
     dcu_698_report.c
     dcu_router.c
     dcu_north_source.c

@@ -11,6 +11,7 @@
 #include "dcu_698_appconn.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
+#include "dcu_698_stat.h"
 #include "dcu_698_var.h"
 #include "dcu_driver_adapter.h"
 #include "dcu_router.h"
@@ -562,6 +563,12 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
         if (rc != 0) return rc;
         return dcu_698_call(omd, &op, NULL);
     }
+    if (dcu_698_stat_is_oi(oi)) {
+        dcu_stat_op_t op;
+        rc = dcu_698_stat_decode_op(oi, method, axdr, axdr_len, &op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, &op, NULL);
+    }
     if (oi != OI_TASK_SCHEDULER) {
         return dcu_698_call(omd, NULL, NULL);
     }
@@ -808,6 +815,9 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     }
     if (dcu_698_var_is_oi(oi)) {
         return dcu_698_var_encode_axdr(oad, buf, cap, len);
+    }
+    if (dcu_698_stat_is_oi(oi)) {
+        return dcu_698_stat_encode_axdr(oad, buf, cap, len);
     }
     if (oi == OI_METER_ARCHIVE || oi == OI_ARCHIVE_UNIT) {
         return dcu_698_archive_encode_axdr(dcu_698_internal_inventory(), oad, buf, cap, len);

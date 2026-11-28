@@ -409,7 +409,7 @@ static void test_product_class2_and_5_have_no_value_yet(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 }
 
-static void test_product_class14_15_16_have_no_value_yet(void **state) {
+static void test_product_class14_15_16_stat_contract(void **state) {
     (void)state;
     init_product_model();
 
@@ -420,18 +420,30 @@ static void test_product_class14_15_16_have_no_value_yet(void **state) {
         0x2113, 0x2114, 0x2120, 0x2121, 0x2122, 0x2123, 0x2124,
     };
     for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
-        for (uint8_t attr = 1; attr <= 3; attr++) {
-            assert_int_equal(
-                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
-                EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 1), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        len = 0;
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 2), buf, sizeof(buf), &len), 0);
+        assert_int_equal(len, 2);
+        assert_int_equal(buf[0], DLT698_TAG_ARRAY);
+        assert_int_equal(buf[1], 0);
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 3), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
         assert_int_equal(
             dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 4), buf, sizeof(buf), &len),
             EDGE_SLAVE_SRC_UNDEFINED);
-        for (uint8_t method = 1; method <= 4; method++) {
-            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], method), NULL, 0),
-                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 1), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 2), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 3), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 4), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
         assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 5), NULL, 0),
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
@@ -2452,7 +2464,7 @@ int main(void) {
         cmocka_unit_test(test_product_accept_set_paths),
         cmocka_unit_test(test_product_class8_datetime_round_trip),
         cmocka_unit_test(test_product_class2_and_5_have_no_value_yet),
-        cmocka_unit_test(test_product_class14_15_16_have_no_value_yet),
+        cmocka_unit_test(test_product_class14_15_16_stat_contract),
         cmocka_unit_test(test_product_class17_has_no_value_yet),
         cmocka_unit_test(test_product_class11_collection_sets_have_no_value_yet),
         cmocka_unit_test(test_product_class12_pulse_has_no_value_yet),

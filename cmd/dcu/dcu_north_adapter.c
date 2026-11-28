@@ -12,6 +12,7 @@
 #include "dcu_698_object_internal.h"
 #include "dcu_698_record.h"
 #include "dcu_698_report.h"
+#include "dcu_698_stat.h"
 #include "dcu_698_var.h"
 #include "dcu_node.h"
 #include "dcu_north_source.h"
@@ -62,7 +63,8 @@ int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t
     if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
     if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME || oi == OI_METER_DISCOVERY ||
         oi == OI_EVENT_SCHEME || oi == OI_TRANSPARENT_SCHEME || oi == OI_REPORT_SCHEME ||
-        oi == OI_RULE_LIBRARY || (oi >= 0x5000 && oi <= 0x5007))
+        oi == OI_RULE_LIBRARY || (oi >= 0x5000 && oi <= 0x5007) ||
+        dcu_698_stat_is_oi(oi))
         return dcu_698_accept_action_axdr(omd, axdr, axdr_len);
     if (oi != OI_REMOTE_CONTROL) return dcu_698_call(omd, axdr, NULL);
 
