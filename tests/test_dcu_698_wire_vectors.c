@@ -767,6 +767,237 @@ static void test_report_confirm_matching(void **state) {
     report_confirm_case(0x07, true);  /* PIID 匹配：解除 pending，下一帧可发 */
 }
 
+/* 链路层负向帧：破坏 HCS（5.1.5 docs/698_parsed.md:583）与破坏 FCS（5.1.7 :593）。
+ * 解码器必须返回 -1，且从站驱动必须丢弃不回帧（out_len == 0）。 */
+static void test_link_layer_bad_hcs_and_fcs_dropped(void **state) {
+    (void)state;
+    static const uint8_t get_addr[] = {0x05, 0x01, 0x01, 0x40, 0x01, 0x02, 0x00, 0x00};
+    uint8_t frame[128];
+    size_t flen = build_frame(frame, get_addr, sizeof(get_addr));
+    assert_true(flen > 12);
+
+    uint8_t backing[512];
+    static uint8_t session[4096];
+    alignas(max_align_t) uint8_t priv[REQ_DRV_PRIV_MAX];
+
+    /* 1. 破坏 HCS 字节（帧头 68 | L(2) | 43 | SA_cfg(1) | SA(1) | CA(1) | HCS(2)，故 HCS 在 [7..8]） */
+    uint8_t bad_hcs[128];
+    memcpy(bad_hcs, frame, flen);
+    bad_hcs[7] ^= 0x01;
+
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, bad_hcs, flen);
+    nb.len = (uint16_t)flen;
+    dlt698_addr_t sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t plen = 0;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &plen), -1);
+
+    memset(session, 0, sizeof(session));
+    memset(priv, 0, sizeof(priv));
+    net_buf_t out;
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, backing, sizeof(backing));
+    size_t consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, bad_hcs, flen, &k_product_src,
+                                                      NULL, &out, &consumed),
+                     -1);
+    assert_int_equal(out.b.len, 0);
+
+    /* 2. 破坏 FCS 字节（帧尾 FCS(2) | 16，故 FCS 在 [flen-3..flen-2]） */
+    uint8_t bad_fcs[128];
+    memcpy(bad_fcs, frame, flen);
+    bad_fcs[flen - 3] ^= 0x01;
+
+    net_buf_simple_init_with_data(&nb, bad_fcs, flen);
+    nb.len = (uint16_t)flen;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &plen), -1);
+
+    memset(session, 0, sizeof(session));
+    memset(priv, 0, sizeof(priv));
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, backing, sizeof(backing));
+    consumed = 0;
+    assert_int_equal(dlt698_driver.req_slave_exchange(priv, session, bad_fcs, flen, &k_product_src,
+                                                      NULL, &out, &consumed),
+                     -1);
+    assert_int_equal(out.b.len, 0);
+}
+
+/* 截断 APDU 负向帧：SET-Request-Normal（表79 docs/698_parsed.md:2824）与
+ * ACTION-Request-Normal（表87 :2970）缺少 OAD/OMD 或 Data 字节时，驱动应丢弃或回 DAR 7。 */
+static void test_truncated_set_and_action_apdu(void **state) {
+    (void)state;
+    uint8_t backing[512];
+    size_t out_len = 0;
+    static uint8_t session[4096];
+
+    /* 1. 截断 SET-Request-Normal：缺少 OAD 字节 → 丢弃不回帧 */
+    static const uint8_t set_no_oad[] = {0x06, 0x01, 0x02, 0x40, 0x01};
+    memset(session, 0, sizeof(session));
+    out_len = 123;
+    assert_int_equal(exchange(session, &k_product_src, NULL, set_no_oad, sizeof(set_no_oad),
+                              backing, sizeof(backing), &out_len),
+                     -1);
+    assert_int_equal(out_len, 0);
+
+    /* 2. 截断 SET-Request-Normal：仅有 OAD 缺少 Data 字节 → DAR 7（表34 :1937） */
+    static const uint8_t set_no_data[] = {0x06, 0x01, 0x02, 0x40, 0x01, 0x02, 0x00};
+    memset(session, 0, sizeof(session));
+    assert_int_equal(exchange(session, &k_product_src, NULL, set_no_data, sizeof(set_no_data),
+                              backing, sizeof(backing), &out_len),
+                     0);
+    static const uint8_t set_dar7_resp[] = {0x86, 0x01, 0x02, 0x40, 0x01,
+                                            0x02, 0x00, 0x07, 0x00, 0x00};
+    assert_response(backing, out_len, set_dar7_resp, sizeof(set_dar7_resp));
+
+    /* 3. 截断 ACTION-Request-Normal：缺少 OMD 字节 → 丢弃不回帧 */
+    static const uint8_t action_no_omd[] = {0x07, 0x01, 0x01, 0x60, 0x12};
+    memset(session, 0, sizeof(session));
+    out_len = 123;
+    assert_int_equal(exchange(session, &k_product_src, NULL, action_no_omd, sizeof(action_no_omd),
+                              backing, sizeof(backing), &out_len),
+                     -1);
+    assert_int_equal(out_len, 0);
+
+    /* 4. 截断 ACTION-Request-Normal：仅有 OMD 缺少 Data 字节 → DAR 7，且不应用任务 */
+    static const uint8_t action_no_data[] = {0x07, 0x01, 0x01, 0x60, 0x12, 0x7F, 0x00};
+    int before = g_task_apply_calls;
+    memset(session, 0, sizeof(session));
+    assert_int_equal(exchange(session, &k_product_src, NULL, action_no_data, sizeof(action_no_data),
+                              backing, sizeof(backing), &out_len),
+                     0);
+    static const uint8_t action_dar7_resp[] = {0x87, 0x01, 0x01, 0x60, 0x12, 0x7F,
+                                               0x00, 0x07, 0x00, 0x00, 0x00};
+    assert_response(backing, out_len, action_dar7_resp, sizeof(action_dar7_resp));
+    assert_int_equal(g_task_apply_calls, before);
+}
+
+/* GetRecord 边界与不支持选择方法：
+ * 1) n > DLT698_RCSD_MAX（FORMAL-05 回归向量，表67 docs/698_parsed.md:2604）编码器返回 -1；
+ * 2) 不支持的 RSD Selector 3/4/5（docs/698_parsed.md:1800-1802, 1824-1834）返回 DAR 且不越界。 */
+static void test_get_record_rcsd_overflow_and_unsupported_selectors(void **state) {
+    (void)state;
+    dlt698_addr_t sa = {.len = 1, .type = 0};
+    sa.addr[0] = 0x01;
+    dlt698_csd_t rcsd[DLT698_RCSD_MAX + 1];
+    memset(rcsd, 0, sizeof(rcsd));
+    for (size_t i = 0; i < DLT698_RCSD_MAX + 1; i++) {
+        rcsd[i].kind = DLT698_CSD_OAD;
+        rcsd[i].oad = 0x00100200u;
+    }
+
+    uint8_t backing[512];
+    net_buf_t out;
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, backing, sizeof(backing));
+
+    dlt698_record_stream_t stream;
+    memset(&stream, 0, sizeof(stream));
+    assert_int_equal(dlt698_encode_get_record_response_begin(
+                         &stream, &sa, 0x01, 0x50040200u, rcsd, DLT698_RCSD_MAX + 1, 1, &out),
+                     -1);
+    assert_int_equal(out.b.len, 0);
+
+    assert_int_equal(
+        dlt698_encode_get_record_response_dar(&sa, 0x01, 0x50040200u, rcsd, DLT698_RCSD_MAX + 1,
+                                              DLT698_DAR_TEMPORARY_FAILURE, &out),
+        -1);
+    assert_int_equal(out.b.len, 0);
+
+    static const edge_slave_source_ops_t src = {
+        .object_list = product_object_list,
+        .record = {.begin = fake_record_begin, .row = fake_record_row, .end = fake_record_end},
+    };
+    static const uint8_t selectors[] = {0x03, 0x04, 0x05};
+    static uint8_t session[4096];
+    for (size_t i = 0; i < sizeof(selectors); i++) {
+        uint8_t piid = (uint8_t)(0x10u + i);
+        uint8_t apdu[] = {
+            DLT698_SVC_GET_REQ,
+            DLT698_CHOICE_GET_RECORD,
+            piid,
+            0x50,
+            0x04,
+            0x02,
+            0x00,
+            selectors[i],
+            0x00, /* 占位选择参数 */
+            DLT698_NO_TIME_TAG,
+        };
+        size_t out_len = 0;
+        memset(session, 0, sizeof(session));
+        assert_int_equal(
+            exchange(session, &src, NULL, apdu, sizeof(apdu), backing, sizeof(backing), &out_len),
+            0);
+        uint8_t want[] = {
+            0x85, 0x03, piid, 0x50, 0x04, 0x02, 0x00, /* svc | [3]Record | PIID | OAD */
+            0x00,                                     /* RCSD count = 0 */
+            0x00, DLT698_DAR_TEMPORARY_FAILURE,       /* [0] DAR 2 */
+            0x00, 0x00,                               /* FollowReport + TimeTag */
+        };
+        assert_response(backing, out_len, want, sizeof(want));
+    }
+}
+
+/* CONNECT-Response（0x82，表60 docs/698_parsed.md:2455）与 RELEASE-Response（0x83，表62 :2505）
+ * 响应帧布局：控制域 0xC3（表2 :456 DIR=1,PRM=1 + 表3 :483 功能码=3）、HCS/FCS（5.1.5/5.1.7）。 */
+static void test_connect_and_release_response_frame_layout(void **state) {
+    (void)state;
+    dlt698_addr_t sa = {.len = 1, .type = 0};
+    sa.addr[0] = 0x01;
+
+    uint8_t backing[512];
+    net_buf_t out;
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, backing, sizeof(backing));
+
+    static const uint8_t conf[8] = {0xFF, 0, 0, 0, 0, 0, 0, 0};
+    static const uint8_t func[16] = {0xFE, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    dlt698_connect_params_t params = {
+        .version = 0x0010u,
+        .conf = conf,
+        .func = func,
+        .timeout = 300u,
+        .result = 0u,
+    };
+    assert_int_equal(dlt698_encode_connect_response(&sa, 0x15, &params, &out), 0);
+    assert_true(out.b.len > APDU_OFF + 3);
+    assert_int_equal(out.b.data[0], DLT698_HEAD);
+    assert_int_equal(out.b.data[3], 0xC3);
+    assert_int_equal(out.b.data[APDU_OFF], 0x82);
+    assert_int_equal(out.b.data[APDU_OFF + 1], 0x15);
+    assert_int_equal(out.b.data[out.b.len - 1], DLT698_END);
+
+    /* 用协议解码器核验 HCS / FCS 合法性 */
+    struct net_buf_simple nb;
+    net_buf_simple_init_with_data(&nb, out.b.data, out.b.len);
+    nb.len = out.b.len;
+    dlt698_addr_t rx_sa;
+    uint8_t svc = 0, choice = 0, piid = 0;
+    uint8_t *payload = NULL;
+    size_t plen = 0;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &rx_sa, &svc, &choice, &piid, &payload, &plen), 0);
+    assert_int_equal(svc, 0x82);
+    assert_int_equal(out.b.data[APDU_OFF + 1], 0x15);
+
+    /* RELEASE-Response（表62）：83 | PIID-ACD | 00（成功） | 00 | 00 */
+    memset(&out, 0, sizeof(out));
+    net_buf_simple_init_with_data(&out.b, backing, sizeof(backing));
+    assert_int_equal(dlt698_encode_release_response(&sa, 0x2A, &out), 0);
+    static const uint8_t want_rel[] = {0x83, 0x2A, 0x00, 0x00, 0x00};
+    assert_int_equal(out.b.data[0], DLT698_HEAD);
+    assert_int_equal(out.b.data[3], 0xC3);
+    assert_int_equal(out.b.data[out.b.len - 1], DLT698_END);
+    assert_response(backing, out.b.len, want_rel, sizeof(want_rel));
+
+    net_buf_simple_init_with_data(&nb, out.b.data, out.b.len);
+    nb.len = out.b.len;
+    assert_int_equal(dlt698_decode_frame_ex(&nb, &rx_sa, &svc, &choice, &piid, &payload, &plen), 0);
+    assert_int_equal(svc, 0x83);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test_setup_teardown(test_get_normal_single, setup_model, teardown_model),
@@ -791,6 +1022,14 @@ int main(void) {
                                         teardown_model),
         cmocka_unit_test_setup_teardown(test_report_frame_layout, setup_model, teardown_model),
         cmocka_unit_test_setup_teardown(test_report_confirm_matching, setup_model, teardown_model),
+        cmocka_unit_test_setup_teardown(test_link_layer_bad_hcs_and_fcs_dropped, setup_model,
+                                        teardown_model),
+        cmocka_unit_test_setup_teardown(test_truncated_set_and_action_apdu, setup_model,
+                                        teardown_model),
+        cmocka_unit_test_setup_teardown(test_get_record_rcsd_overflow_and_unsupported_selectors,
+                                        setup_model, teardown_model),
+        cmocka_unit_test_setup_teardown(test_connect_and_release_response_frame_layout, setup_model,
+                                        teardown_model),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
