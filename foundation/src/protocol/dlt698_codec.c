@@ -703,7 +703,8 @@ static size_t _get_record_prefix_len(const dlt698_addr_t *sa, const dlt698_csd_t
 int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, const dlt698_addr_t *sa,
                                             uint8_t piid, uint32_t oad, const dlt698_csd_t *rcsd,
                                             size_t n, size_t record_count, net_buf_t *out) {
-    if (!stream || !sa || !out || (n > 0 && !rcsd) || record_count > 0xFF) return -1;
+    if (!stream || !sa || !out || n > DLT698_RCSD_MAX || (n > 0 && !rcsd) || record_count > 0xFF)
+        return -1;
 
     struct net_buf_simple *b = &out->b;
     stream->start_len = b->len;
@@ -726,7 +727,8 @@ int dlt698_encode_get_record_response_begin(dlt698_record_stream_t *stream, cons
 
 int dlt698_encode_get_record_row(net_buf_t *out, const uint8_t *row, size_t row_len) {
     if (!out || !row || row_len == 0) return -1;
-    if (row_len + DLT698_GET_RECORD_TRAILER_LEN > net_buf_simple_tailroom(&out->b)) return -1;
+    size_t tailroom = net_buf_simple_tailroom(&out->b);
+    if (row_len > tailroom || DLT698_GET_RECORD_TRAILER_LEN > tailroom - row_len) return -1;
     net_buf_simple_add_mem(&out->b, row, row_len);
     return 0;
 }
@@ -744,7 +746,7 @@ int dlt698_encode_get_record_response_end(const dlt698_record_stream_t *stream, 
 int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid, uint32_t oad,
                                           const dlt698_csd_t *rcsd, size_t n, uint8_t dar,
                                           net_buf_t *out) {
-    if (!sa || !out || (n > 0 && !rcsd)) return -1;
+    if (!sa || !out || n > DLT698_RCSD_MAX || (n > 0 && !rcsd)) return -1;
     struct net_buf_simple *b = &out->b;
     if (net_buf_simple_tailroom(b) < _get_record_prefix_len(sa, rcsd, n) + 7) return -1;
     uint8_t *len_ptr = NULL;
