@@ -1,0 +1,5 @@
+# DCU-D6-09b 规格：foundation 覆盖率插桩与基线重定
+
+| 业务规则 | 不变量 | 可观测输出 | 验收判据 | 非目标 |
+| --- | --- | --- | --- | --- |
+| 1. 现有 `-DCOVERAGE=ON` 只给 `edge_common_interface` 加 `--coverage`，foundation 静态库（如 `edge_codec`）不插桩，`foundation/src/protocol` 采集为 0 行。<br>2. 让 foundation 静态库在同一覆盖率构建下产出 `.gcno/.gcda`（统一编译/链接 flags，或显式链接覆盖目标；不改变非覆盖率构建）。<br>3. 重新采集，按实测更新 `ci/baseline/coverage_floor.txt`：新增 `foundation/src/protocol` 下限；ALL/foundation 因测量面扩大需重测，只升不降。 | 1. 非 `COVERAGE=ON` 构建的产物、flags 与依赖不变。<br>2. `check_coverage.py` 判定逻辑不改。<br>3. 新下限不高于实测；任何既有下限不得降低。<br>4. 测试用例不删、不跳。 | 1. `find build -name '*.gcno' | grep foundation` 非 0，`coverage_clean.info` 出现 `SF:…/foundation/src/protocol/` 条目。<br>2. `foundation/src/protocol` 实测 line coverage 与新增下限。<br>3. ALL/foundation/cmd 等 scope 的旧/新实测与下限对照。 | 1. Release/COVERAGE 全量 ctest 通过（与 D6-09 同路径）。<br>2. `check_coverage.py` 退出 0，且 `git diff` 中无下调条目。<br>3. `check_build_warnings.py` 0 new、`git diff --check` 干净。<br>4. 证据写入 `docs/evidence/DCU-D6-09b/`。 | 1. 不提升业务覆盖率（不新增测试来凑数）。<br>2. 不改 `ci/scripts/check_coverage.py` 规则或豁免。<br>3. 不动 `modules/edge_core` 或受保护 foundation 头文件。 |

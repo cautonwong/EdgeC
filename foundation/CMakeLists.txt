@@ -106,3 +106,8 @@ endif()
 add_library(edge_codec STATIC ${EDGE_CODEC_SOURCES})
 target_include_directories(edge_codec PUBLIC include)
 target_link_libraries(edge_codec PUBLIC edge_foundation edge_netbuf edge_crypto)
+# edge_codec holds foundation/src/protocol. It does not link edge_common_interface,
+# so the coverage flags set there do not reach it; instrument it directly instead.
+if(COVERAGE OR ENABLE_COVERAGE)
+    target_compile_options(edge_codec PRIVATE --coverage)
+endif()

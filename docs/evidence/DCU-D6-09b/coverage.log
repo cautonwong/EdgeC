@@ -1,0 +1,110 @@
+### DCU-D6-09b evidence: coverage measurement
+### worktree: /tmp/dcu-D6-09b   base: f443e688   date: 2026-11-28
+
+### command: cmake .. -GNinja -DCMAKE_BUILD_TYPE=Release -DCOVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+exit=0 (see configure2.log tail)
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /tmp/dcu-D6-09b/build
+
+### command: cmake --build . -j$(nproc)   (Release, -DCOVERAGE=ON)
+exit=0
+[1311/1313] Linking C executable tests/test_iems_cli_write
+[1312/1313] Linking C executable tests/test_iems_dlt645_uart_pty
+[1313/1313] Linking C executable tests/test_iems_modbus_rtu_uart_pty
+
+### gcno inventory
+find build -name '*.gcno' | grep foundation        -> 16
+find build -path '*edge_codec*' -name '*.gcno'     -> 16
+find build -name '*.gcno' | grep foundation | grep -v edge_codec -> 0 (other foundation libs intentionally not instrumented)
+protocol gcno:
+src/protocol/can_codec.c.gcno
+src/protocol/dlms_codec.c.gcno
+src/protocol/dlms_cosem.c.gcno
+src/protocol/dlms_gbt.c.gcno
+src/protocol/dlms_hdlc.c.gcno
+src/protocol/dlms_security.c.gcno
+src/protocol/dlt645_codec.c.gcno
+src/protocol/dlt698_codec.c.gcno
+src/protocol/iec101_link.c.gcno
+src/protocol/iec104_apci.c.gcno
+src/protocol/iec_asdu_codec.c.gcno
+src/protocol/ipc_binary_flow_codec.c.gcno
+src/protocol/modbus_codec.c.gcno
+src/protocol/ydt1363_codec.c.gcno
+
+### command: ctest --output-on-failure -E '^app_platform_e2e$'
+
+100% tests passed, 0 tests failed out of 380
+
+Total Test time (real) = 356.31 sec
+
+### command: lcov --capture --directory . --output-file coverage.info --ignore-errors gcov,source
+exit=0
+
+### command: lcov --remove coverage.info '/usr/*' '*/tests/*' '*/third-party/*' --output-file coverage_clean.info --ignore-errors gcov,source
+exit=0
+Summary coverage rate:
+  lines......: 80.1% (30973 of 38665 lines)
+  functions..: 85.0% (2671 of 3143 functions)
+  branches...: no data found
+
+### foundation/src/protocol SF entries in coverage_clean.info -> 12
+
+### lcov --list (foundation/src/protocol + foundation .c)
+  foundation/src/edge_uns_engine.c               |94.1%   119| 100%  11|    -    0
+  foundation/src/protocol/can_codec.c            | 100%    16| 100%   2|    -    0
+  foundation/src/protocol/dlms_codec.c           |83.3%    78| 100%   8|    -    0
+  foundation/src/protocol/dlms_cosem.c           |33.1%   145|42.9%  14|    -    0
+  foundation/src/protocol/dlms_hdlc.c            |66.3%    95|50.0%  10|    -    0
+  foundation/src/protocol/dlt645_codec.c         |36.8%    76|50.0%   6|    -    0
+  foundation/src/protocol/dlt698_codec.c         |91.9%   531| 100%  35|    -    0
+  foundation/src/protocol/iec101_link.c          |17.9%    67|25.0%   4|    -    0
+  foundation/src/protocol/iec104_apci.c          |97.8%    91|93.3%  15|    -    0
+  foundation/src/protocol/iec_asdu_codec.c       |67.5%   157|83.3%  18|    -    0
+  foundation/src/protocol/ipc_binary_flow_codec.c|98.4%   129| 100%   9|    -    0
+  foundation/src/protocol/modbus_codec.c         |90.5%   273|80.0%  25|    -    0
+  foundation/src/protocol/ydt1363_codec.c        | 100%    64| 100%   4|    -    0
+  foundation/src/protocol_converter.c            |82.4%    17| 100%   2|    -    0
+
+### exact fractions (same DA/scope rules as check_coverage.py)
+ALL                      30973/38665 = 80.1060%  floor<=(80.1)
+adapters                 6430/8396 = 76.5841%  floor<=(76.5)
+cmd                      4871/6025 = 80.8465%  floor<=(80.8)
+cmd/dcu                  6117/7043 = 86.8522%  floor<=(86.8)
+foundation               223/236 = 94.4915%  floor<=(94.4)
+foundation/src/protocol  1353/1722 = 78.5714%  floor<=(78.5)
+modules/edge_core        2736/3578 = 76.4673%  floor<=(76.4)
+modules/edge_io          542/803 = 67.4969%  floor<=(67.4)
+modules/edge_mgmt        2463/2823 = 87.2476%  floor<=(87.2)
+modules/edge_stream      2011/3038 = 66.1949%  floor<=(66.1)
+
+### command: check_coverage.py  (OLD floors + foundation/src/protocol probe=0, before edit)
+scope                         lines   floor  result
+ALL                           80.1%   74.5%    PASS
+adapters                      76.6%   66.5%    PASS
+cmd                           80.8%   76.5%    PASS
+cmd/dcu                       86.9%   86.8%    PASS
+foundation                    94.5%   87.0%    PASS
+foundation/src/protocol       78.6%    0.0%    PASS
+modules/edge_core             76.5%   75.0%    PASS
+modules/edge_io               67.5%   60.0%    PASS
+modules/edge_mgmt             87.2%   87.0%    PASS
+modules/edge_stream           66.2%   65.0%    PASS
+✅ [COVERAGE_GATE] all scopes meet their floors
+exit=0
+
+### command: check_coverage.py  (NEW floors, after edit)
+scope                         lines   floor  result
+ALL                           80.1%   74.5%    PASS
+adapters                      76.6%   66.5%    PASS
+cmd                           80.8%   76.5%    PASS
+cmd/dcu                       86.9%   86.8%    PASS
+foundation                    94.5%   94.4%    PASS
+foundation/src/protocol       78.6%   78.5%    PASS
+modules/edge_core             76.5%   75.0%    PASS
+modules/edge_io               67.5%   60.0%    PASS
+modules/edge_mgmt             87.2%   87.0%    PASS
+modules/edge_stream           66.2%   65.0%    PASS
+✅ [COVERAGE_GATE] all scopes meet their floors
+exit=0

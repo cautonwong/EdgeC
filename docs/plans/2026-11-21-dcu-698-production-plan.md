@@ -869,6 +869,13 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
+| D6-09 | 已合并 feat/dcu | `dcu/D6-09-coverage-floor` | `cfcfdd6d`（merge `acc14dd8`；protocol 缺口由 D6-09b 收口） | `docs/evidence/DCU-D6-09/` | Release/COVERAGE 构建 + ctest 380/380 + lcov 实测 `cmd/dcu` 6112/7039=86.8305%，新增下限 86.8（不高于实测）；`cmd` 拆分后 78.2% 仍高于 76.5%，无既有下限降低；`foundation/src/protocol` 无插桩（foundation 静态库未链接 `edge_common_interface`，0 个 `.gcno`），无法设下限，另立 D6-09b |
+| D6-09b | 已合并 feat/dcu | `dcu/D6-09b-foundation-coverage` | `a755e60d`（merge `1ed708e1`） | `docs/evidence/DCU-D6-09b/` | `-DCOVERAGE=ON` 下仅给 `edge_codec` 加 `--coverage`；protocol 1353/1722=78.5714%（下限 78.5）、foundation 223/236=94.4915%（87→94.4）；ALL/cmd 因 launcher gcda 不稳定保旧下限；非覆盖率构建不变；x86_64 CI 的 parity harness 手写链接补 `--coverage` |
+| DCU-D6-01b | 已合并 feat/dcu | `dcu/D6-01b-instance-attr-max` | `13338ddf`（merge `31a39e95`） | `docs/evidence/DCU-D6-01b/` | `k_oi_max_attr` 补 4000(A3/A4)、8001(A3..A5)；变量类 fallback 按类定义分 DAR 5/4，未知 OI 仍 DAR 6；新增变异守卫 `DCU-D6-01b-instance-attr-max`；规格订正 4000 A3 的观测走标量通道（值通道由参数模块实现，不降级） |
+| DCU-FORMAL-04 | 已合并 feat/dcu | `dcu/FORMAL-04-get-list-proof` | `1873e661`（merge `82239c41`） | `docs/evidence/DCU-FORMAL-04/` | GET-NormalList 编码 CBMC：3383 属性 0 失败、cover SATISFIED、负向脚本红/绿（由 `check_formal_negative.sh --strict` 在 formal job 执行，不重复登记 mutation_guards）；界 24 只覆盖 n=1 成功路径，多条目成功另立 gap |
+| DCU-D6-02a | 已合并 feat/dcu | `dcu/D6-02-wire-vectors` | 见 D6-02 | `docs/evidence/DCU-D6-02/` | D6-02 向量暴露真实协议缺陷：`REPORT-Notification`/`REPORT-Response` 服务字节写反（表55 [136]=0x88、表54 [8]=0x08），上报帧控制域用了 0xC3（DIR=1 PRM=1）而非服务器上报的 0x83（表2）；已修常量与编码，补 mutation guard `DCU-D6-02a-report-service-bytes` |
+| DCU-D6-02 | 已合并 feat/dcu | `dcu/D6-02-wire-vectors` | `3a2201a1`（merge `97303424`） | `docs/evidence/DCU-D6-02/` | 新增 `tests/test_dcu_698_wire_vectors.c` 13 例真帧：GET/NormalList/SET/ACTION/GetRecord/REPORT/RSD/DAR，期望值来自标准原文并标行号；产品语义未改（REPORT 字节缺陷由 D6-02a 修） |
+| DCU-D3-08c | 已合并 feat/dcu | `dcu/D3-08c-300b-empty` | `18e78587`（merge `7232c03f`） | `docs/evidence/DCU-D3-08c/` | 300B Class 24 空掩码 + 只读 ACL 5..9；encode 路径掩码先于实例；read/write/call 门面已先查掩码，处理器内重复分支不可达已删除（覆盖率 6117/7043=86.8522%，下限 86.8 未降）；对象 136、ACL 131、列表 6476 B；变异守卫 `DCU-D3-08c-300B-row` 红/绿 |
 | D6 | 未开始 | - | - | - | 随各阶段并行；D6-08 已完成 |
 | P3-4 | 已合并 feat/dcu | `dcu/P3-4-event-start-time` | `0fe4adca`（merge f02ed19e） | `docs/evidence/DCU-P3-4-EVENT-START/` | 恢复记录按 slot_id 匹配同表发生记录取 start_time；A14 仍每 OI；发生记录被窗口挤出时丢弃恢复并只更新 last_end_time；verifier 红 `2001000000000 != 1001000000000`→绿 45/45、验收 3 连绿、变异守卫 2 条（start-slot / archive-start）红/绿、ASAN 5/5、对抗评审两轮无功能性 finding 并补 archive/eviction 守卫；合并树 373/373、fanalyzer 5 known/0 new |
 | P3-7 | 已合并 feat/dcu | `dcu/P3-7-date-time-tag` | `169c4946`（merge 4ce21c74） | `docs/evidence/DCU-P3-7-DATE-TIME-TAG/` | 新增 `DLT698_TAG_DATE_TIME = 25`；codec/axdr/class_event 的 date_time/date_time_s 标签字面量全部换常量；codec 对象 sha256 前后一致 `eaa6b7c4…`；45/45、验收 3 连绿；纯等价清理无对抗评审 |
@@ -1028,6 +1035,10 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 3006 注释与 OAD 脚本硬编码（follow-up） | 已收口（2026-11-27，P3-13，`22fdfffc`）：`dcu_soe_event_engine.h:24` 注释订正为电能表断流事件；4 脚本 `0x20020200` 订正为电压相角；`OAD_REACTIVE_ENERGY` 偏差记入 `DCU_698_DEVIATIONS.md`；`test_dcu_698_rules.c` `strcpy→snprintf` | 文档/脚本误导与 `strcpy` 已消除，pytest 守卫防回归 | 已完成；证据 `docs/evidence/DCU-P3-13/` |
 | `k_oi_max_attr` 缺 `0x4000`/`0x8001` 与变量类越界 DAR 偏差 | D6-01 发现：`dcu_698_object_model.c` `k_oi_max_attr` 漏列 `0x4000`/`0x8001`；`dcu_698_var.c` `dcu_698_value_for_oad` 对变量类类外属性返回 `-20`（DAR 6）而非 `-23`（DAR 4） | 不影响正常路径；类外越界读变量类回 DAR 6 而非 DAR 4 | 另立缺陷任务修复并补正反测试 |
 | `dlt698_decode_data` 递归池 CBMC 不可解 | FORMAL-03 发现：`dlt698_decode_data` 对 `ARRAY/STRUCTURE` 递归调用并写 64 项 `_Thread_local` 池，CBMC 5.12 即使 `max_len=1` 也出现 `O(N^N)` SSA 爆炸 | 无法直接对 `dlt698_decode_data` 做有界符号证明 | 若需形式化验证，另立重构单将其改为显式栈有界迭代 |
+
+| foundation/src/protocol 覆盖率插桩 | 已收口（2026-11-28，D6-09b，`a755e60d`）：覆盖构建下给 `edge_codec` 加 `--coverage`，protocol 产出 16 个 `.gcno`、下限 78.5；foundation 口径 94.4；ALL/cmd 因 launcher gcda 不稳定保旧下限 | 该目录已有门禁；两个新下限距实测仅 0.07/0.09 个百分点，确定性下降会变红 | 已完成；证据 `docs/evidence/DCU-D6-09b/` |
+
+| FORMAL-04 多条目成功路径 | CBMC 界 24 只容纳 1 项成功帧；界提到 48 时 300s 内未收敛（7.7M 变量、41M 子句） | 多条目成功编码的越界性质未证明，仅拒绝路径对任意 symbolic n 有证明 | 另立单：有界迭代/分段证明或重构为显式长度计算后再证；不得为过而放宽断言 |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 

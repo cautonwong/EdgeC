@@ -124,13 +124,13 @@ int dcu_698_event_encode_axdr(const dcu_698_object_t *obj, uint32_t oad, uint8_t
                               size_t *len) {
     if (!obj || !buf || !len) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     dcu_event_obj_t *evt = (dcu_event_obj_t *)obj->instance;
-    if (!evt) return EDGE_SLAVE_SRC_NOT_FOUND;
 
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     if (!dcu_mask_test(obj->attr_mask, attr_id)) {
         return dcu_698_class_defines_attr(obj->class_id, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
                                                                   : EDGE_SLAVE_SRC_UNDEFINED;
     }
+    if (!evt) return EDGE_SLAVE_SRC_NOT_FOUND;
 
     size_t off = 0;
     int rc = 0;

@@ -1,0 +1,23 @@
+diff --git a/ci/baseline/coverage_floor.txt b/ci/baseline/coverage_floor.txt
+index f6b76323..08e351e3 100644
+--- a/ci/baseline/coverage_floor.txt
++++ b/ci/baseline/coverage_floor.txt
+@@ -12,6 +12,13 @@
+ # 同日第二批后重测：SDK 测试接入插桩，ALL 75.6%、cmd 77.6%、
+ # edge_mgmt 87.6%、adapters 67.5%，下限按新实测上调。
+ #
++# 2026-11-28（D6-09）：全新 Release/COVERAGE 构建、ctest 380/380 后
++# lcov 采集。拆分出 cmd/dcu 范围 86.8%（6112/7039 行，精确 86.8305%），
++# 新下限 86.8 不高于实测；拆分后 cmd 余量 78.2% 仍高于原 76.5%。
++# foundation/src/protocol 在现有覆盖率入口下没有插桩行：edge_codec 等
++# foundation 静态库不链接 edge_common_interface，不产生 .gcno/.gcda，
++# lcov 采集为 0 行，无法设下限；要覆盖它需先改构建（本单元非目标）。
++#
+ # Format: <scope>|<floor percent>
+ ALL|74.5
+ foundation|87
+@@ -21,3 +28,4 @@ modules/edge_stream|65
+ modules/edge_mgmt|87.0
+ adapters|66.5
+ cmd|76.5
++cmd/dcu|86.8

@@ -1,0 +1,30 @@
+### branch: dcu/D6-09b-foundation-coverage
+### base: f443e688
+
+### git diff --cached --stat (staged, before this file)
+ ci/baseline/coverage_floor.txt        |  15 ++++-
+ docs/evidence/DCU-D6-09b/coverage.log | 110 +++++++++++++++++++++++++++++++
+ docs/evidence/DCU-D6-09b/floor.diff   |  28 ++++++++
+ docs/evidence/DCU-D6-09b/summary.md   | 119 ++++++++++++++++++++++++++++++++++
+ foundation/CMakeLists.txt             |   5 ++
+ 5 files changed, 276 insertions(+), 1 deletion(-)
+
+### key floor changes
+-foundation|87
++foundation|94.4
++foundation/src/protocol|78.5
+
+### git status --short (before diffstat.txt add)
+M  ci/baseline/coverage_floor.txt
+A  docs/evidence/DCU-D6-09b/coverage.log
+A  docs/evidence/DCU-D6-09b/floor.diff
+A  docs/evidence/DCU-D6-09b/summary.md
+M  foundation/CMakeLists.txt
+?? docs/evidence/DCU-D6-09b/diffstat.txt
+
+### evidence files
+coverage.log
+diffstat.txt
+floor.diff
+spec.md
+summary.md

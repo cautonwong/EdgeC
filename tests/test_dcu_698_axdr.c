@@ -2168,9 +2168,8 @@ static void test_archive_config_short_buffer_dar2(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-/* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。
- * Class 24 未实现的 300B 仍无对象实例：GET 必须回 DAR 6，不能凭空造事件记录。 */
-static void test_event_catalog_ois_without_instance_dar6(void **state) {
+/* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。 */
+static void test_event_catalog_ois_without_instance(void **state) {
     (void)state;
     dcu_698_object_model_reset();
     init_product_model();
@@ -2186,7 +2185,7 @@ static void test_event_catalog_ois_without_instance_dar6(void **state) {
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
     assert_int_equal(dcu_north_resolve_axdr(NULL, 0x300B0200u, buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 }
 
 static void test_class13_readonly_dar(void **state) {
@@ -2407,8 +2406,28 @@ static void test_discovery_action_start_duplicate_and_clear(void **state) {
     dcu_698_object_model_reset();
 }
 
+static void test_driver_get_unadvertised_and_undefined_dar(void **state) {
+    (void)state;
+    dcu_698_object_model_reset();
+    init_product_model();
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x0010, 6), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x0010, 1), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* 4000 A3：Class 8 类表只到 A2，表 A.5 为 4000 定义 A3/A4，对象只广告 A2。 */
+    edge_point_value_t pv;
+    assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(0x4000, 3), NULL, 0, &pv),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+
+    dcu_698_object_model_reset();
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
+        cmocka_unit_test(test_driver_get_unadvertised_and_undefined_dar),
         cmocka_unit_test(test_product_variable_axdr_types),
         cmocka_unit_test(test_discovery_standard_attribute_shapes),
         cmocka_unit_test(test_discovery_action_start_duplicate_and_clear),
@@ -2470,7 +2489,7 @@ int main(void) {
         cmocka_unit_test(test_action_rejects_other_methods_and_trailing_bytes),
         cmocka_unit_test(test_action_class9_attr3_method_shape_dar7),
         cmocka_unit_test(test_archive_config_short_buffer_dar2),
-        cmocka_unit_test(test_event_catalog_ois_without_instance_dar6),
+        cmocka_unit_test(test_event_catalog_ois_without_instance),
         cmocka_unit_test(test_class13_readonly_dar),
         cmocka_unit_test(test_action_unknown_oi_dar6),
         cmocka_unit_test(test_action_non8000_reaches_handler),

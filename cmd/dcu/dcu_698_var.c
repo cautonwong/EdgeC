@@ -277,7 +277,9 @@ static int _var_encode_axdr(uint32_t oad, uint32_t device_id, uint8_t *buf, size
         *len = off;
         return 0;
     } else {
-        return EDGE_SLAVE_SRC_NOT_FOUND;
+        return dcu_698_oi_defines_attr(oi, desc->class_id, attr_id)
+                   ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                   : EDGE_SLAVE_SRC_UNDEFINED;
     }
 
     size_t off = 0;
@@ -335,7 +337,8 @@ int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
     if (dcu_698_var_is_oi(oi)) {
         if (dcu_698_var_read_value(oad, out) == 0) return 0;
         if (attr_id >= 2 && attr_id <= 5) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        return EDGE_SLAVE_SRC_NOT_FOUND;
+        const dcu_698_object_t *var_obj = dcu_698_find(oi);
+        return var_obj ? _unadvertised_attr_rc(var_obj, attr_id) : EDGE_SLAVE_SRC_NOT_FOUND;
     }
 
     const dcu_698_object_t *obj = dcu_698_find(oi);

@@ -27,7 +27,7 @@ cc -std=gnu11 -O2 -Wall -Wextra \
   tools/migration/parity/edgec_target/edgec_modbus_target.c \
   -Ifoundation/include -I.local/linux-x86_64/include \
   build/foundation/libedge_codec.a build/foundation/libedge_netbuf.a \
-  .local/linux-x86_64/lib/libuv.a -lm
+  .local/linux-x86_64/lib/libuv.a -lm --coverage
 
 python3 tools/migration/parity/run_parity.py selftest
 ```

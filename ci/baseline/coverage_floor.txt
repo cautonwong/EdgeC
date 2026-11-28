@@ -12,12 +12,33 @@
 # 同日第二批后重测：SDK 测试接入插桩，ALL 75.6%、cmd 77.6%、
 # edge_mgmt 87.6%、adapters 67.5%，下限按新实测上调。
 #
+# 2026-11-28（D6-09）：全新 Release/COVERAGE 构建、ctest 380/380 后
+# lcov 采集。拆分出 cmd/dcu 范围 86.8%（6112/7039 行，精确 86.8305%），
+# 新下限 86.8 不高于实测；拆分后 cmd 余量 78.2% 仍高于原 76.5%。
+# foundation/src/protocol 在现有覆盖率入口下没有插桩行：edge_codec 等
+# foundation 静态库不链接 edge_common_interface，不产生 .gcno/.gcda，
+# lcov 采集为 0 行，无法设下限；要覆盖它需先改构建（本单元非目标）。
+#
+# 2026-11-28（D6-09b）：-DCOVERAGE=ON 只经 edge_common_interface 下发；本单元
+# 给承载 foundation/src/protocol 的 edge_codec 直接加 --coverage，其余
+# foundation 库不动。给全部 foundation 库插桩会把 foundation 口径从“头文件”
+# 扩到全部 .c，实测 72.8% 低于既有 87 下限，违反“只升不降”，故只插 edge_codec。
+# 实测（全新 Release/COVERAGE，ctest 380/380，lcov 采集，两轮一致）：
+#   foundation/src/protocol   1353/1722 = 78.5714%（新增下限 78.5）
+#   foundation（不含 protocol）223/236  = 94.4915%（原 87 上调到 94.4）
+#   ALL                       30973/38665 = 80.1060%（旧下限 74.5 保留）
+# ALL 不随之上调：cmd/edgeos-launcher/main.c 的子进程 gcda 是否落盘不稳定，
+# 落盘时多 200 行 0 命中，同一口径 ALL 由 80.1% 变 79.7%；保留 74.5 使两种
+# 情形都过门禁。cmd 同理保留 76.5（实测在 78.2%~80.8% 间波动）。
+#
 # Format: <scope>|<floor percent>
 ALL|74.5
-foundation|87
+foundation|94.4
+foundation/src/protocol|78.5
 modules/edge_core|75
 modules/edge_io|60
 modules/edge_stream|65
 modules/edge_mgmt|87.0
 adapters|66.5
 cmd|76.5
+cmd/dcu|86.8

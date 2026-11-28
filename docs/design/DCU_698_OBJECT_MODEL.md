@@ -63,7 +63,7 @@ void *out/in)`；**不存在** `dcu_attr_read_fn` / `dcu_axdr_buf_t` 之类类�
   6012→poller、6014→poller、F100→esam、6002→discovery、3000/3005→event 对象。
 - `dcu_698_object_model_reset()` 清空实例指针；未 init 时 `dcu_698_find()` 返回 NULL。
 - 表不拥有 `instance`；实例由 `dcu_node` 聚合根持有。
-- 表当前 135 行（`dcu_698_object_count()`），与目录/OI 列表的差异在 §4.2。
+- 表当前 136 行（`dcu_698_object_count()`），与目录/OI 列表的差异在 §4.2。
 
 ### 3.3 查表与掩码
 
@@ -100,8 +100,8 @@ param 白名单与对象/ACL 行。
 
 ### 4.2 对象数与 ACL 数（当前）
 
-- 对象表：**135** 行（`dcu_698_object_count()`）。
-- Class 20 ACL：**130** 个对象（119 个手写行 + 11 个 `DCU_698_PARAM_OIS` 生成行）。
+- 对象表：**136** 行（`dcu_698_object_count()`）。
+- Class 20 ACL：**131** 个对象（120 个手写行 + 11 个 `DCU_698_PARAM_OIS` 生成行）。
 - 每 ACL 对象：12 B（属性 id 1..18，2 bit/属性压 5 B；方法号每对象最多 12 个）。
   方法号放会话级 `method_ids[1024]` 池，累计超池整单拒绝（fail closed）。
 - 每会话存储：`DRIVER_PRIV_SIZE 4096`（D1-21，原 1024）；`EDGE_SLAVE_AXDR_MAX 10240`
@@ -178,7 +178,7 @@ A.9 控制族的 8 个 OI（`0x8001` A2..A5 只读、`0x8100/8101/8102/8103` A2 
 | 21 ESAM | DAR | OI `F100`（表184；F101 是 Class 8 安全模式参数，不是本类实例）：对象行空掩码并进 ACL（A1..A15 只读、方法 1..12）。产品没有 ESAM 硬件/会话来源，软件 ESAM 模拟只保留 C API；resolver 对 A1..A15 回 DAR 5、A16 回 DAR 4；方法 1..12 回 DAR 5（698 面不执行复位/读取/密钥/证书/钱包/红外认证）；SET 回 DAR 3；不返回序列号/版本/会话/MAC；见 `docs/evidence/DCU-D4-07/` |
 | 22 输入输出 | read/DAR | 目录 F200..F20C 的 13 个 OI 都有对象行（`dcu_698_object_model.c`，IC_PERIPHERAL、SINGLETON）并进 ACL（`dcu_698_appconn.c`）；A.12 只读属性如实广告：A2 全部，F203/F204/F206/F20C 加 A4，F209 加 A5/A6；无端口配置来源 → resolver：已广告属性 DAR 2、类定义未广告 DAR 5、类未定义 DAR 4（主站对未广告属性先被 ACL 拒，回 DAR 3）；SET 回 DAR 3；A.12 的 OI 专属方法 127/128 已计入定义（resolver DAR 5、未实现；主站 ACTION 因 ACL 无方法回 DAR 3） |
 | 23 总加组 | DAR | 2301–2308 对象行（`dcu_698_object_model.c`，IC_GROUP=23，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A18 只读、方法 1..5）；无总加组配置/总加值/滑差/功控来源 → resolver 对表190 定义的 A1..A18 回 DAR 5、A19 回 DAR 4；方法 1..5 回 DAR 5（绝不执行清空/添加/删除/执行）；SET 回 DAR 3；不伪造总加值、滑差或轮次；见 `docs/evidence/DCU-D4-09/` |
-| 24 分项事件 | full（3000/3005） | `dcu_698_class_event.c`；3000/3005 实现 A2/A3/A4/A6/A11/A12/A14；其它 OI 无对象行（resolver DAR 6，主站 ACL DAR 3） |
+| 24 分项事件 | full（3000/3005）/ DAR（300B） | `dcu_698_class_event.c`；3000/3005 实现 A2/A3/A4/A6/A11/A12/A14；300B（无功需量超限）是空掩码对象行（不挂实例），并进 ACL（A5..A9 只读、0 方法）：GET A5..A9 越过 ACL 到 resolver 回 DAR 5、A15 未广告主站先回 DAR 3（resolver 回 DAR 4），SET 回 DAR 3；无事件引擎不伪造记录；其余 Class 24 OI 仍无对象行（resolver DAR 6，主站 ACL DAR 3）；见 `docs/evidence/DCU-D3-08c/` |
 | 25 无线公网通信 | DAR | 4500/4501 对象行（`dcu_698_object_model.c`，`IC_WIRELESS_PUBLIC`=25，空掩码）并进 ACL（`dcu_698_appconn.c`，A1..A11 只读、方法 1）；产品没有 APN/ICCID/IMSI/SIM 号码/信号强度来源 → resolver 对表196 定义的 A1..A11 回 DAR 5、A12 回 DAR 4；主站未在 ACL 先 DAR 3；方法与 SET 不伪造成功；见 `docs/evidence/DCU-D4-10/` |
 | 26 以太网通信 | DAR + 只读 MAC | 4510–4517 对象行（`IC_ETHERNET`=26）；4510 A5 是唯一有来源的属性（`dcu_comm_info.c` 读平台第一个物理单播以太网口的 MAC：type=1、无 wireless/ 与 bridge/、有总线 device 链接），A1..A4 与 4511–4517 的 A5 回 DAR 5、A6 回 DAR 4；ACL A1..A5 只读、方法 1；平台没有符合判据的以太网口（含容器 veth）时 A5 也回 DAR 5，不伪造；见 `docs/evidence/DCU-D4-10/` |
 
@@ -223,7 +223,9 @@ IC 10（reconciliation:48）。档案/任务/方案/规则的管理面在
 Class 24 标准名单是 3000–3008（3006 断流、3007 功率反向、3008 过载）与 300B；
 3009、300C–3010、3011、3013 等属于 Class 7，不在 Class 24。产品只实现 3000/3005（失压/过流），属性
 A2 关联 OAD 数组、A3 四表计数、A4、A6、A11/A12/A14；A5 因结构随 OI 变化且未存储
-回 DAR 5；未实现的 Class 24 `300B` 仍无对象行（resolver 回 DAR 6）。Class 7 的 `3009/300C/3011/3013`
+回 DAR 5；`300B` 已是空掩码对象行（`IC_SUB_EVENT`，不挂实例）：标准定义 A5..A9，ACL 只读广告
+5..9，GET A5..A9 越过 ACL 到 resolver 回 DAR 5、A15 未广告主站先回 DAR 3（resolver 回 DAR 4），
+SET 回 DAR 3；事件处理器先看掩码再看实例，不因实例为空回 DAR 6，也不伪造事件记录。Class 7 的 `3009/300C/3011/3013`
 已登记为空掩码对象行（`IC_EVENT`）并按 A1..A10 只读、0 方法进 Class 20 ACL：GET 越过 ACL 到 resolver
 如实回 DAR 5（非 DAR 6、非 DAR 3），SET 回 DAR 3，不伪造事件记录；其余 Class 7 目录 OI 仍无对象行
 （resolver 回 DAR 6，主站请求先回 DAR 3，§4.1）。
@@ -235,14 +237,14 @@ A2 关联 OAD 数组、A3 四表计数、A4、A6、A11/A12/A14；A5 因结构随
 ### 8.5 Class 20 与 ACL 加载
 
 `dcu_698_appconn_object_list()` 编码 `array { structure { OI, { 属性[], 方法[] } } }`；
-130 项列表当前编码 6413 字节（A-XDR 长格式头 `0x81 0x82`，D1-21 测量方法；118 项时为 5806 字节、115 项时为 5551 字节），>127 项时使用
+131 项列表当前编码 6454 字节（A-XDR 长格式头 `0x81 0x83`，D1-21 测量方法；118 项时为 5806 字节、115 项时为 5551 字节），>127 项时使用
 A-XDR 长格式长度（D1-21）。
 驱动在会话建立时加载并缓存 ACL，不是每请求重查；`0x4400` 由 resolver 与驱动特判，
 不在对象表。对象列表是**手写表 + 参数宏生成行**，不是“对象表单一来源”；`OBJECT_COUNT
 <= ACL_MAX` 由静态断言守住，对象表与目录的一致性由目录测试守住。**两者不做 ACL 与
 对象表的逐项交叉校验**（没有脚本比对 k_objects 与 g_objects）。
 
-从站响应不能复用采集/上报尺寸的共享池：130 项对象列表 6413 B 加 22 B 帧是 6435 B，
+从站响应不能复用采集/上报尺寸的共享池：131 项对象列表 6454 B 加 22 B 帧是 6476 B，
 超过共享池 4096 B。`bus_orchestrator_setup_slave` 因此给从站单独建
 `BUS_SLAVE_POOL_BUF_SIZE = EDGE_SLAVE_AXDR_MAX + 256` 的池（32 项，约 328 KB），
 而不是把 8192 × 4096 的共享池抬到约 85 MB；编码器（`dlt698_codec.c`）在放不下时回

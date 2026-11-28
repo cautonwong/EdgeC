@@ -624,9 +624,9 @@ static void test_report_frame_layout(void** state) {
     size_t payload_len = 0;
     assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len),
                      0);
-    static const uint8_t want[] = {0x08, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
+    static const uint8_t want[] = {0x88, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
                                    0x00, 0x01, 0x12, 0x00, 0x01, 0x00};
-    assert_int_equal(svc, DLT698_SVC_REPORT_NOTIFICATION);
+    assert_int_equal(svc, 0x88); /* 表55：REPORT-Notification [136] */
     assert_int_equal(payload_len + 3, sizeof(want));
     assert_memory_equal(payload - 3, want, sizeof(want));
 
@@ -874,7 +874,7 @@ static void test_slave_accepts_product_object_list_42(void** state) {
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
     assert_int_equal(list[1], 0x81);
-    assert_int_equal(list[2], 130);
+    assert_int_equal(list[2], 131);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -956,6 +956,52 @@ static void test_slave_class17_display_dar(void** state) {
     static const uint8_t set_f300_a2[] = {0x06, 0x01, 0x05, 0xF3, 0x00, 0x02,
                                           0x00, 0x09, 0x00, 0x00};
     assert_int_equal(run_slave_apdu(set_f300_a2, sizeof(set_f300_a2), &src, NULL, out), 0);
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], DLT698_DAR_DENIED);
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+    dcu_698_object_model_reset();
+}
+
+static void test_slave_class24_300b_dar(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
+
+    static const uint8_t get_a5[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x05, 0x00, 0x00};
+    static const uint8_t get_a6[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x06, 0x00, 0x00};
+    static const uint8_t get_a7[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x07, 0x00, 0x00};
+    static const uint8_t get_a8[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x08, 0x00, 0x00};
+    static const uint8_t get_a9[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x09, 0x00, 0x00};
+    static const uint8_t get_a15[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x0F, 0x00, 0x00};
+    const uint8_t* gets[] = {get_a5, get_a6, get_a7, get_a8, get_a9};
+    for (size_t i = 0; i < sizeof(gets) / sizeof(gets[0]); i++) {
+        assert_product_get_dar(gets[i], sizeof(get_a5), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    }
+    assert_product_get_dar(get_a15, sizeof(get_a15), DLT698_DAR_DENIED);
+
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_axdr = dcu_north_accept_axdr;
+    static const uint8_t set_a5[] = {0x06, 0x01, 0x05, 0x30, 0x0B, 0x05,
+                                     0x00, 0x09, 0x00, 0x00};
+    assert_int_equal(run_slave_apdu(set_a5, sizeof(set_a5), &src, NULL, out), 0);
     uint8_t* payload = NULL;
     uint8_t svc = 0;
     decode_payload(out, &payload, &svc);
@@ -1334,7 +1380,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 6435);
+    assert_int_equal(out->b.len, 6476);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1346,7 +1392,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     assert_int_equal(payload[4], 0x01); /* A-Result Data */
     assert_int_equal(payload[5], 0x01); /* array */
     assert_int_equal(payload[6], 0x81); /* A-XDR 长格式 1 字节长度 */
-    assert_int_equal(payload[7], 130);  /* 对象列表项数 */
+    assert_int_equal(payload[7], 131);  /* 对象列表项数 */
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
@@ -2006,6 +2052,7 @@ int main(void) {
         cmocka_unit_test(test_get_maps_source_rc_to_dar),
         cmocka_unit_test(test_slave_accepts_product_object_list_42),
         cmocka_unit_test(test_slave_class17_display_dar),
+        cmocka_unit_test(test_slave_class24_300b_dar),
         cmocka_unit_test(test_slave_class11_collection_dar),
         cmocka_unit_test(test_slave_class12_pulse_dar),
         cmocka_unit_test(test_slave_class25_26_comm_dar),
