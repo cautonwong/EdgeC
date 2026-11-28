@@ -5,7 +5,7 @@
 2. 将第 97 行陈旧注释 `0x20020200` 处的 `// A/B/C 相电压` 修正为符合 698 标准的注释或替换为真实三相电压/A 相电流（`0x20000200, 0x20010200, 0x20040200`），避免把 `0x20020200`（电压相角）误标为相电压。
 3. 保持 `EDGE_PERF_GATE=1` 性能门禁契约：
    - 默认 `ctest`（`EDGE_PERF_GATE != 1`）或插桩构建（`EDGE_SANITIZER_BUILD`）只打印 Avg / P99 / Max step latency 与 submits 数量，不因宿主调度噪声失败。
-   - `EDGE_PERF_GATE=1` 时强制校验 `p99_ms < p99_limit_ms`（默认 `5.0 ms`，可由 `EDGE_PERF_P99_MS` 覆盖）以及 `avg_ms * 1000.0 < avg_limit_us`（若设置了 `EDGE_PERF_AVG_US`）。
+   - `EDGE_PERF_GATE=1` 时强制校验 `p99_ms < p99_limit_ms`（默认 `5.0 ms`，可由 `EDGE_PERF_P99_MS` 覆盖）；注：`EDGE_PERF_AVG_US=20` 为 `test_dds_shm_zerocopy_perf` 专用，不适用于 4096 表轮询步进基准。
 
 ## 2. 不变量
 1. `inv.count == 4096`（`MAX_METERS`）且 `dcu_inventory_add` 全部成功。
