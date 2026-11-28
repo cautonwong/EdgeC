@@ -891,6 +891,8 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | DCU-D6-07a | 已合并 feat/dcu | `dcu/D6-07a-scale-4096` | `309c96ef` | `docs/evidence/DCU-D6-07a/` | `test_dcu_scale_benchmark.c` 扩至 4×1024=4096 表（`MAX_METERS`、12288 OAD），修正 `0x20040200` 注释，保持 `EDGE_PERF_P99_MS` 门禁（`EDGE_PERF_AVG_US=20` 留归 SHM 基准）；合并树默认与 `EDGE_PERF_GATE=1` 均通过 |
 | DCU-REFACTOR-01 | 已合并 feat/dcu | `dcu/REFACTOR-01-decode-data-iter` | `f8c3db02` | `docs/evidence/DCU-REFACTOR-01/` | `dlt698_decode_data` 改为显式有界栈迭代（`DLT698_DECODE_MAX_DEPTH=8`），保留 `g_dlt698_item_pool[64]` 零分配与环形防覆盖守卫；`test_dlt698_axdr` 8/8（含嵌套深度与池溢出边界）、`dcu|dlt698` 47/47、ASAN 绿 |
 | DCU-D6-02b | 已合并 feat/dcu | `dcu/D6-02b-wire-vectors-neg` | `78f17949` | `docs/evidence/DCU-D6-02b/` | `test_dcu_698_wire_vectors.c` 扩 4 组负向与边界向量（坏 HCS/FCS、截断 SET/ACTION APDU、`n>DLT698_RCSD_MAX` + Selector 3/4/5、CONNECT/RELEASE 帧布局），17/17 通过、ASAN 绿 |
+| DCU-FORMAL-06 | 已合并 feat/dcu | `dcu/FORMAL-06-encode-responses` | `ec0a1854` | `docs/evidence/DCU-FORMAL-06/` | SET/ACTION/CONNECT/RELEASE 响应编码补齐 `_fits(...)` 尾空间守卫并完成 CBMC 5.12 证明（`proof` 0/3394、`cover` SATISFIED、`function` 0/3393、负向变异捕获越界）；`formal_manifest.py` 22 行全绿、`dcu|dlt698` 47/47 |
+| DCU-FORMAL-07 | 阻塞（记录） | `dcu/FORMAL-07-decode-data` | - | `docs/evidence/DCU-FORMAL-07/` | 迭代版 `dlt698_decode_data` 在 CBMC 5.12 `converting SSA` 阶段因 `g_dlt698_item_pool[64]` 指针写回超 60s 超时（`FORMAL_MAX_LEN=3` 亦超时），未放宽断言，已记 §12.5 |
 
 ### 12.3 本轮验收记录
 
@@ -1039,7 +1041,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | dcu_698_value_for_oad 的 4510 A5 标量路径 | 标量端口 `dcu_value_t` 无 octet-string，6 字节 MAC 不可承载；主站 GET 走 `resolve_axdr` 正常 | 标量路径旧回 DAR 7（类型不符） | 已收口（2026-11-27，P3-5）：按 DEVIATIONS 无来源口径回 DAR 5；证据 `docs/evidence/DCU-P3-5-VAR-4510/`；已合并 feat/dcu（merge `9c45f835`） |
 | 3006 注释与 OAD 脚本硬编码（follow-up） | 已收口（2026-11-27，P3-13，`22fdfffc`）：`dcu_soe_event_engine.h:24` 注释订正为电能表断流事件；4 脚本 `0x20020200` 订正为电压相角；`OAD_REACTIVE_ENERGY` 偏差记入 `DCU_698_DEVIATIONS.md`；`test_dcu_698_rules.c` `strcpy→snprintf` | 文档/脚本误导与 `strcpy` 已消除，pytest 守卫防回归 | 已完成；证据 `docs/evidence/DCU-P3-13/` |
 | `k_oi_max_attr` 缺 `0x4000`/`0x8001` 与变量类越界 DAR 偏差 | 已收口（2026-11-28，DCU-D6-01b，`31a39e95`）：`k_oi_max_attr` 补 `0x4000`/`0x8001`，变量类越界按类定义回 DAR 5/4，未知 OI 仍 DAR 6 | 原缺口已消除 | 已完成；证据 `docs/evidence/DCU-D6-01b/`；变异守卫 `DCU-D6-01b-instance-attr-max` |
-| `dlt698_decode_data` 递归池 CBMC 不可解 | 已收口（2026-11-28，DCU-REFACTOR-01，`f8c3db02`）：`dlt698_decode_data` 已重构为显式有界栈迭代（`DLT698_DECODE_MAX_DEPTH=8`）+ 池防覆盖守卫 | 原递归爆炸根因已消除 | 已完成；证据 `docs/evidence/DCU-REFACTOR-01/`；后续 CBMC 证明单 `DCU-FORMAL-07` 可直接立项 |
+| `dlt698_decode_data` 递归池 CBMC 不可解 | 已收口重构（2026-11-28，DCU-REFACTOR-01，`f8c3db02`）：`dlt698_decode_data` 已重构为显式有界栈迭代（`DLT698_DECODE_MAX_DEPTH=8`）+ 池防覆盖守卫；`DCU-FORMAL-07` 实测 CBMC 5.12 在 `converting SSA` 写 `g_dlt698_item_pool[64]` 指针时仍 >60s 超时（`FORMAL_MAX_LEN=3` 亦超时） | 迭代版消除了递归与栈溢出，但 CBMC 5.12 仍需池抽象或子函数拆分 | 重构已完成（`docs/evidence/DCU-REFACTOR-01/`）；CBMC 超时实测见 `docs/evidence/DCU-FORMAL-07/verify.md` |
 
 | foundation/src/protocol 覆盖率插桩 | 已收口（2026-11-28，D6-09b，`a755e60d`）：覆盖构建下给 `edge_codec` 加 `--coverage`，protocol 产出 16 个 `.gcno`、下限 78.5；foundation 口径 94.4；ALL/cmd 因 launcher gcda 不稳定保旧下限 | 该目录已有门禁；两个新下限距实测仅 0.07/0.09 个百分点，确定性下降会变红 | 已完成；证据 `docs/evidence/DCU-D6-09b/` |
 
