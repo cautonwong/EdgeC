@@ -1,0 +1,29 @@
+=== check_doc_references ===
+=== check_build_warnings ===
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+=== ctest unit tests ===
+Internal ctest changing into directory: /tmp/dcu-P3-12/build
+Test project /tmp/dcu-P3-12/build
+    Start  30: test_dcu_698_axdr
+1/3 Test  #30: test_dcu_698_axdr ................   Passed    0.07 sec
+    Start  31: test_dcu_698_param
+2/3 Test  #31: test_dcu_698_param ...............   Passed    0.06 sec
+    Start 102: test_driver_dlt698
+3/3 Test #102: test_driver_dlt698 ...............   Passed    5.21 sec
+
+100% tests passed, 0 tests failed out of 3
+
+Total Test time (real) =   5.38 sec
+=== py_compile northbound acceptance ===
+py_compile OK
+=== mutation guard DCU-P3-12-4000-set-dar ===
+=== Mutation guards: 1 entries, build /tmp/dcu-P3-12/build ===
+
+[MUTATION] DCU-P3-12-4000-set-dar (cmd/dcu/dcu_698_param.c)
+  [mutate] cmd/dcu/dcu_698_param.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_param.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-P3-12-4000-set-dar: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

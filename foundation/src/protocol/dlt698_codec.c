@@ -505,9 +505,9 @@ int dlt698_encode_report_notification(uint8_t *buf, size_t cap, uint8_t choice, 
     buf[off++] = (uint8_t)n;
     for (size_t i = 0; i < n; i++) {
         buf[off++] = (uint8_t)(items[i].oad >> 24);
-        buf[off++] = (uint8_t)(items[i].oad >> 16);
-        buf[off++] = (uint8_t)(items[i].oad >> 8);
-        buf[off++] = (uint8_t)items[i].oad;
+        buf[off++] = (uint8_t)((items[i].oad >> 16) & 0xFFu);
+        buf[off++] = (uint8_t)((items[i].oad >> 8) & 0xFFu);
+        buf[off++] = (uint8_t)(items[i].oad & 0xFFu);
         if (items[i].dar) {
             buf[off++] = 0x00; /* CHOICE [0] DAR */
             buf[off++] = items[i].dar;

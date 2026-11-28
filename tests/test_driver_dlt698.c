@@ -873,7 +873,8 @@ static void test_slave_accepts_product_object_list_42(void** state) {
     uint8_t list[EDGE_SLAVE_AXDR_MAX];
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
-    assert_int_equal(list[1], 118);
+    assert_int_equal(list[1], 0x81);
+    assert_int_equal(list[2], 130);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -1333,7 +1334,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 6014);
+    assert_int_equal(out->b.len, 6435);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1344,7 +1345,8 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     assert_int_equal(svc, DLT698_SVC_GET_RES);
     assert_int_equal(payload[4], 0x01); /* A-Result Data */
     assert_int_equal(payload[5], 0x01); /* array */
-    assert_int_equal(payload[6], 118);  /* 对象列表项数 */
+    assert_int_equal(payload[6], 0x81); /* A-XDR 长格式 1 字节长度 */
+    assert_int_equal(payload[7], 130);  /* 对象列表项数 */
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
@@ -1864,6 +1866,126 @@ static void test_slave_rejects_acl_method_pool_overflow(void** state) {
     net_buf_pool_destroy(&pool);
 }
 
+typedef struct {
+    struct tm value;
+    int fail_set;
+} slave_clock_state_t;
+
+static int test_clock_now(void* ctx, struct tm* out) {
+    const slave_clock_state_t* st = (const slave_clock_state_t*)ctx;
+    *out = st->value;
+    return 0;
+}
+
+static int test_clock_set(void* ctx, const struct tm* in) {
+    slave_clock_state_t* st = (slave_clock_state_t*)ctx;
+    if (st->fail_set) return -1;
+    st->value = *in;
+    return 0;
+}
+
+static void assert_slave_set_4000_dar(const edge_slave_source_ops_t* src, void* ctx,
+                                      const uint8_t* apdu, size_t apdu_len, uint8_t want_dar) {
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(apdu, apdu_len, src, ctx, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_SET_RES);
+    assert_int_equal(payload[4], want_dar);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void assert_slave_get_4000_bytes(const edge_slave_source_ops_t* src, void* ctx,
+                                        const uint8_t* want_8bytes) {
+    static const uint8_t get_4000[] = {0x05, 0x01, 0x05, 0x40, 0x00, 0x02, 0x00, 0x00};
+    net_buf_pool_t pool;
+    assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
+    net_buf_t* out = net_buf_alloc(&pool, 0);
+    assert_non_null(out);
+    assert_int_equal(run_slave_apdu(get_4000, sizeof(get_4000), src, ctx, out), 0);
+
+    uint8_t* payload = NULL;
+    uint8_t svc = 0;
+    decode_payload(out, &payload, &svc);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_int_equal(payload[4], 0x01);
+    assert_memory_equal(payload + 5, want_8bytes, 8);
+
+    net_buf_unref(out);
+    net_buf_pool_destroy(&pool);
+}
+
+static void test_slave_set_4000_a2_dar_contract(void** state) {
+    (void)state;
+    static dcu_inventory_t inv;
+    static dcu_poller_t poller;
+    assert_int_equal(dcu_inventory_init(&inv), 0);
+    assert_int_equal(dcu_poller_init(&poller), 0);
+    router_sink_ops_t sink;
+    router_bus_ops_t bus;
+    memset(&sink, 0, sizeof(sink));
+    memset(&bus, 0, sizeof(bus));
+    assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus),
+                     0);
+
+    slave_clock_state_t clock_state = {
+        .value =
+            {.tm_year = 124, .tm_mon = 4, .tm_mday = 6, .tm_hour = 7, .tm_min = 8, .tm_sec = 9},
+        .fail_set = 0};
+    dcu_clock_port_t clock = {
+        .now = test_clock_now, .set = test_clock_set, .ctx = &clock_state};
+    dcu_698_param_set_clock(&clock);
+    dcu_698_param_reset();
+
+    edge_slave_source_ops_t src;
+    memset(&src, 0, sizeof(src));
+    src.object_list = product_object_list;
+    src.resolve_axdr = dcu_north_resolve_axdr;
+    src.accept_axdr = dcu_north_accept_axdr;
+
+    static const uint8_t t_new[] = {0x1C, 0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05};
+    static const uint8_t t_later[] = {0x1C, 0x07, 0xEA, 0x02, 0x03, 0x04, 0x05, 0x06};
+    static const uint8_t set_valid[] = {0x06, 0x01, 0x05, 0x40, 0x00, 0x02, 0x00, 0x1C,
+                                        0x07, 0xE9, 0x01, 0x02, 0x03, 0x04, 0x05, 0x00};
+    static const uint8_t set_later[] = {0x06, 0x01, 0x05, 0x40, 0x00, 0x02, 0x00, 0x1C,
+                                        0x07, 0xEA, 0x02, 0x03, 0x04, 0x05, 0x06, 0x00};
+    static const uint8_t set_bad[] = {0x06, 0x01, 0x05, 0x40, 0x00, 0x02, 0x00, 0x11, 0x01, 0x00};
+
+    assert_slave_set_4000_dar(&src, NULL, set_valid, sizeof(set_valid), DLT698_DAR_SUCCESS);
+    assert_slave_get_4000_bytes(&src, NULL, t_new);
+
+    clock_state.fail_set = 1;
+    assert_slave_set_4000_dar(&src, NULL, set_later, sizeof(set_later),
+                              DLT698_DAR_TEMPORARY_FAILURE);
+    assert_slave_get_4000_bytes(&src, NULL, t_new);
+
+    clock_state.fail_set = 0;
+    assert_slave_set_4000_dar(&src, NULL, set_bad, sizeof(set_bad), DLT698_DAR_TYPE_MISMATCH);
+    assert_slave_get_4000_bytes(&src, NULL, t_new);
+
+    fake_record_t ro;
+    memset(&ro, 0, sizeof(ro));
+    static const uint16_t ro_ois[] = {0x4000};
+    ro.acl_len = build_acl(ro.acl, ro_ois, 1);
+    edge_slave_source_ops_t ro_src;
+    memset(&ro_src, 0, sizeof(ro_src));
+    ro_src.object_list = fake_object_list;
+    ro_src.resolve_axdr = dcu_north_resolve_axdr;
+    ro_src.accept_axdr = dcu_north_accept_axdr;
+    assert_slave_set_4000_dar(&ro_src, &ro, set_later, sizeof(set_later), DLT698_DAR_DENIED);
+    assert_slave_get_4000_bytes(&src, NULL, t_new);
+    (void)t_later;
+
+    dcu_698_object_model_reset();
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_get_request_layout),
@@ -1898,6 +2020,7 @@ int main(void) {
         cmocka_unit_test(test_slave_set_read_only_is_denied),
         cmocka_unit_test(test_slave_rejects_over_cap_object_list),
         cmocka_unit_test(test_slave_rejects_acl_method_pool_overflow),
+        cmocka_unit_test(test_slave_set_4000_a2_dar_contract),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

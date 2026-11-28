@@ -136,7 +136,7 @@ static void _slave_close_cb(uv_handle_t *handle) {
 
 static void _slave_detach(bus_engine_t *self) {
     slave_priv_t *priv = (slave_priv_t *)self->user_data;
-    if (priv->io) priv->io->ops->enable_read(priv->io, false);
+    priv->io = NULL;
     if (!uv_is_closing((uv_handle_t *)&priv->timer)) {
         uv_timer_stop(&priv->timer);
         uv_close((uv_handle_t *)&priv->timer, _slave_close_cb);

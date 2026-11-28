@@ -241,7 +241,8 @@ static stage_ret_t _logger_proc(pipeline_stage_t* stage, pipe_msg_t* ev) {
 
             dcu_event_record_t* new_rec = &evt->records[0];
             memset(new_rec, 0, sizeof(*new_rec));
-            new_rec->index = (uint16_t)(evt->record_count + 1);
+            new_rec->index =
+                (evt->record_count > 0) ? (uint16_t)(evt->records[1].index + 1u) : 1u;
             new_rec->slot_id = ev->device_id;
             new_rec->snapshot_value = actual_val;
             new_rec->is_active = !is_recover;

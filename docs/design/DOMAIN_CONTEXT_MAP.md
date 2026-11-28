@@ -1,8 +1,8 @@
 # 领域上下文图与聚合清单
 
-状态：2026-11-13。依据：`cmd/iems/CONTEXT.md`、`cmd/dcu/CONTEXT.md`、
-`cmd/smart_box/CONTEXT.md`、`docs/design/COMPONENT_CLASSIFICATION.md`、ADR-0008/0010/0011，
-以及当前代码里的仓储、端口和事件落点。
+状态：2026-11-27。依据：`cmd/iems/CONTEXT.md`、`cmd/dcu/CONTEXT.md`、
+`cmd/smart_box/CONTEXT.md`、`docs/design/COMPONENT_CLASSIFICATION.md`、ADR-0008/0010/0011/0013–0017，
+以及当前代码里的仓储、端口、事件落点与 `formal/manifest/dcu.tsv`。
 
 ## 1. 上下文图
 
@@ -14,9 +14,10 @@
 | 流分析 | iEMS/DCU/SmartBox | core/supporting | `modules/edge_stream` | `Pipeline` |
 | 北向与 SnF | 三个产品 | supporting | `modules/edge_north`、`adapters/mqtt_transport` | `Subscription`、`SnfRecord` |
 | 访问控制 | 三个产品 | supporting | `modules/edge_mgmt`（grant/secret）、`modules/edge_security_policy` | `Grant`、`Policy` |
-| 台区与线损 | DCU | core | `cmd/dcu` | `DistributionArea` |
-| 四遥测控 | DCU | core | `cmd/dcu` | `TelecontrolUnit` |
-| 停电与 SOE | DCU | core | `cmd/dcu` | `OutageDetector`、`SOERecord` |
+| 台区与线损 | DCU | core | `cmd/dcu`（`dcu_node`、`dcu_topology_lineloss`、`dcu_topology_phase_id`） | `DistributionArea`（代码载体 `dcu_node_t`） |
+| 四遥测控 | DCU | core | `cmd/dcu`（`dcu_peripheral_telecontrol`、`dcu_load_control`） | `TelecontrolUnit`（`dcu_telecontrol_manager_t`） |
+| 停电与 SOE | DCU | core | `cmd/dcu`（`dcu_outage_detector`、`dcu_soe_event_engine`、`dcu_event_monitor`） | `OutageDetector`、`SOERecord` |
+| 698 规约与北向从站 | DCU | core | `cmd/dcu/dcu_698_*.c`、`cmd/dcu/dcu_north_adapter.c`、`adapters/io_drivers/src/driver_dlt698.c`、`foundation/src/protocol/dlt698_codec.c` | `dcu_698_object_t` 对象表、Class 20（`0x4400`）会话 ACL |
 | 智能配电箱 | SmartBox | core | `cmd/smart_box` | `SmartPanel` |
 | 智能微断 | SmartBox | core | `cmd/smart_box` | `CircuitBreaker` |
 | 操作授权 | SmartBox | supporting | `cmd/smart_box`（双授权流程）、`web`（确认 UI） | `ControlOperation`（领域命名待确认） |
@@ -44,9 +45,10 @@
 
 | 聚合根 | 实体/值对象 | 不变量 |
 |---|---|---|
-| `DistributionArea` | `transformer`、`branches[16]` | 线损 = 供入 − 供出；分支拓扑与相位映射唯一 |
-| `TelecontrolUnit` | YX/YK/YC/YT | 遥控双确认与闭锁；遥信防抖；遥调档位范围 |
+| `DistributionArea`（`dcu_node_t`） | `transformer`、`branches[16]`、`dcu_inventory_t` | 线损 = 供入 − 供出；分支拓扑与相位映射唯一 |
+| `TelecontrolUnit`（`dcu_telecontrol_manager_t`） | YX/YK/YC/YT | 遥控双确认与闭锁；遥信防抖；遥调档位范围 |
 | `OutageDetector` / `SOERecord` | 事件类型、微秒时间戳、前后快照 | 停电捕获不丢；SOE 顺序与快照一致 |
+| `DLT698 对象模型与会话 ACL` | `dcu_698_object_t`（132 行）、Class 20 ACL（126 对象）、`dcu_value_t` | 从站请求先经 Class 20 ACL（未授权 DAR 3）再经对象掩码（DAR 4/5/6）；帧解码边界与 HCS/FCS 拒绝由 `formal/manifest/dcu.tsv` CBMC 证明 |
 
 ### SmartBox
 
@@ -69,6 +71,9 @@
 | 北向 SnF | `snf_store_port_t` | `snf_sqlite_adapter` |
 | 流水线配置与状态 | `pipeline_config_port_t`、`stream_sqlite_port_t` | SQLite 适配器 |
 | 遥测历史 | `edge_telemetry_store_t` | `edge_infra` 存储实现 |
+| DCU 运行存储（最新值/冻结/事件/档案） | `dcu_storage_t`（`cmd/dcu/dcu_storage.h`） | `cmd/dcu/dcu_storage.c`（SQLite） |
+| DCU 698 任务/方案/上报/规则存储 | `dcu_task_store`、`dcu_scheme_store`、`dcu_report_scheme_store`、`dcu_rule_store` | `cmd/dcu/dcu_*_store.c`（SQLite） |
+| DCU 698 Class 8 参数 | `dcu_param_store_t`（`cmd/dcu/dcu_698_param.h`） | `cmd/dcu/dcu_storage.c`（`dcu_params` SQLite 适配） |
 | 注册表快照 | 文件发布，不是仓储 | `edge_registry_snapshot_publish()` 生成 `gen-<N>.json` |
 
 ## 4. 领域事件
@@ -81,7 +86,7 @@
 | 访问控制 | grant approved/revoked/inherited、publisher trust recorded | `edge_authz` |
 | 时间 | trust changed（TRUSTED/DEGRADED/UNTRUSTED） | `edge_time_trust`、`/api/v1/system/time` |
 | 流分析 | pipeline loaded/replaced、stage fault | `stream_engine` |
-| DCU | outage detected、SOE recorded、topology identified、line loss abnormal | `dcu_outage_detector`、`dcu_event_monitor`、`dcu_inventory` |
+| DCU | outage detected、SOE recorded、topology identified、line loss abnormal、698 REPORT.notification | `dcu_outage_detector`、`dcu_soe_event_engine`、`dcu_event_monitor`、`dcu_topology_lineloss`、`dcu_inventory`、`dcu_698_report` |
 | SmartBox | fire risk warning、breaker operation、double auth approved | `cmd/smart_box`、双授权流程 |
 
 标为“领域事件”的条目是聚合状态变化的对外事实；没有事件总线的部分由仓储写入和
@@ -100,6 +105,9 @@ REST/快照回调承担通知，后续要加事件总线时从这里取清单。
 | `stream_bus_port_t` | `modules/edge_stream/include/stream_engine.h` | DataHub | 流引擎输入输出 |
 | `nb_source_ops_t` | `modules/edge_north/include/northbound_mgr.h` | 遥测/事件源 | 北向读取源，输出端口 |
 | `snf_store_port_t` | `modules/edge_north/include/snf_manager.h` | `SnfRecord` | SnF 持久化 |
+| `edge_slave_source_ops_t` | `foundation/include/edge_slave_plane.h` | DCU 698 从站（`dcu_north_adapter`） | 从站标量/A-XDR/ACTION/Record/Report/Class 20 ACL 统一取数收数端口（ADR-0013–0017） |
+| `dcu_param_store_t` | `cmd/dcu/dcu_698_param.h` | DCU Class 8 参数 | 参数持久化端口，隔离 SQLite 存储 |
+| `dcu_clock_port_t` | `cmd/dcu/dcu_clock_port.h` | DCU 时钟对象（`0x4000` A2） | 系统时钟读写端口 |
 | `edge_driver_session_port_t` | `foundation/include` | `DeviceSession` | 驱动生命周期 |
 | `edge_driver_registry_port_t` | `foundation/include` | `DeviceSession` | 驱动注册 |
 | `edge_params_store_t` | `modules/edge_core/include/edge_params.h` | 参数配置 | 配置上下文仓储 |

@@ -49,6 +49,9 @@ static const acl_attr_t k_attrs_f209[] = {{2, 1}, {5, 1}, {6, 1}};
 static const acl_attr_t k_attrs_f20c[] = {{2, 1}, {4, 1}, {5, 1}};
 static const acl_attr_t k_attrs_4000[] = {{2, 3}, {3, 3}, {4, 3}};
 static const acl_attr_t k_attrs_param[] = {{2, 3}};
+/* 表142：Class 7 事件对象定义 A1..A10，产品无事件生产者，全部只读广告、不广告方法。 */
+static const acl_attr_t k_attrs_class7_event[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1},
+                                                  {6, 1}, {7, 1}, {8, 1}, {9, 1}, {10, 1}};
 /* A6 是只读记录表：写路径只接受 A11/A12，ACL 不能把 A6 广告成可写（能力与广告必须一致）。
  * A8/A9 的 mask 关闭由门面回 DAR 5；ACL 保留可写让该分类可达。 */
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1},  {4, 1},  {5, 1},  {6, 1}, {8, 3},
@@ -99,6 +102,8 @@ static const uint8_t k_methods_pulse[] = {1, 2, 3, 4};
 static const uint8_t k_methods_display[] = {1, 2, 3, 4, 5, 6};
 static const uint8_t k_methods_freeze[] = {3, 4, 5, 7, 8};
 static const acl_attr_t k_attrs_8000[] = {{2, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_8001[] = {{2, 1}, {3, 1}, {4, 1}, {5, 1}};
+static const acl_attr_t k_attrs_ctrl_a2[] = {{2, 1}};
 static const uint8_t k_methods_8000[] = {127, 128, 129, 130, 131};
 static const uint8_t k_methods_6000[] = {127, 128, 129, 130, 131, 132, 133, 134};
 static const uint8_t k_methods_6002[] = {127, 128, 129};
@@ -116,7 +121,10 @@ static const acl_object_t k_objects[] = {
     {0x2000, k_attrs_2000, 2, NULL, 0},           {0x2001, k_attrs_2001, 2, NULL, 0},
     {0x2004, k_attrs_2004, 2, NULL, 0},           {0x200A, k_attrs_200A, 2, NULL, 0},
     {0x200F, k_attrs_200F, 2, NULL, 0},           {0x3000, k_attrs_event, 11, NULL, 0},
-    {0x3005, k_attrs_event, 11, NULL, 0},         {0x5000, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5001, k_attrs_freeze, 2, k_methods_freeze, 5},
+    {0x3005, k_attrs_event, 11, NULL, 0},
+    {0x3009, k_attrs_class7_event, 10, NULL, 0},  {0x300C, k_attrs_class7_event, 10, NULL, 0},
+    {0x3011, k_attrs_class7_event, 10, NULL, 0},  {0x3013, k_attrs_class7_event, 10, NULL, 0},
+    {0x5000, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5001, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5002, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5003, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5004, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5005, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5006, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5007, k_attrs_freeze, 2, k_methods_freeze, 5},
@@ -178,7 +186,16 @@ static const acl_object_t k_objects[] = {
     {0x4517, k_attrs_ethernet, 5, k_methods_comm_reset, 1},
     {0xF300, k_attrs_display, 3, k_methods_display, 6},
     {0xF301, k_attrs_display, 3, k_methods_display, 6},
-    {0x8000, k_attrs_8000, 3, k_methods_8000, 5},         {0xF200, k_attrs_f200, 3, NULL, 0},
+    {0x8000, k_attrs_8000, 3, k_methods_8000, 5},
+    {0x8001, k_attrs_8001, 4, NULL, 0},
+    {0x8100, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8101, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8102, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x8103, k_attrs_ctrl_a2, 1, NULL, 0},
+    {0x810E, NULL, 0, NULL, 0},
+    {0x810F, NULL, 0, NULL, 0},
+    {0x8110, NULL, 0, NULL, 0},
+    {0xF200, k_attrs_f200, 3, NULL, 0},
     {0xF201, k_attrs_f2, 1, NULL, 0},             {0xF202, k_attrs_f2, 1, NULL, 0},
     {0xF203, k_attrs_f203, 2, NULL, 0},           {0xF204, k_attrs_f203, 2, NULL, 0},
     {0xF205, k_attrs_f2, 1, NULL, 0},             {0xF206, k_attrs_f203, 2, NULL, 0},

@@ -104,7 +104,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    assert_int_equal(dcu_698_object_count(), 131);
+    assert_int_equal(dcu_698_object_count(), 135);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);
@@ -804,6 +804,34 @@ static void test_class18_file_rows_are_empty(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
+static void test_class7_event_rows_are_empty(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller);
+
+    /* 表142/表A.4：Class 7 定义 A1..A10、方法 1/2/4/5（无 3）。
+     * 3009/300C/3011/3013 只广告对象存在性，无事件生产者。 */
+    static const uint16_t ois[] = {0x3009, 0x300C, 0x3011, 0x3013};
+    static const uint8_t defined_methods[] = {1, 2, 4, 5};
+    for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
+        const dcu_698_object_t *obj = dcu_698_find(ois[i]);
+        assert_non_null(obj);
+        assert_int_equal(obj->class_id, IC_EVENT);
+        assert_mask_matches(obj->attr_mask, NULL, 0);
+        assert_mask_matches(obj->method_mask, NULL, 0);
+        for (size_t m = 0; m < sizeof(defined_methods) / sizeof(defined_methods[0]); m++) {
+            assert_int_equal(dcu_698_call(MK_OMD(ois[i], defined_methods[m]), NULL, NULL),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_698_call(MK_OMD(ois[i], 3), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
+        assert_int_equal(dcu_698_call(MK_OMD(ois[i], 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
+    }
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
 static void test_reset_returns_to_uninitialized(void **state) {
     (void)state;
     dcu_inventory_t inv;
@@ -854,6 +882,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_class19_devmgr_rows_are_empty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class23_group_rows_are_empty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class18_file_rows_are_empty, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_class7_event_rows_are_empty, setup, teardown),
         cmocka_unit_test_setup_teardown(test_reset_returns_to_uninitialized, setup, teardown),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);

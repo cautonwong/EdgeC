@@ -1,0 +1,10 @@
+ acceptance/dcu/tests/test_dcu_northbound.py |  14 +++-
+ ci/mutation_guards.tsv                      |   1 +
+ docs/design/DCU_698_OBJECT_MODEL.md         |   9 ++-
+ docs/evidence/DCU-P3-12/comments.md         |  11 +++
+ docs/evidence/DCU-P3-12/spec.md             |  43 ++++++++++
+ docs/evidence/DCU-P3-12/summary.md          |  22 +++++
+ docs/evidence/DCU-P3-12/tests.log           |  29 +++++++
+ tests/test_dcu_698_param.c                  |   4 +
+ tests/test_driver_dlt698.c                  | 121 ++++++++++++++++++++++++++++
+ 9 files changed, 247 insertions(+), 7 deletions(-)

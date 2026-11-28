@@ -2168,19 +2168,25 @@ static void test_archive_config_short_buffer_dar2(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-/* 目录里 Class 7 的 OI（3009..）与 Class 24 未实现的 300B 都没有对象实例；
- * GET 必须回 DAR 6，不能凭空造事件记录。 */
+/* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。
+ * Class 24 未实现的 300B 仍无对象实例：GET 必须回 DAR 6，不能凭空造事件记录。 */
 static void test_event_catalog_ois_without_instance_dar6(void **state) {
     (void)state;
     dcu_698_object_model_reset();
     init_product_model();
-    const uint32_t oads[] = {0x30090200u, 0x300C0200u, 0x30110200u, 0x30130200u, 0x300B0200u};
+    const uint16_t class7_ois[] = {0x3009u, 0x300Cu, 0x3011u, 0x3013u};
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
-    for (size_t i = 0; i < sizeof(oads) / sizeof(oads[0]); i++) {
-        assert_int_equal(dcu_north_resolve_axdr(NULL, oads[i], buf, sizeof(buf), &len),
-                         EDGE_SLAVE_SRC_NOT_FOUND);
+    for (size_t i = 0; i < sizeof(class7_ois) / sizeof(class7_ois[0]); i++) {
+        uint32_t oad_a2 = ((uint32_t)class7_ois[i] << 16) | 0x0200u;
+        uint32_t oad_a11 = ((uint32_t)class7_ois[i] << 16) | 0x0B00u;
+        assert_int_equal(dcu_north_resolve_axdr(NULL, oad_a2, buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_resolve_axdr(NULL, oad_a11, buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
     }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, 0x300B0200u, buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_NOT_FOUND);
 }
 
 static void test_class13_readonly_dar(void **state) {

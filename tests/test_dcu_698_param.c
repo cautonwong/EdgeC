@@ -190,6 +190,7 @@ static void test_datetime_attrs_and_ranges(void **state) {
 
     const uint8_t bad_month[] = {0x1C, 0x07, 0xE8, 0x0D, 0x06, 0x07, 0x08, 0x09};
     const uint8_t bad_hour[] = {0x1C, 0x07, 0xE8, 0x05, 0x06, 0x18, 0x07, 0x08};
+    const uint8_t wrong_tag[] = {0x11, 0x01};
     uint8_t trailing[sizeof(when) + 1];
     memcpy(trailing, when, sizeof(when));
     trailing[sizeof(when)] = 0x00;
@@ -197,9 +198,12 @@ static void test_datetime_attrs_and_ranges(void **state) {
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), bad_hour, sizeof(bad_hour)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
+    assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), wrong_tag, sizeof(wrong_tag)),
+                     EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_param_accept_axdr(mk_oad(0x4000, 2), trailing, sizeof(trailing)),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(g_clock.sets, 1);
+    assert_encode(mk_oad(0x4000, 2), when, sizeof(when));
 
     g_clock.fail_set = 1;
     const uint8_t later[] = {0x1C, 0x07, 0xEA, 0x02, 0x03, 0x04, 0x05, 0x06};
