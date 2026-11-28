@@ -767,20 +767,35 @@ static void test_class19_devmgr_rows_are_empty(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    /* 表178：Class 19 定义 A1..A10、方法 1..6；产品没有设备管理/复位/初始化端口，
-     * 行只广告存在性。4307..4309 的 OI 专属方法 127..129 由标准定义、无处理器。 */
-    static const uint16_t ois[] = {0x4300, 0x4307, 0x4308, 0x4309};
-    for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
-        const dcu_698_object_t *obj = dcu_698_find(ois[i]);
+    /* 表178：Class 19 定义 A1..A10、方法 1..6；4300 接入 A2..A5 与 M1/M3/M4/M5/M6，
+     * 4307..4309 仍无端口，空掩码回 DAR 5。 */
+    const uint8_t dm_attrs[] = {2, 3, 4, 5};
+    const uint8_t dm_methods[] = {1, 3, 4, 5, 6};
+    const dcu_698_object_t *dm = dcu_698_find(0x4300);
+    assert_non_null(dm);
+    assert_int_equal(dm->class_id, 19);
+    assert_mask_matches(dm->attr_mask, dm_attrs, 4);
+    assert_mask_matches(dm->method_mask, dm_methods, 5);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 1), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 2), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 4), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 3), NULL, NULL), 0);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 5), NULL, NULL), 0);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 6), NULL, NULL), 0);
+    assert_int_equal(dcu_698_call(MK_OMD(0x4300, 7), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
+
+    static const uint16_t sub_ois[] = {0x4307, 0x4308, 0x4309};
+    for (size_t i = 0; i < sizeof(sub_ois) / sizeof(sub_ois[0]); i++) {
+        const dcu_698_object_t *obj = dcu_698_find(sub_ois[i]);
         assert_non_null(obj);
         assert_int_equal(obj->class_id, 19);
         assert_mask_matches(obj->attr_mask, NULL, 0);
         assert_mask_matches(obj->method_mask, NULL, 0);
         for (uint8_t method = 1; method <= 6; method++) {
-            assert_int_equal(dcu_698_call(MK_OMD(ois[i], method), NULL, NULL),
+            assert_int_equal(dcu_698_call(MK_OMD(sub_ois[i], method), NULL, NULL),
                              EDGE_SLAVE_SRC_CLASS_MISMATCH);
         }
-        assert_int_equal(dcu_698_call(MK_OMD(ois[i], 7), NULL, NULL),
+        assert_int_equal(dcu_698_call(MK_OMD(sub_ois[i], 7), NULL, NULL),
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
     for (uint16_t oi = 0x4307; oi <= 0x4309; oi++) {
@@ -802,18 +817,18 @@ static void test_class23_group_rows_are_empty(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    /* 表190：Class 23 定义 A1..A18、方法 1..5；产品没有总加组配置/总加值/滑差来源，
-     * 8 个总加组 OI 只广告对象存在性。 */
+    /* 表190：Class 23 定义 A1..A18、方法 1..5；2301..2308 接入 A2..A10 与 M3/M4/M5。 */
+    const uint8_t grp_attrs[] = {2, 3, 4, 5, 6, 7, 8, 9, 10};
+    const uint8_t grp_methods[] = {3, 4, 5};
     for (uint16_t oi = 0x2301; oi <= 0x2308; oi++) {
         const dcu_698_object_t *obj = dcu_698_find(oi);
         assert_non_null(obj);
         assert_int_equal(obj->class_id, 23);
-        assert_mask_matches(obj->attr_mask, NULL, 0);
-        assert_mask_matches(obj->method_mask, NULL, 0);
-        for (uint8_t method = 1; method <= 5; method++) {
-            assert_int_equal(dcu_698_call(MK_OMD(oi, method), NULL, NULL),
-                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+        assert_mask_matches(obj->attr_mask, grp_attrs, 9);
+        assert_mask_matches(obj->method_mask, grp_methods, 3);
+        assert_int_equal(dcu_698_call(MK_OMD(oi, 1), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_698_call(MK_OMD(oi, 2), NULL, NULL), EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_698_call(MK_OMD(oi, 5), NULL, NULL), 0);
         assert_int_equal(dcu_698_call(MK_OMD(oi, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
     }
 

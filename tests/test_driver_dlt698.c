@@ -1271,8 +1271,7 @@ static void test_slave_class19_devmgr_dar(void** state) {
 
     uint8_t* payload = NULL;
     uint8_t svc = 0;
-    /* 复位/执行/数据初始化/恢复出厂/事件初始化/需量初始化都广告，ACTION 到对象表
-     * 如实回 DAR 5，绝不运行。 */
+    /* M1/M2/M4 仍回 DAR 5，M3/M5/M6 走软件初始化回 DAR 0。 */
     for (uint8_t method = 1; method <= 6; method++) {
         uint8_t action_4300[9] = {0x07, 0x01, 0x05, 0x43, 0x00, method, 0x00, 0x00, 0x00};
         net_buf_t* out = net_buf_alloc(&pool, 0);
@@ -1280,7 +1279,10 @@ static void test_slave_class19_devmgr_dar(void** state) {
         assert_int_equal(run_slave_apdu(action_4300, sizeof(action_4300), &src, NULL, out), 0);
         decode_payload(out, &payload, &svc);
         assert_int_equal(svc, DLT698_SVC_ACTION_RES);
-        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        uint8_t want_dar = (method == 3 || method == 5 || method == 6)
+                               ? DLT698_DAR_SUCCESS
+                               : DLT698_DAR_OBJECT_CLASS_MISMATCH;
+        assert_int_equal(payload[4], want_dar);
         net_buf_unref(out);
     }
 
@@ -1612,7 +1614,7 @@ static void test_slave_class23_group_dar(void** state) {
 
     uint8_t* payload = NULL;
     uint8_t svc = 0;
-    /* 清空/执行/添加/批量添加/删除：全部无处理器，DAR 5，绝不执行总加配置。 */
+    /* M1/M2 回 DAR 5；M3/M4 空参回 DAR 7；M5 清空回 DAR 0。 */
     for (uint8_t method = 1; method <= 5; method++) {
         uint8_t action_2301[9] = {0x07, 0x01, 0x05, 0x23, 0x01, method, 0x00, 0x00, 0x00};
         net_buf_t* out = net_buf_alloc(&pool, 0);
@@ -1620,7 +1622,11 @@ static void test_slave_class23_group_dar(void** state) {
         assert_int_equal(run_slave_apdu(action_2301, sizeof(action_2301), &src, NULL, out), 0);
         decode_payload(out, &payload, &svc);
         assert_int_equal(svc, DLT698_SVC_ACTION_RES);
-        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        uint8_t want_dar = (method == 5)
+                               ? DLT698_DAR_SUCCESS
+                               : (method == 3 || method == 4) ? DLT698_DAR_TYPE_MISMATCH
+                                                              : DLT698_DAR_OBJECT_CLASS_MISMATCH;
+        assert_int_equal(payload[4], want_dar);
         net_buf_unref(out);
     }
 
