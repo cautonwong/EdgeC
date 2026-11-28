@@ -869,6 +869,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | D6-08a | 已合并 | `dcu/D6-08a-tsan-lock` | `6509c68f` | `docs/evidence/DCU-D6-08a/` | 合并提交 `6509c68f`；SQLite 内部锁序对三个 storage 用例定向抑制，第一方 pthread 锁序 A/B 仍会报；TSAN 目标 32/32、0 行 |
 | D2 到 D5 | 阻塞 | - | - | - | 依赖 COM 组件，见 11.3 B6 |
 | D6-08 | 已完成 | `main` | `6509c68f` | `docs/evidence/DCU-D6-08/` | ASAN 334/334、UBSAN 334/334（0 runtime error）、TSAN 334/334（0 行）、fanalyzer 3 known 0 new |
+| D6-09 | 部分合并 feat/dcu | `dcu/D6-09-coverage-floor` | `cfcfdd6d`（merge `acc14dd8`） | `docs/evidence/DCU-D6-09/` | Release/COVERAGE 构建 + ctest 380/380 + lcov 实测 `cmd/dcu` 6112/7039=86.8305%，新增下限 86.8（不高于实测）；`cmd` 拆分后 78.2% 仍高于 76.5%，无既有下限降低；`foundation/src/protocol` 无插桩（foundation 静态库未链接 `edge_common_interface`，0 个 `.gcno`），无法设下限，另立 D6-09b |
 | D6 | 未开始 | - | - | - | 随各阶段并行；D6-08 已完成 |
 | P3-4 | 已合并 feat/dcu | `dcu/P3-4-event-start-time` | `0fe4adca`（merge f02ed19e） | `docs/evidence/DCU-P3-4-EVENT-START/` | 恢复记录按 slot_id 匹配同表发生记录取 start_time；A14 仍每 OI；发生记录被窗口挤出时丢弃恢复并只更新 last_end_time；verifier 红 `2001000000000 != 1001000000000`→绿 45/45、验收 3 连绿、变异守卫 2 条（start-slot / archive-start）红/绿、ASAN 5/5、对抗评审两轮无功能性 finding 并补 archive/eviction 守卫；合并树 373/373、fanalyzer 5 known/0 new |
 | P3-7 | 已合并 feat/dcu | `dcu/P3-7-date-time-tag` | `169c4946`（merge 4ce21c74） | `docs/evidence/DCU-P3-7-DATE-TIME-TAG/` | 新增 `DLT698_TAG_DATE_TIME = 25`；codec/axdr/class_event 的 date_time/date_time_s 标签字面量全部换常量；codec 对象 sha256 前后一致 `eaa6b7c4…`；45/45、验收 3 连绿；纯等价清理无对抗评审 |
@@ -1028,6 +1029,8 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 3006 注释与 OAD 脚本硬编码（follow-up） | 已收口（2026-11-27，P3-13，`22fdfffc`）：`dcu_soe_event_engine.h:24` 注释订正为电能表断流事件；4 脚本 `0x20020200` 订正为电压相角；`OAD_REACTIVE_ENERGY` 偏差记入 `DCU_698_DEVIATIONS.md`；`test_dcu_698_rules.c` `strcpy→snprintf` | 文档/脚本误导与 `strcpy` 已消除，pytest 守卫防回归 | 已完成；证据 `docs/evidence/DCU-P3-13/` |
 | `k_oi_max_attr` 缺 `0x4000`/`0x8001` 与变量类越界 DAR 偏差 | D6-01 发现：`dcu_698_object_model.c` `k_oi_max_attr` 漏列 `0x4000`/`0x8001`；`dcu_698_var.c` `dcu_698_value_for_oad` 对变量类类外属性返回 `-20`（DAR 6）而非 `-23`（DAR 4） | 不影响正常路径；类外越界读变量类回 DAR 6 而非 DAR 4 | 另立缺陷任务修复并补正反测试 |
 | `dlt698_decode_data` 递归池 CBMC 不可解 | FORMAL-03 发现：`dlt698_decode_data` 对 `ARRAY/STRUCTURE` 递归调用并写 64 项 `_Thread_local` 池，CBMC 5.12 即使 `max_len=1` 也出现 `O(N^N)` SSA 爆炸 | 无法直接对 `dlt698_decode_data` 做有界符号证明 | 若需形式化验证，另立重构单将其改为显式栈有界迭代 |
+
+| foundation/src/protocol 覆盖率插桩 | 现有 `-DCOVERAGE=ON` 只给 `edge_common_interface` 加 `--coverage`；`edge_codec` 等 foundation 静态库不链接该目标，lcov 采集为 0 行，`check_coverage.py` 视为 MISSING | 该目录无法设下限，覆盖率门禁对其无约束 | `DCU-D6-09b`：给 foundation 静态库加插桩并重定 ALL/foundation 基线；不得写 0 行下限或下调既有下限 |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 
