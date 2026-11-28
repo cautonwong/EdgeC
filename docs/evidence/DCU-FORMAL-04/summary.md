@@ -64,7 +64,9 @@ ROOT_DIR=. FORMAL_OUT_DIR=build/formal/dcu CBMC_BIN=cbmc \
 - 临时副本删除 `    if (!_fits(b, sa, need, 0u)) return -1;` 后 CBMC 报 13 处 FAILURE，
   包括 `[main.assertion.4] dlt698_get_list: writes within storage: FAILURE`、
   `[main.assertion.2] ... -1 iff ...: FAILURE` 与 `_frame_seal_offsets.pointer_dereference.*`。
-- `ci/mutation_guards.tsv` 新增 `DCU-FORMAL-04-get-list-fits-guard`：同一 find/replace，
+- 守卫执行路径：manifest 的 negative 列由 `ci/scripts/check_formal_negative.sh --strict` 在
+  formal CI job 中运行；不再登记到 `ci/mutation_guards.tsv`——arch gate 的变异运行器会因镜像
+  没有 CBMC 把负向脚本误判为红，真正的负向门禁在 formal job。
   `build_target=edge_codec`，`test_cmd` 调上面的负向脚本。
   已验证红/绿：变异树 test rc≠0，还原后干净树 test rc=0；`git status` 复原干净。
 - `python3 ci/scripts/run_mutation_guards.py --selftest` 通过。
