@@ -530,8 +530,8 @@ int dlt698_encode_report_frame(const dlt698_addr_t *sa, const uint8_t *body, siz
     if (!_fits(b, sa, 2u, body_len)) return -1; /* svc + 时间标签 */
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
-    /* Ctrl=0xC3：DIR=1（服务器→客户机）、PRM=1（服务器发起）。 */
-    uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
+    /* 服务器发起的上报：DIR=1、PRM=0（5.1.3.2 表2），即 0x83。 */
+    uint8_t *start = _frame_begin(b, sa, 0x83, &len_ptr, &hcs_ptr);
     net_buf_simple_add_u8(b, DLT698_SVC_REPORT_NOTIFICATION);
     if (body_len > 0) net_buf_simple_add_mem(b, body, body_len);
     net_buf_simple_add_u8(b, DLT698_NO_TIME_TAG);
