@@ -18,6 +18,7 @@ add_library(dcu_app_lib STATIC
     dcu_698_class_acq.c
     dcu_698_class_event.c
     dcu_698_class_control.c
+    dcu_698_devmgr.c
     dcu_698_axdr.c
     dcu_698_scheme_axdr.c
     dcu_698_param.c
