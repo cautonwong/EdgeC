@@ -1484,19 +1484,24 @@ def test_master_configures_freeze_attr3():
 
 
 @case(id="D_00_00_02_000034",
-      clause="free: 8000 只读属性无可信继电器来源回 DAR 2；未进 ACL 的 Class 13 对象回 DAR 3",
+      clause="free: 8000/8001 只读属性无可信来源回 DAR 2；只读 ACL 写回 DAR 3；仅存在性对象 810E 回 DAR 3",
       tags=["北向"])
 @pytest.mark.contract
 def test_master_gets_honest_dar_for_control_status():
-    """A.9 的 8000 A2/A4/A5 需要继电器输出/状态来源，产品没有：必须回 DAR 2，不能造状态位。"""
-    for oad in (0x80000200, 0x80000400, 0x80000500):
+    """A.9 的 8000/8001 只读属性没有硬件/控制来源：GET 回 DAR 2，SET 回 DAR 3；810E 仅保留存在性，GET 回 DAR 3。"""
+    for oad in (0x80000200, 0x80000400, 0x80000500, 0x80010200):
         apdu = _exchange(dlt698.get_request(0x01, oad)).apdu
         assert apdu[0] == 0x85 and apdu[1] == 0x01, f"{oad:#x} 不是 GET 响应：{apdu.hex()}"
         assert apdu[3:7] == oad.to_bytes(4, "big"), f"{oad:#x} 响应 OAD 不一致"
         assert apdu[7] == 0, f"{oad:#x} 应回 DAR，不是数据：{apdu.hex()}"
         assert apdu[8] == 2, f"{oad:#x} 没有可信来源应回 DAR 2，收到 {apdu[8]}"
 
-    # 8001 在对象模型里，但不在 ACL（92/224）：主站访问被拒绝。
-    apdu = _exchange(dlt698.get_request(0x01, 0x80010200)).apdu
-    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"8001 不是 GET 响应：{apdu.hex()}"
-    assert apdu[7] == 0 and apdu[8] == 3, f"未进 ACL 的 8001 应回 DAR 3：{apdu.hex()}"
+    # 8001 在 Class 20 ACL 中只读：SET 必须被拒绝（DAR 3）。
+    apdu = _exchange(dlt698.set_request(0x02, 0x80010200, bytes([0x00]))).apdu
+    assert apdu[0] == 0x86 and apdu[1] == 0x01, f"8001 SET 不是 SET 响应：{apdu.hex()}"
+    assert apdu[7] == 3, f"只读 8001 SET 应回 DAR 3，收到 {apdu[7]}：{apdu.hex()}"
+
+    # 810E 仅保留对象存在性（0 属性）：主站 GET 属性被 ACL 拒绝（DAR 3）。
+    apdu = _exchange(dlt698.get_request(0x03, 0x810E0200)).apdu
+    assert apdu[0] == 0x85 and apdu[1] == 0x01, f"810E 不是 GET 响应：{apdu.hex()}"
+    assert apdu[7] == 0 and apdu[8] == 3, f"仅存在性的 810E 应回 DAR 3：{apdu.hex()}"
