@@ -1497,7 +1497,7 @@ def test_master_gets_honest_dar_for_control_status():
         assert apdu[8] == 2, f"{oad:#x} 没有可信来源应回 DAR 2，收到 {apdu[8]}"
 
     # 8001 在 Class 20 ACL 中只读：SET 必须被拒绝（DAR 3）。
-    apdu = _exchange(dlt698.set_request(0x02, 0x80010200, bytes([0x00]))).apdu
+    apdu = _exchange(_set_request(0x02, 0x80010200, bytes([0x00]))).apdu
     assert apdu[0] == 0x86 and apdu[1] == 0x01, f"8001 SET 不是 SET 响应：{apdu.hex()}"
     assert apdu[7] == 3, f"只读 8001 SET 应回 DAR 3，收到 {apdu[7]}：{apdu.hex()}"
 
