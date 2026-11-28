@@ -140,6 +140,102 @@ static void test_decode_truncates_long_string(void** state) {
     assert_int_equal(offset, 2 + 100);
 }
 
+static void test_decode_nested_within_max_depth(void** state) {
+    (void)state;
+    /* 1) Mixed multi-level container: ARRAY(2) -> [STRUCTURE(2){i8(-7), ARRAY(1){u16(2200)}}, str("ok")] */
+    uint8_t mixed[] = {
+        DLT698_TAG_ARRAY,     2,
+        DLT698_TAG_STRUCTURE, 2,
+        DLT698_TAG_INTEGER,   (uint8_t)(int8_t)-7,
+        DLT698_TAG_ARRAY,     1,
+        DLT698_TAG_LONG_UNSIGNED, 0x08, 0x98,
+        DLT698_TAG_VISIBLE_STRING, 2, 'o', 'k',
+    };
+    dlt698_data_t res;
+    uint16_t offset = 0;
+    assert_int_equal(dlt698_decode_data(mixed, sizeof(mixed), &offset, &res), 0);
+    assert_int_equal(offset, sizeof(mixed));
+    assert_int_equal(res.tag, DLT698_TAG_ARRAY);
+    assert_int_equal(res.val.container.count, 2);
+    assert_int_equal(res.val.container.items[0].tag, DLT698_TAG_STRUCTURE);
+    assert_int_equal(res.val.container.items[0].val.container.count, 2);
+    assert_int_equal(res.val.container.items[0].val.container.items[0].val.i8, -7);
+    assert_int_equal(res.val.container.items[0].val.container.items[1].tag, DLT698_TAG_ARRAY);
+    assert_int_equal(res.val.container.items[0].val.container.items[1].val.container.items[0].val.u16, 2200);
+    assert_int_equal(res.val.container.items[1].tag, DLT698_TAG_VISIBLE_STRING);
+    assert_string_equal((const char*)res.val.container.items[1].val.str.buf, "ok");
+
+    /* 2) Exact boundary: 8 nested containers wrapping a scalar */
+    uint8_t depth8[8 * 2 + 2];
+    for (int i = 0; i < 8; i++) {
+        depth8[2 * i] = (i % 2 == 0) ? DLT698_TAG_ARRAY : DLT698_TAG_STRUCTURE;
+        depth8[2 * i + 1] = 1;
+    }
+    depth8[16] = DLT698_TAG_UNSIGNED;
+    depth8[17] = 42;
+
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(depth8, sizeof(depth8), &offset, &res), 0);
+    assert_int_equal(offset, sizeof(depth8));
+    const dlt698_data_t* cur = &res;
+    for (int i = 0; i < 8; i++) {
+        assert_int_equal(cur->val.container.count, 1);
+        cur = &cur->val.container.items[0];
+    }
+    assert_int_equal(cur->tag, DLT698_TAG_UNSIGNED);
+    assert_int_equal(cur->val.u8, 42);
+}
+
+static void test_decode_rejects_excessive_depth(void** state) {
+    (void)state;
+    dlt698_data_t res;
+    uint16_t offset;
+
+    /* 9 nested containers wrapping a scalar (> DLT698_DECODE_MAX_DEPTH = 8) */
+    uint8_t depth9[9 * 2 + 2];
+    for (int i = 0; i < 9; i++) {
+        depth9[2 * i] = DLT698_TAG_ARRAY;
+        depth9[2 * i + 1] = 1;
+    }
+    depth9[18] = DLT698_TAG_UNSIGNED;
+    depth9[19] = 42;
+
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(depth9, sizeof(depth9), &offset, &res), -1);
+
+    /* 8 nested containers wrapping an empty container at level 9 */
+    uint8_t depth9_empty[9 * 2];
+    for (int i = 0; i < 8; i++) {
+        depth9_empty[2 * i] = DLT698_TAG_STRUCTURE;
+        depth9_empty[2 * i + 1] = 1;
+    }
+    depth9_empty[16] = DLT698_TAG_ARRAY;
+    depth9_empty[17] = 0;
+
+    offset = 0;
+    assert_int_equal(dlt698_decode_data(depth9_empty, sizeof(depth9_empty), &offset, &res), -1);
+}
+
+static void test_decode_rejects_pool_overflow_mid_decode(void** state) {
+    (void)state;
+    /* Outer ARRAY(2) -> [ARRAY(33) of NULL, ARRAY(33) of NULL] => 2 + 33 + 33 = 68 > 64 */
+    uint8_t buf[2 + 2 + 33 + 2 + 33];
+    size_t pos = 0;
+    buf[pos++] = DLT698_TAG_ARRAY;
+    buf[pos++] = 2;
+    for (int c = 0; c < 2; c++) {
+        buf[pos++] = DLT698_TAG_ARRAY;
+        buf[pos++] = 33;
+        for (int i = 0; i < 33; i++) {
+            buf[pos++] = DLT698_TAG_NULL;
+        }
+    }
+
+    dlt698_data_t res;
+    uint16_t offset = 0;
+    assert_int_equal(dlt698_decode_data(buf, (uint16_t)pos, &offset, &res), -1);
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_axdr_long_unsigned),
@@ -147,6 +243,9 @@ int main(void) {
         cmocka_unit_test(test_axdr_date_time_s),
         cmocka_unit_test(test_decode_rejects_truncated_tags),
         cmocka_unit_test(test_decode_truncates_long_string),
+        cmocka_unit_test(test_decode_nested_within_max_depth),
+        cmocka_unit_test(test_decode_rejects_excessive_depth),
+        cmocka_unit_test(test_decode_rejects_pool_overflow_mid_decode),
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }
