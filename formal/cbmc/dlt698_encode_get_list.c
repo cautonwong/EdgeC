@@ -1,7 +1,4 @@
 /*
- * CBMC harness for dlt698_encode_get_response_list
- * (foundation/src/protocol/dlt698_codec.c).
- *
  * The production codec and the net_buf writer helpers are included directly, so
  * the proof runs against the shipped write path. NDEBUG models the release
  * build: net_buf_simple_add's assert is not the defense, `_fits` is (see the
@@ -87,10 +84,8 @@ int main(void) {
     return 0;
 }
 
-/* Concrete reject paths: NULL arguments, a missing item payload, an item count
- * over the limit, and an undersized cap must all return -1. Every case returns
- * before the frame is sealed, so this entry needs no loop unwind. A successful
- * encode is covered by main's rc == 0 cover and its capacity assertions. */
+/* Every case returns before the frame is sealed, so this entry needs no loop
+ * unwind in function mode. */
 int get_list_reject(void) {
     uint8_t storage[64];
     net_buf_t out = { 0 };
