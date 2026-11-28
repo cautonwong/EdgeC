@@ -424,6 +424,10 @@ static dcu_698_object_t g_objects[] = {
     {.oi = 0x3011, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
     {.oi = 0x3013, .class_id = IC_EVENT, .scope = DCU_OBJ_SHARED},
 
+    /* 300B：Class 24 无功需量超限事件，标准定义 A5..A9。产品没有该事件引擎，空掩码
+     * 且不挂实例，resolver 按类定义如实回 DAR 5，不伪造事件记录或计数。 */
+    {.oi = 0x300B, .class_id = IC_SUB_EVENT, .scope = DCU_OBJ_SHARED},
+
     {.oi = OI_VOLTAGE_DROP,
      .class_id = IC_SUB_EVENT,
      .scope = DCU_OBJ_SHARED,

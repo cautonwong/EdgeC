@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "dcu_698_object_model.h"
+#include "dcu_698_axdr.h"
 #include "dcu_698_catalog_expected.h"
 #include "dcu_discovery.h"
 #include "dcu_inventory.h"
@@ -59,6 +60,7 @@ static const expected_object_t k_expected[] = {
     {0x7010, IC_COLLECTION, DCU_OBJ_SINGLETON, NULL, 0, NULL, 0},
     {OI_VOLTAGE_DROP, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
     {OI_OVER_CURRENT, IC_SUB_EVENT, DCU_OBJ_SHARED, k_attr_event, 7, k_method_1, 1},
+    {0x300B, IC_SUB_EVENT, DCU_OBJ_SHARED, NULL, 0, NULL, 0},
     {0x4000, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
     {0x4001, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
     {0x4002, IC_PARAM, DCU_OBJ_SINGLETON, k_attr_2_6000, 1, NULL, 0},
@@ -104,7 +106,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    assert_int_equal(dcu_698_object_count(), 135);
+    assert_int_equal(dcu_698_object_count(), 136);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);
@@ -486,6 +488,29 @@ static void test_event_class7_attr_numbers_are_not_served(void **state) {
             assert_int_equal(dcu_698_write(MK_OAD(ois[i], exposed_but_not_scalar[k]), &buf), -2);
         }
     }
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_class24_300b_empty_event_row(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller);
+
+    uint8_t buf[EDGE_SLAVE_AXDR_MAX];
+    size_t len = 0;
+    for (uint8_t attr = 5; attr <= 9; attr++) {
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(0x300B, attr), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x300B, 15), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    uint64_t out = 0;
+    assert_int_equal(dcu_698_read(MK_OAD(0x300B, 5), &out), -1);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -881,6 +906,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_event_class24_attr_writes, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_class7_attr_numbers_are_not_served, setup,
                                         teardown),
+        cmocka_unit_test_setup_teardown(test_class24_300b_empty_event_row, setup, teardown),
         cmocka_unit_test_setup_teardown(test_event_method1_resets_records, setup, teardown),
         cmocka_unit_test_setup_teardown(test_facade_and_table_api_agree, setup, teardown),
         cmocka_unit_test_setup_teardown(test_discovery_snapshot_and_clear, setup, teardown),

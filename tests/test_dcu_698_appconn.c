@@ -35,7 +35,7 @@ static void test_object_list_shape_and_capacity(void **state) {
     assert_true(len > 0 && len <= EDGE_SLAVE_AXDR_MAX);
     assert_int_equal(buf[0], 0x01); /* array */
     assert_int_equal(buf[1], 0x81); /* A-XDR 长格式 1 字节长度 */
-    assert_int_equal(buf[2], 130);
+    assert_int_equal(buf[2], 131);
     assert_int_equal(buf[3], 0x02); /* structure */
     assert_int_equal(buf[4], 0x02);
 
@@ -585,6 +585,19 @@ static void test_class7_event_acl_is_read_only(void **state) {
     }
 }
 
+static void test_class24_300b_acl_is_read_only(void **state) {
+    (void)state;
+    acl_rights_t acl;
+    assert_int_equal(_acl_rights_for(0x300B, &acl), 0);
+    assert_true(acl.found);
+    for (int attr = 0; attr < ACL_MAX_RIGHTS; attr++) {
+        bool want = attr >= 5 && attr <= 9;
+        assert_int_equal(acl.seen[attr], want);
+        if (want) assert_int_equal(acl.rights[attr], 1);
+    }
+    for (int method = 0; method < ACL_MAX_RIGHTS; method++) assert_false(acl.method_seen[method]);
+}
+
 static void test_class7_event_get_dar5_and_set_denied(void **state) {
     (void)state;
     static const uint16_t ois[] = {0x3009, 0x300C, 0x3011, 0x3013};
@@ -616,6 +629,7 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_class13_control_get_reaches_resolver_and_set_denied,
                                         setup_model, teardown_model),
         cmocka_unit_test(test_class7_event_acl_is_read_only),
+        cmocka_unit_test(test_class24_300b_acl_is_read_only),
         cmocka_unit_test_setup_teardown(test_class7_event_get_dar5_and_set_denied, setup_model,
                                         teardown_model),
         cmocka_unit_test(test_class22_object_masks_are_covered_by_acl),
