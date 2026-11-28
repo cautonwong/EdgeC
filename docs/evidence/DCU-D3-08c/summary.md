@@ -6,8 +6,9 @@
 
 - `cmd/dcu/dcu_698_object_model.c`：新增 `0x300B`（`IC_SUB_EVENT`=24，`DCU_OBJ_SHARED`，空属性/方法掩码，无实例）。
 - `cmd/dcu/dcu_698_appconn.c`：新增 `k_attrs_300b`，Class 20 ACL 只读广告 A5..A9、0 方法；对象数 130 -> 131。
-- `cmd/dcu/dcu_698_class_event.c`：`dcu_698_event_read`/`write`/`encode_axdr`/`execute` 先看掩码再看实例；
-  定义未广告 -> DAR 5，类外 -> DAR 4，不因实例为空回 DAR 6。
+- `cmd/dcu/dcu_698_class_event.c`：`dcu_698_event_encode_axdr` 先看掩码再看实例（北向 resolver 走这条路）；
+  定义未广告 -> DAR 5，类外 -> DAR 4，不因实例为空回 DAR 6。read/write/call 门面已经在调用处理器前检查掩码，
+  处理器内重复的掩码分支不可达，已删除（覆盖门禁暴露的死代码）。
 - `cmd/dcu/dcu_698_object_model.c`：对象表 135 -> 136 行。
 - 测试：`test_dcu_698_object_model.c` 新增 `test_class24_300b_empty_event_row`（resolver DAR 5/4）；
   `test_dcu_698_appconn.c` 新增 ACL 行断言；`test_driver_dlt698.c` 新增 `test_slave_class24_300b_dar`（GET DAR 5、SET DAR 3）；
