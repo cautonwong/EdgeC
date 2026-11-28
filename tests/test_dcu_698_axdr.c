@@ -2168,7 +2168,7 @@ static void test_archive_config_short_buffer_dar2(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-/* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。
+/* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。 */
 static void test_event_catalog_ois_without_instance(void **state) {
     (void)state;
     dcu_698_object_model_reset();
