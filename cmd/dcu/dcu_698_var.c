@@ -277,7 +277,6 @@ static int _var_encode_axdr(uint32_t oad, uint32_t device_id, uint8_t *buf, size
         *len = off;
         return 0;
     } else {
-        /* 变量类按类表分类：已定义未实现 -> DAR 5，类表外 -> DAR 4。 */
         return dcu_698_oi_defines_attr(oi, desc->class_id, attr_id)
                    ? EDGE_SLAVE_SRC_CLASS_MISMATCH
                    : EDGE_SLAVE_SRC_UNDEFINED;
@@ -337,7 +336,6 @@ int dcu_698_value_for_oad(uint32_t oad, dcu_value_t *out) {
     uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
     if (dcu_698_var_is_oi(oi)) {
         if (dcu_698_var_read_value(oad, out) == 0) return 0;
-        /* A2..A5 是数组/结构，标量通道回 DAR 7；其余按类定义回 DAR 5/4。 */
         if (attr_id >= 2 && attr_id <= 5) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
         const dcu_698_object_t *var_obj = dcu_698_find(oi);
         return var_obj ? _unadvertised_attr_rc(var_obj, attr_id) : EDGE_SLAVE_SRC_NOT_FOUND;

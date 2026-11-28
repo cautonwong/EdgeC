@@ -2414,14 +2414,11 @@ static void test_driver_get_unadvertised_and_undefined_dar(void **state) {
 
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
-    /* 0010 A6：Class 1 类表只到 A5，未定义 -> DAR 4。 */
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x0010, 6), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_UNDEFINED);
-    /* 0010 A1：Class 1 定义 A1，产品未实现 -> DAR 5。 */
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x0010, 1), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    /* 4000 A3：Class 8 类表只到 A2，表 A.5 为 4000 定义 A3/A4，对象只广告 A2。
-     * axdr 通道由参数模块回真实校时模式，这里走标量通道核对对象模型分类 -> DAR 5。 */
+    /* 4000 A3：Class 8 类表只到 A2，表 A.5 为 4000 定义 A3/A4，对象只广告 A2。 */
     edge_point_value_t pv;
     assert_int_equal(dcu_north_resolve_scalar(NULL, MK_OAD(0x4000, 3), NULL, 0, &pv),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
