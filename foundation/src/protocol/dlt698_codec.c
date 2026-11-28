@@ -774,8 +774,16 @@ int dlt698_encode_get_record_response_dar(const dlt698_addr_t *sa, uint8_t piid,
 /**
  * @brief 释放递归分配的 A-XDR 数据资源
  */
+#define DLT698_DECODE_MAX_DEPTH 8u
+
 static _Thread_local dlt698_data_t g_dlt698_item_pool[64];
 static _Thread_local size_t g_dlt698_pool_idx = 0;
+
+typedef struct {
+    dlt698_data_t *items;
+    uint8_t count;
+    uint8_t idx;
+} dlt698_decode_frame_t;
 
 void dlt698_free_data(dlt698_data_t *data) {
     (void)data;
@@ -783,159 +791,191 @@ void dlt698_free_data(dlt698_data_t *data) {
 }
 
 /**
- * @brief 通用 A-XDR 递归解码器实现 (核心逻辑)
+ * @brief 通用 A-XDR 迭代解码器实现 (显式有界栈)
  */
 int dlt698_decode_data(const uint8_t *buf, uint16_t len, uint16_t *offset, dlt698_data_t *res) {
-    if (!buf || !offset || !res || *offset >= len) return -1;
+    if (!buf || !offset || !res) return -1;
 
-    res->tag = (dlt698_data_tag_t)buf[(*offset)++];
+    dlt698_decode_frame_t stack[DLT698_DECODE_MAX_DEPTH];
+    uint8_t depth = 0;
+    size_t call_pool_start = g_dlt698_pool_idx;
+    int pool_wrapped = 0;
+    dlt698_data_t *cur = res;
 
-    switch (res->tag) {
-        case DLT698_TAG_NULL:
-            return 0;
+    for (;;) {
+        if (*offset >= len) return -1;
 
-        case DLT698_TAG_ARRAY:
-        case DLT698_TAG_STRUCTURE: {
-            if (*offset >= len) return -1;
-            uint8_t count = buf[(*offset)++];
-            if (count > 64) return -1;
-            res->val.container.count = count;
-            if (count > 0) {
-                if (g_dlt698_pool_idx + count > 64) {
-                    g_dlt698_pool_idx = 0;
+        cur->tag = (dlt698_data_tag_t)buf[(*offset)++];
+
+        switch (cur->tag) {
+            case DLT698_TAG_NULL:
+                break;
+
+            case DLT698_TAG_ARRAY:
+            case DLT698_TAG_STRUCTURE: {
+                if (depth >= DLT698_DECODE_MAX_DEPTH) return -1;
+                if (*offset >= len) return -1;
+                uint8_t count = buf[(*offset)++];
+                if (count > 64) return -1;
+                cur->val.container.count = count;
+                if (count > 0) {
+                    if (!pool_wrapped) {
+                        if (g_dlt698_pool_idx + count > 64) {
+                            if (count > call_pool_start) return -1;
+                            pool_wrapped = 1;
+                            g_dlt698_pool_idx = 0;
+                        }
+                    } else {
+                        if (g_dlt698_pool_idx + count > call_pool_start) return -1;
+                    }
+                    cur->val.container.items = &g_dlt698_item_pool[g_dlt698_pool_idx];
+                    g_dlt698_pool_idx += count;
+                    stack[depth].items = cur->val.container.items;
+                    stack[depth].count = count;
+                    stack[depth].idx = 0;
+                    depth++;
+                    cur = &stack[depth - 1].items[0];
+                    continue;
                 }
-                res->val.container.items = &g_dlt698_item_pool[g_dlt698_pool_idx];
-                g_dlt698_pool_idx += count;
-                for (uint8_t i = 0; i < count; i++) {
-                    int rc = dlt698_decode_data(buf, len, offset, &res->val.container.items[i]);
-                    if (rc != 0) return rc;
-                }
-            } else {
-                res->val.container.items = NULL;
+                cur->val.container.items = NULL;
+                break;
             }
-            return 0;
+
+            case DLT698_TAG_DOUBLE_LONG: {  // int32
+                if (*offset + 4 > len) return -1;
+                uint32_t x = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                             (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+                memcpy(&cur->val.i32, &x, sizeof(x));
+                *offset += 4;
+                break;
+            }
+
+            case DLT698_TAG_DOUBLE_LONG_UNSIGNED:  // uint32
+                if (*offset + 4 > len) return -1;
+                cur->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                               (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+                *offset += 4;
+                break;
+
+            case DLT698_TAG_OCTET_STRING:
+            case DLT698_TAG_VISIBLE_STRING: {
+                if (*offset >= len) return -1;
+                uint8_t slen = buf[(*offset)++];
+                if (*offset + slen > len) return -1;
+                uint8_t copy_len =
+                    (slen >= MAX_DLT698_STRING_LEN) ? (MAX_DLT698_STRING_LEN - 1) : slen;
+                cur->val.str.len = copy_len;
+                memcpy(cur->val.str.buf, &buf[*offset], copy_len);
+                cur->val.str.buf[copy_len] = '\0';
+                cur->val.str.ptr = cur->val.str.buf;
+                *offset += slen;
+                break;
+            }
+
+            case DLT698_TAG_INTEGER:  // int8
+                if (*offset >= len) return -1;
+                cur->val.i8 = (int8_t)buf[(*offset)++];
+                break;
+
+            case DLT698_TAG_UNSIGNED:  // uint8
+                if (*offset >= len) return -1;
+                cur->val.u8 = buf[(*offset)++];
+                break;
+
+            case DLT698_TAG_LONG:  // int16
+                if (*offset + 2 > len) return -1;
+                cur->val.i16 = (int16_t)((buf[*offset] << 8) | buf[*offset + 1]);
+                *offset += 2;
+                break;
+
+            case DLT698_TAG_LONG_UNSIGNED:  // uint16
+                if (*offset + 2 > len) return -1;
+                cur->val.u16 = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
+                *offset += 2;
+                break;
+
+            case DLT698_TAG_ENUM:
+                if (*offset >= len) return -1;
+                cur->val.u8 = buf[(*offset)++];
+                break;
+
+            case DLT698_TAG_BOOLEAN:
+                if (*offset >= len) return -1;
+                cur->val.u8 = buf[(*offset)++] ? 1 : 0;
+                break;
+
+            case DLT698_TAG_LONG64: {
+                if (*offset + 8 > len) return -1;
+                uint64_t x = 0;
+                for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
+                memcpy(&cur->val.i64, &x, sizeof(x));
+                *offset += 8;
+                break;
+            }
+
+            case DLT698_TAG_LONG64_UNSIGNED: {
+                if (*offset + 8 > len) return -1;
+                uint64_t x = 0;
+                for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
+                cur->val.u64 = x;
+                *offset += 8;
+                break;
+            }
+
+            case DLT698_TAG_FLOAT32: {
+                if (*offset + 4 > len) return -1;
+                uint32_t bits = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                                (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+                memcpy(&cur->val.f32, &bits, sizeof(bits));
+                *offset += 4;
+                break;
+            }
+
+            case DLT698_TAG_FLOAT64: {
+                if (*offset + 8 > len) return -1;
+                uint64_t bits = 0;
+                for (int i = 0; i < 8; i++) bits = (bits << 8) | buf[*offset + i];
+                memcpy(&cur->val.f64, &bits, sizeof(bits));
+                *offset += 8;
+                break;
+            }
+
+            case DLT698_TAG_DATE_TIME_S: {
+                if (*offset + 7 > len) return -1;
+                // 简单存储为原始字节或进一步解析
+                cur->val.str.len = 7;
+                memcpy(cur->val.str.buf, &buf[*offset], 7);
+                cur->val.str.ptr = cur->val.str.buf;
+                *offset += 7;
+                break;
+            }
+
+            case DLT698_TAG_OAD: {
+                /* 表24 的标记 81；内容见 6.3.3.5 表28：OI(2) | 属性及特征(1) | 元素索引(1)。 */
+                if (*offset + 4 > len) return -1;
+                cur->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
+                               (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
+                *offset += 4;
+                break;
+            }
+
+            default:
+                // 暂不支持的类型
+                return -2;
         }
 
-        case DLT698_TAG_DOUBLE_LONG: {  // int32
-            if (*offset + 4 > len) return -1;
-            uint32_t x = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
-                         (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
-            memcpy(&res->val.i32, &x, sizeof(x));
-            *offset += 4;
+        while (depth > 0) {
+            dlt698_decode_frame_t *top = &stack[depth - 1];
+            top->idx++;
+            if (top->idx < top->count) {
+                cur = &top->items[top->idx];
+                break;
+            }
+            depth--;
+        }
+        if (depth == 0) {
             return 0;
         }
-
-        case DLT698_TAG_DOUBLE_LONG_UNSIGNED:  // uint32
-            if (*offset + 4 > len) return -1;
-            res->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
-                           (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
-            *offset += 4;
-            return 0;
-
-        case DLT698_TAG_OCTET_STRING:
-        case DLT698_TAG_VISIBLE_STRING: {
-            if (*offset >= len) return -1;
-            uint8_t slen = buf[(*offset)++];
-            if (*offset + slen > len) return -1;
-            uint8_t copy_len = (slen >= MAX_DLT698_STRING_LEN) ? (MAX_DLT698_STRING_LEN - 1) : slen;
-            res->val.str.len = copy_len;
-            memcpy(res->val.str.buf, &buf[*offset], copy_len);
-            res->val.str.buf[copy_len] = '\0';
-            res->val.str.ptr = res->val.str.buf;
-            *offset += slen;
-            return 0;
-        }
-
-        case DLT698_TAG_INTEGER:  // int8
-            if (*offset >= len) return -1;
-            res->val.i8 = (int8_t)buf[(*offset)++];
-            return 0;
-
-        case DLT698_TAG_UNSIGNED:  // uint8
-            if (*offset >= len) return -1;
-            res->val.u8 = buf[(*offset)++];
-            return 0;
-
-        case DLT698_TAG_LONG:  // int16
-            if (*offset + 2 > len) return -1;
-            res->val.i16 = (int16_t)((buf[*offset] << 8) | buf[*offset + 1]);
-            *offset += 2;
-            return 0;
-
-        case DLT698_TAG_LONG_UNSIGNED:  // uint16
-            if (*offset + 2 > len) return -1;
-            res->val.u16 = (uint16_t)((buf[*offset] << 8) | buf[*offset + 1]);
-            *offset += 2;
-            return 0;
-
-        case DLT698_TAG_ENUM:
-            if (*offset >= len) return -1;
-            res->val.u8 = buf[(*offset)++];
-            return 0;
-
-        case DLT698_TAG_BOOLEAN:
-            if (*offset >= len) return -1;
-            res->val.u8 = buf[(*offset)++] ? 1 : 0;
-            return 0;
-
-        case DLT698_TAG_LONG64: {
-            if (*offset + 8 > len) return -1;
-            uint64_t x = 0;
-            for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
-            memcpy(&res->val.i64, &x, sizeof(x));
-            *offset += 8;
-            return 0;
-        }
-
-        case DLT698_TAG_LONG64_UNSIGNED: {
-            if (*offset + 8 > len) return -1;
-            uint64_t x = 0;
-            for (int i = 0; i < 8; i++) x = (x << 8) | buf[*offset + i];
-            res->val.u64 = x;
-            *offset += 8;
-            return 0;
-        }
-
-        case DLT698_TAG_FLOAT32: {
-            if (*offset + 4 > len) return -1;
-            uint32_t bits = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
-                            (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
-            memcpy(&res->val.f32, &bits, sizeof(bits));
-            *offset += 4;
-            return 0;
-        }
-
-        case DLT698_TAG_FLOAT64: {
-            if (*offset + 8 > len) return -1;
-            uint64_t bits = 0;
-            for (int i = 0; i < 8; i++) bits = (bits << 8) | buf[*offset + i];
-            memcpy(&res->val.f64, &bits, sizeof(bits));
-            *offset += 8;
-            return 0;
-        }
-
-        case DLT698_TAG_DATE_TIME_S: {
-            if (*offset + 7 > len) return -1;
-            // 简单存储为原始字节或进一步解析
-            res->val.str.len = 7;
-            memcpy(res->val.str.buf, &buf[*offset], 7);
-            res->val.str.ptr = res->val.str.buf;
-            *offset += 7;
-            return 0;
-        }
-
-        case DLT698_TAG_OAD: {
-            /* 表24 的标记 81；内容见 6.3.3.5 表28：OI(2) | 属性及特征(1) | 元素索引(1)。 */
-            if (*offset + 4 > len) return -1;
-            res->val.u32 = (uint32_t)buf[*offset] << 24 | (uint32_t)buf[*offset + 1] << 16 |
-                           (uint32_t)buf[*offset + 2] << 8 | buf[*offset + 3];
-            *offset += 4;
-            return 0;
-        }
-
-        default:
-            // 暂不支持的类型
-            return -2;
     }
 }
 
