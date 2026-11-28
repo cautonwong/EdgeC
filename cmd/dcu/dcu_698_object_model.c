@@ -540,11 +540,13 @@ bool dcu_698_class_defines_attr(uint8_t class_id, uint8_t attr_id) {
 
 /* 附录 A 的实例属性上限：7.3 类表没有这些号，但它们仍由标准为该 OI 定义。
  * 6002 的 A5..A10 在表 A.7，不在 7.3.11；F209/F20C 的 A5/A6 在表 A.13；
- * F000 的 A4/A5、F001/F002 的 A4 在表 A.11。 */
+ * F000 的 A4/A5、F001/F002 的 A4 在表 A.11；4000 的 A3/A4、8001 的 A3..A5 在表 A.5。 */
 static const struct {
     uint16_t oi;
     uint8_t max_attr;
 } k_oi_max_attr[] = {
+    {0x4000, 4},
+    {OI_POWER_SAVE, 5},
     {OI_METER_DISCOVERY, 10},
     {OI_LOCAL_MODULE, 6},
     {OI_WIRELESS_PRIVATE, 5},

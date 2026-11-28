@@ -206,6 +206,16 @@ static void test_discovery_oi_attributes_beyond_class_table(void **state) {
     assert_true(dcu_698_oi_defines_attr(OI_METER_DISCOVERY, IC_COLLECTION, 10));
     assert_false(dcu_698_oi_defines_attr(OI_METER_DISCOVERY, IC_COLLECTION, 11));
     assert_false(dcu_698_oi_defines_attr(OI_TASK_SCHEDULER, IC_ACQUISITION, 4));
+
+    /* 表 A.5：Class 8 类表只到 A2，但 4000 定义 A2..A4，8001 定义 A2..A5。 */
+    assert_false(dcu_698_class_defines_attr(IC_PARAM, 3));
+    assert_true(dcu_698_oi_defines_attr(0x4000, IC_PARAM, 3));
+    assert_true(dcu_698_oi_defines_attr(0x4000, IC_PARAM, 4));
+    assert_false(dcu_698_oi_defines_attr(0x4000, IC_PARAM, 5));
+    assert_true(dcu_698_oi_defines_attr(OI_POWER_SAVE, IC_PARAM, 3));
+    assert_true(dcu_698_oi_defines_attr(OI_POWER_SAVE, IC_PARAM, 4));
+    assert_true(dcu_698_oi_defines_attr(OI_POWER_SAVE, IC_PARAM, 5));
+    assert_false(dcu_698_oi_defines_attr(OI_POWER_SAVE, IC_PARAM, 6));
 }
 
 static void test_dar_classification_by_class_definition(void **state) {
