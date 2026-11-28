@@ -893,6 +893,9 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | DCU-D6-02b | 已合并 feat/dcu | `dcu/D6-02b-wire-vectors-neg` | `78f17949` | `docs/evidence/DCU-D6-02b/` | `test_dcu_698_wire_vectors.c` 扩 4 组负向与边界向量（坏 HCS/FCS、截断 SET/ACTION APDU、`n>DLT698_RCSD_MAX` + Selector 3/4/5、CONNECT/RELEASE 帧布局），17/17 通过、ASAN 绿 |
 | DCU-FORMAL-06 | 已合并 feat/dcu | `dcu/FORMAL-06-encode-responses` | `ec0a1854` | `docs/evidence/DCU-FORMAL-06/` | SET/ACTION/CONNECT/RELEASE 响应编码补齐 `_fits(...)` 尾空间守卫并完成 CBMC 5.12 证明（`proof` 0/3394、`cover` SATISFIED、`function` 0/3393、负向变异捕获越界）；`formal_manifest.py` 22 行全绿、`dcu|dlt698` 47/47 |
 | DCU-FORMAL-07 | 阻塞（记录） | `dcu/FORMAL-07-decode-data` | - | `docs/evidence/DCU-FORMAL-07/` | 迭代版 `dlt698_decode_data` 在 CBMC 5.12 `converting SSA` 阶段因 `g_dlt698_item_pool[64]` 指针写回超 60s 超时（`FORMAL_MAX_LEN=3` 亦超时），未放宽断言，已记 §12.5 |
+| DCU-D5-05b | 已合并 feat/dcu | `dcu/D5-05b-stat-engine` | `5ec2b31c` | `docs/evidence/DCU-D5-05b/` | Class 14/15/16（`2100..2124`）区间统计/累加平均/极值纯软件引擎 `dcu_698_stat.{h,c}` 落地并接入对象模型与 north adapter（A2 + M1/M3/M4），零动态内存；`test_dcu_698_stat` 4/4、`dcu|dlt698` 48/48、ASAN 绿 |
+| DCU-D4-09b | 已合并 feat/dcu | `dcu/D4-09b-group-engine` | `e0d6fa41` | `docs/evidence/DCU-D4-09b/` | Class 23 总加组（`2301..2308`）领域引擎 `dcu_698_group.{h,c}` 落地：成员增删清、加减/参与标志、15 样本环形滑差窗口、A2..A10 A-XDR 编码，零动态内存；`test_dcu_698_group` 5/5、ASAN 绿（待下一批接对象模型） |
+| DCU-D4-04b | 已合并 feat/dcu | `dcu/D4-04b-devmgr-engine` | `c49875d6` | `docs/evidence/DCU-D4-04b/` | Class 19 `4300` 设备管理软件面领域引擎 `dcu_698_devmgr.{h,c}` 落地：A2..A5 A-XDR 编码、M3/M5/M6 软件初始化端口分派、M1/M4 诚实 DAR 5，零动态内存；`test_dcu_698_devmgr` 6/6、ASAN 绿（待下一批接对象模型） |
 
 ### 12.3 本轮验收记录
 
@@ -1021,7 +1024,7 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | check_composition_root 路径子串 | 已修（2026-11-25 /correct 轮）：12 个守卫的 tests/fixtures 豁免改为 `c_source_scan.rel_scan_parts`/`skip_subtree` 相对扫描目标判断，fixture 模式用 `guard_baseline.is_selftest_fixture`；新增 `check_guard_path_independence.py` 正反夹具并登记 guard selftest（286/286） | 守卫不再随检出目录名变化（旧码在 `tests` 路径下会静默跳过、在 `guards` 路径下假红） | 已收口；规则见 AGENTS.md 规则表 |
 | F4 pending 容量饿死第二任务 | 已收口（2026-11-26，见 §12.2 F4）：容量内分批 + 执行身份；每任务每 tag 每执行恰好一次，6012 换方案只重开被改任务，熔断按整表访问结算 | 原缺口已消除；F4R 已补方案内容代际，`dcu_poller_get_scheme` 可变指针仍是 HOLD | 已完成；证据 `docs/evidence/DCU-F4/`、`docs/evidence/DCU-F4R/` |
 | F5 删表后迟到回调写错地址 | 已收口（2026-11-26，见 §12.2 F5）：档案 revision 成为访问与重试边界，读身份按快照落库与发布；迟到回调不再跨 revision 续发，slot 复用不再触发重试 | 原缺口已消除 | 已完成；证据 `docs/evidence/DCU-F5/` |
-| Class 14/15/16 统计生产者 | 对象行与只读 ACL 已就绪（D5-05），但无区间统计/累加平均/极值的运行期计算、存储与喂数；GET 回 DAR 5 | 统计值不可读 | 有数据源后补对象 mask、resolver 编码与验收值用例；另立任务 |
+| Class 14/15/16 统计生产者 | 已部分收口（2026-11-28，DCU-D5-05b，`5ec2b31c`）：`dcu_698_stat.{h,c}` 统计引擎与 `2100..2124` 对象模型/north adapter 接线已就绪，支持 `dcu_698_stat_ingest`、A2、M1/M3/M4 | 待接 `dcu_poller` 周期采样自动喂数 | 下一批接入 `dcu_poller` / `dcu_node` 周期样本喂数即可闭环 |
 | Class 17 显示配置生产者 | F300/F301 对象行与只读 ACL 已就绪（D5-06），但无轮显表、屏序号、显示时间、显示参数来源；GET 回 DAR 5 | 显示配置不可读、不可配 | 有显示配置来源后补对象 mask、resolver 编码与验收值用例；另立任务 |
 | Class 11 文件/脚本集合 producer | 7000/7010 对象行与只读 ACL 已就绪（D5-03），但无文件/脚本集合存储与元素来源（D4-06 未做）；7010 A2 与 7000 方法回 DAR 5 | 集合元素不可读、文件/脚本方法不可执行 | 有存储与 producer 后补对象 mask、resolver 编码与验收值用例；另立任务 |
 | Class 25/26 通信参数生产者 | 对象行/只读 ACL 与 4510 A5 平台物理单播 MAC 已就绪（D4-10）；无 APN/ICCID/IMSI/SIM 号码/信号强度/端口配置来源，4511–4517 无逐口映射 | 除 4510 A5 外全部 DAR 5；写与持久化不可用 | 有平台配置或存储后补逐口映射、写与持久化；另立任务 |

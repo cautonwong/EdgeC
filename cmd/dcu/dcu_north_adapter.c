@@ -63,16 +63,14 @@ int dcu_north_accept_action(void* ctx, uint32_t omd, const uint8_t* axdr, size_t
     if (oi == OI_METER_ARCHIVE) return dcu_698_accept_archive_action(omd, axdr, axdr_len);
     if (oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME || oi == OI_METER_DISCOVERY ||
         oi == OI_EVENT_SCHEME || oi == OI_TRANSPARENT_SCHEME || oi == OI_REPORT_SCHEME ||
-        oi == OI_RULE_LIBRARY || (oi >= 0x5000 && oi <= 0x5007) ||
-        dcu_698_stat_is_oi(oi))
+        oi == OI_RULE_LIBRARY || (oi >= 0x5000 && oi <= 0x5007) || dcu_698_stat_is_oi(oi))
         return dcu_698_accept_action_axdr(omd, axdr, axdr_len);
     if (oi != OI_REMOTE_CONTROL) return dcu_698_call(omd, axdr, NULL);
 
     dcu_action_param_t param = {0};
     int rc = dcu_698_decode_action_param(method, axdr, axdr_len, &param);
     if (rc != 0) {
-        LOG_WARN(LOG_CAT_NB, "DCU north ACTION OI=8000 method=%u：参数解码失败 rc=%d", method,
-                 rc);
+        LOG_WARN(LOG_CAT_NB, "DCU north ACTION OI=8000 method=%u：参数解码失败 rc=%d", method, rc);
         return rc;
     }
     return dcu_698_call(omd, &param, NULL);

@@ -236,47 +236,46 @@ static uint32_t _ti_to_seconds(uint8_t unit, uint16_t value) {
 }
 
 static int _skip_data_item(axdr_cursor_t *c, int depth) {
+    static const struct {
+        uint8_t tag;
+        uint8_t size;
+    } k_fixed_tags[] = {
+        {DLT698_TAG_NULL, 0},
+        {DLT698_TAG_BOOLEAN, 1},
+        {DLT698_TAG_INTEGER, 1},
+        {DLT698_TAG_UNSIGNED, 1},
+        {DLT698_TAG_ENUM, 1},
+        {DLT698_TAG_LONG, 2},
+        {DLT698_TAG_LONG_UNSIGNED, 2},
+        {DLT698_TAG_TI, 3},
+        {DLT698_TAG_DOUBLE_LONG, 4},
+        {DLT698_TAG_DOUBLE_LONG_UNSIGNED, 4},
+        {DLT698_TAG_FLOAT32, 4},
+        {DLT698_TAG_OAD, 4},
+        {DLT698_TAG_DATE_TIME_S, 7},
+        {DLT698_TAG_LONG64, 8},
+        {DLT698_TAG_LONG64_UNSIGNED, 8},
+        {DLT698_TAG_FLOAT64, 8},
+    };
     if (depth > 8) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     const uint8_t *tag_p = NULL;
     if (!_take(c, 1, &tag_p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
     uint8_t tag = *tag_p;
-    switch (tag) {
-        case DLT698_TAG_NULL:
-            return 0;
-        case DLT698_TAG_BOOLEAN:
-        case DLT698_TAG_INTEGER:
-        case DLT698_TAG_UNSIGNED:
-        case DLT698_TAG_ENUM:
-            return _take(c, 1, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_LONG:
-        case DLT698_TAG_LONG_UNSIGNED:
-            return _take(c, 2, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_DOUBLE_LONG:
-        case DLT698_TAG_DOUBLE_LONG_UNSIGNED:
-        case DLT698_TAG_FLOAT32:
-        case DLT698_TAG_OAD:
-            return _take(c, 4, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_TI:
-            return _take(c, 3, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_DATE_TIME_S:
-            return _take(c, 7, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_LONG64:
-        case DLT698_TAG_LONG64_UNSIGNED:
-        case DLT698_TAG_FLOAT64:
-            return _take(c, 8, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
-        case DLT698_TAG_ARRAY:
-        case DLT698_TAG_STRUCTURE: {
-            const uint8_t *cnt_p = NULL;
-            if (!_take(c, 1, &cnt_p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
-            for (uint8_t i = 0; i < *cnt_p; i++) {
-                int rc = _skip_data_item(c, depth + 1);
-                if (rc != 0) return rc;
-            }
-            return 0;
+    if (tag == DLT698_TAG_ARRAY || tag == DLT698_TAG_STRUCTURE) {
+        const uint8_t *cnt_p = NULL;
+        if (!_take(c, 1, &cnt_p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        for (uint8_t i = 0; i < *cnt_p; i++) {
+            int rc = _skip_data_item(c, depth + 1);
+            if (rc != 0) return rc;
         }
-        default:
-            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        return 0;
     }
+    for (size_t i = 0; i < sizeof(k_fixed_tags) / sizeof(k_fixed_tags[0]); i++) {
+        if (k_fixed_tags[i].tag == tag) {
+            return _take(c, k_fixed_tags[i].size, NULL) ? 0 : EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
+    }
+    return EDGE_SLAVE_SRC_TYPE_MISMATCH;
 }
 
 static int _take_oad(axdr_cursor_t *c, uint32_t *out) {
