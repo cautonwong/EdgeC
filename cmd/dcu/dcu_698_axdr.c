@@ -9,8 +9,11 @@
 
 #include "dcu_comm_info.h"
 #include "dcu_698_appconn.h"
+#include "dcu_698_devmgr.h"
+#include "dcu_698_group.h"
 #include "dcu_698_object_internal.h"
 #include "dcu_698_param.h"
+#include "dcu_698_stat.h"
 #include "dcu_698_var.h"
 #include "dcu_driver_adapter.h"
 #include "dcu_router.h"
@@ -510,6 +513,59 @@ static int _accept_discovery_action(uint32_t omd, const uint8_t *axdr, size_t ax
     return EDGE_SLAVE_SRC_UNDEFINED;
 }
 
+static int _take_group_tsa(axdr_cursor_t *c, uint8_t tsa[DCU_GROUP_TSA_MAX], uint8_t *tsa_len) {
+    const uint8_t *p = NULL;
+    if (!_take(c, 2, &p)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    if (p[0] != AXDR_TAG_TSA && p[0] != DLT698_TAG_OCTET_STRING)
+        return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    uint8_t len = p[1];
+    if (len < 2 || len > DCU_GROUP_TSA_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    const uint8_t *bytes = NULL;
+    if (!_take(c, len, &bytes)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    memcpy(tsa, bytes, len);
+    *tsa_len = len;
+    return 0;
+}
+
+static int _accept_group_action(uint32_t omd, uint8_t method, const uint8_t *axdr, size_t axdr_len) {
+    if (method == 5) {
+        if (!axdr || axdr_len == 0 || axdr[0] != DLT698_TAG_NULL ||
+            !_time_tag_absent(axdr, 1, axdr_len)) {
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
+        return dcu_698_call(omd, NULL, NULL);
+    }
+    if (!axdr || axdr_len == 0 || axdr_len > UINT16_MAX) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    axdr_cursor_t c = {.p = axdr, .len = axdr_len, .off = 0};
+    dcu_group_member_t member;
+    memset(&member, 0, sizeof(member));
+    int rc = 0;
+    if (method == 3) {
+        rc = _take_head(&c, DLT698_TAG_STRUCTURE, 3);
+        if (rc == 0) rc = _take_group_tsa(&c, member.tsa, &member.tsa_len);
+        if (rc == 0) rc = _take_u8(&c, DLT698_TAG_ENUM, &member.calc_flag);
+        if (rc == 0) rc = _take_u8(&c, DLT698_TAG_ENUM, &member.add_sub_flag);
+        if (rc == 0 && (member.calc_flag > 1 || member.add_sub_flag > 1)) {
+            rc = EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
+    } else if (method == 4) {
+        rc = _take_group_tsa(&c, member.tsa, &member.tsa_len);
+    } else {
+        return EDGE_SLAVE_SRC_CLASS_MISMATCH;
+    }
+    if (rc != 0) return rc;
+    if (!_time_tag_absent(axdr, c.off, c.len)) return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+    return dcu_698_call(omd, &member, NULL);
+}
+
+bool dcu_698_axdr_handles_action_oi(uint16_t oi) {
+    return oi == OI_TASK_SCHEDULER || oi == OI_NORMAL_SCHEME || oi == OI_METER_DISCOVERY ||
+           oi == OI_EVENT_SCHEME || oi == OI_TRANSPARENT_SCHEME || oi == OI_REPORT_SCHEME ||
+           oi == OI_RULE_LIBRARY || (oi >= 0x5000 && oi <= 0x5007) || dcu_698_stat_is_oi(oi) ||
+           (oi >= DCU_GROUP_OI_BASE && oi < DCU_GROUP_OI_BASE + DCU_GROUP_COUNT) ||
+           oi == OI_DEVICE_ELECTRIC;
+}
+
 int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_len) {
     const dcu_698_object_t *obj = NULL;
     int rc = dcu_698_check_call(omd, &obj);
@@ -561,6 +617,23 @@ int dcu_698_accept_action_axdr(uint32_t omd, const uint8_t *axdr, size_t axdr_le
         rc = dcu_698_freeze_decode_op(method, axdr, axdr_len, &op);
         if (rc != 0) return rc;
         return dcu_698_call(omd, &op, NULL);
+    }
+    if (dcu_698_stat_is_oi(oi)) {
+        dcu_stat_op_t op;
+        rc = dcu_698_stat_decode_op(oi, method, axdr, axdr_len, &op);
+        if (rc != 0) return rc;
+        return dcu_698_call(omd, &op, NULL);
+    }
+    if (oi >= DCU_GROUP_OI_BASE && oi < DCU_GROUP_OI_BASE + DCU_GROUP_COUNT) {
+        return _accept_group_action(omd, method, axdr, axdr_len);
+    }
+    if (oi == OI_DEVICE_ELECTRIC) {
+        if (method == 1 || method == 4) return dcu_698_call(omd, NULL, NULL);
+        if (!axdr || axdr_len == 0 || axdr[0] != DLT698_TAG_NULL ||
+            !_time_tag_absent(axdr, 1, axdr_len)) {
+            return EDGE_SLAVE_SRC_TYPE_MISMATCH;
+        }
+        return dcu_698_call(omd, NULL, NULL);
     }
     if (oi != OI_TASK_SCHEDULER) {
         return dcu_698_call(omd, NULL, NULL);
@@ -808,6 +881,30 @@ int dcu_north_resolve_axdr(void* ctx, uint32_t oad, uint8_t* buf, size_t cap, si
     }
     if (dcu_698_var_is_oi(oi)) {
         return dcu_698_var_encode_axdr(oad, buf, cap, len);
+    }
+    if (dcu_698_stat_is_oi(oi)) {
+        return dcu_698_stat_encode_axdr(oad, buf, cap, len);
+    }
+    if (oi >= DCU_GROUP_OI_BASE && oi < DCU_GROUP_OI_BASE + DCU_GROUP_COUNT) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id < 2 || attr_id > 10) {
+            return dcu_698_class_defines_attr(IC_GROUP, attr_id) ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                                                                 : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        uint8_t idx = (uint8_t)(oi - DCU_GROUP_OI_BASE);
+        return dcu_698_group_encode_attr(idx, attr_id, buf, cap, len) == 0
+                   ? 0
+                   : EDGE_SLAVE_SRC_TEMPORARY;
+    }
+    if (oi == OI_DEVICE_ELECTRIC) {
+        uint8_t attr_id = (uint8_t)((oad >> 8) & 0xFF);
+        if (attr_id < 2 || attr_id > 5) {
+            return dcu_698_class_defines_attr(IC_DEVICE_MGMT, attr_id)
+                       ? EDGE_SLAVE_SRC_CLASS_MISMATCH
+                       : EDGE_SLAVE_SRC_UNDEFINED;
+        }
+        return dcu_698_devmgr_encode_attr(attr_id, buf, cap, len) == 0 ? 0
+                                                                       : EDGE_SLAVE_SRC_TEMPORARY;
     }
     if (oi == OI_METER_ARCHIVE || oi == OI_ARCHIVE_UNIT) {
         return dcu_698_archive_encode_axdr(dcu_698_internal_inventory(), oad, buf, cap, len);

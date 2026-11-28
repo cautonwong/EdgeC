@@ -3,8 +3,8 @@
  * @brief Benchmark & E2E Verification for DCU Scale Polling & Request Pipeline (AEP-399 & AEP-401)
  *
  * Verifies:
- * 1. Benchmark: 4 buses x 500 meters x 3 OADs (2000 meters, 6000 OADs).
- *    Measures per-step latency and verifies P99 latency is bounded under 5ms.
+ * 1. Benchmark: 4 buses x 1024 meters x 3 OADs (4096 meters, 12288 OADs).
+ *    Measures per-step latency and verifies P99/Avg latency budgets under EDGE_PERF_GATE=1.
  * 2. E2E Request/MasterEngine Flow:
  *    encode_request -> io_executor -> decode_response -> datahub_write_shadow
  */
@@ -24,7 +24,7 @@
 #include "net_buf.h"
 
 #define NUM_BUSES 4
-#define METERS_PER_BUS 500
+#define METERS_PER_BUS 1024
 #define TOTAL_METERS (NUM_BUSES * METERS_PER_BUS)
 #define OADS_PER_METER 3
 
@@ -75,7 +75,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
     assert_int_equal(dcu_inventory_init(&inv), 0);
     assert_int_equal(dcu_poller_init(&poller), 0);
 
-    // 1. 注册 4 条总线 x 500 台电表 = 2000 台电表
+    // 1. 注册 4 条总线 x 1024 台电表 = 4096 台电表 (MAX_METERS)
     for (int b = 0; b < NUM_BUSES; b++) {
         edge_poll_policy_t policy = {
             .interval_ms = 0,
@@ -88,13 +88,14 @@ static void test_scale_benchmark_p99_latency(void** state) {
         for (int m = 0; m < METERS_PER_BUS; m++) {
             char addr[32];
             snprintf(addr, sizeof(addr), "M_%d_%04d", b, m);
-            dcu_inventory_add(&inv, addr, "dlt698", 9600, (uint8_t)b);
+            assert_int_equal(dcu_inventory_add(&inv, addr, "dlt698", 9600, (uint8_t)b), 0);
         }
     }
     assert_int_equal(inv.count, TOTAL_METERS);
+    assert_int_equal(inv.count, MAX_METERS);
 
     // 2. 配置 3 个 OAD 的周期方案
-    uint32_t csds[OADS_PER_METER] = {0x20000200, 0x20010200, 0x20020200}; // A/B/C 相电压
+    uint32_t csds[OADS_PER_METER] = {0x20000200, 0x20010200, 0x20040200}; // 698 电压 / 电流 / 有功功率
     assert_int_equal(dcu_poller_add_scheme(&poller, 1, 0, csds, OADS_PER_METER), 0);
     assert_int_equal(dcu_poller_add_task(&poller, 1, 0, 1), 0);
 
@@ -109,7 +110,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
 
     /* 3. 一步 = 每条通道提交一项就返回；随后 drain 把回调放完，让链推进到下一块表。
      *    这里量的是 step 本身的耗时，也就是它阻塞事件循环的时长。 */
-    const int total_steps = 400;   /* 4 通道 × 500 表，一步推进一格，400 步覆盖多轮 */
+    const int total_steps = 400;   /* 4 通道 × 1024 表，一步推进一格，400 步覆盖多轮 */
     uint64_t latencies_ns[400];
     g_pend_n = 0;
     g_value_seq = 0;
@@ -119,6 +120,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
         (void)dcu_poller_step(&poller, &inv, 0);
         uint64_t t1 = uv_hrtime();
         latencies_ns[step] = t1 - t0;
+        assert_true(g_pend_n <= NUM_BUSES);
         _drain();
     }
 
@@ -145,7 +147,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
     const char *limit_env = getenv("EDGE_PERF_P99_MS");
     double p99_limit_ms = limit_env ? strtod(limit_env, NULL) : 5.0;
 
-    printf("\n📊 [BENCHMARK] 4 Buses x 500 Meters (2000 Meters, 6000 OADs):\n");
+    printf("\n📊 [BENCHMARK] 4 Buses x 1024 Meters (4096 Meters, 12288 OADs):\n");
     printf("   - Avg Step Latency: %.3f ms\n", avg_ms);
     printf("   - P99 Step Latency: %.3f ms (Threshold: < %.1f ms)\n", p99_ms, p99_limit_ms);
     printf("   - Max Step Latency: %.3f ms\n", max_ms);
@@ -156,6 +158,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
 #if defined(EDGE_SANITIZER_BUILD)
     // 插桩构建下延迟被放大，阈值只对未插桩构建有意义。
     (void)p99_ms;
+    (void)p99_limit_ms;
 #else
     const char *gate = getenv("EDGE_PERF_GATE");
     if (gate && gate[0] == '1') {
@@ -167,6 +170,7 @@ static void test_scale_benchmark_p99_latency(void** state) {
     assert_true(g_value_seq > 0);
 
     dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
 }
 
 int main(void) {

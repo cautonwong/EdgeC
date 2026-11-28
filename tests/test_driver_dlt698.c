@@ -874,7 +874,7 @@ static void test_slave_accepts_product_object_list_42(void** state) {
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
     assert_int_equal(list[1], 0x81);
-    assert_int_equal(list[2], 131);
+    assert_int_equal(list[2], 138);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -1093,11 +1093,13 @@ static void test_slave_class12_pulse_dar(void** state) {
     static const uint8_t get_2401_a16[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x10, 0x00, 0x00};
     static const uint8_t get_2401_a20[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x14, 0x00, 0x00};
     static const uint8_t get_2402_a2[] = {0x05, 0x01, 0x05, 0x24, 0x02, 0x02, 0x00, 0x00};
+    static const uint8_t get_2409_a2[] = {0x05, 0x01, 0x05, 0x24, 0x09, 0x02, 0x00, 0x00};
     assert_product_get_dar(get_2401_a1, sizeof(get_2401_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2401_a15, sizeof(get_2401_a15), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2401_a16, sizeof(get_2401_a16), DLT698_DAR_DENIED);
     assert_product_get_dar(get_2401_a20, sizeof(get_2401_a20), DLT698_DAR_DENIED);
-    assert_product_get_dar(get_2402_a2, sizeof(get_2402_a2), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2402_a2, sizeof(get_2402_a2), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2409_a2, sizeof(get_2409_a2), DLT698_DAR_DENIED);
 
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
@@ -1269,8 +1271,7 @@ static void test_slave_class19_devmgr_dar(void** state) {
 
     uint8_t* payload = NULL;
     uint8_t svc = 0;
-    /* 复位/执行/数据初始化/恢复出厂/事件初始化/需量初始化都广告，ACTION 到对象表
-     * 如实回 DAR 5，绝不运行。 */
+    /* M1/M2/M4 仍回 DAR 5，M3/M5/M6 走软件初始化回 DAR 0。 */
     for (uint8_t method = 1; method <= 6; method++) {
         uint8_t action_4300[9] = {0x07, 0x01, 0x05, 0x43, 0x00, method, 0x00, 0x00, 0x00};
         net_buf_t* out = net_buf_alloc(&pool, 0);
@@ -1278,7 +1279,10 @@ static void test_slave_class19_devmgr_dar(void** state) {
         assert_int_equal(run_slave_apdu(action_4300, sizeof(action_4300), &src, NULL, out), 0);
         decode_payload(out, &payload, &svc);
         assert_int_equal(svc, DLT698_SVC_ACTION_RES);
-        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        uint8_t want_dar = (method == 3 || method == 5 || method == 6)
+                               ? DLT698_DAR_SUCCESS
+                               : DLT698_DAR_OBJECT_CLASS_MISMATCH;
+        assert_int_equal(payload[4], want_dar);
         net_buf_unref(out);
     }
 
@@ -1380,7 +1384,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 6476);
+    assert_int_equal(out->b.len, 7351);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1392,7 +1396,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     assert_int_equal(payload[4], 0x01); /* A-Result Data */
     assert_int_equal(payload[5], 0x01); /* array */
     assert_int_equal(payload[6], 0x81); /* A-XDR 长格式 1 字节长度 */
-    assert_int_equal(payload[7], 131);  /* 对象列表项数 */
+    assert_int_equal(payload[7], 138);  /* 对象列表项数 */
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);
@@ -1610,7 +1614,7 @@ static void test_slave_class23_group_dar(void** state) {
 
     uint8_t* payload = NULL;
     uint8_t svc = 0;
-    /* 清空/执行/添加/批量添加/删除：全部无处理器，DAR 5，绝不执行总加配置。 */
+    /* M1/M2 回 DAR 5；M3/M4 空参回 DAR 7；M5 清空回 DAR 0。 */
     for (uint8_t method = 1; method <= 5; method++) {
         uint8_t action_2301[9] = {0x07, 0x01, 0x05, 0x23, 0x01, method, 0x00, 0x00, 0x00};
         net_buf_t* out = net_buf_alloc(&pool, 0);
@@ -1618,7 +1622,11 @@ static void test_slave_class23_group_dar(void** state) {
         assert_int_equal(run_slave_apdu(action_2301, sizeof(action_2301), &src, NULL, out), 0);
         decode_payload(out, &payload, &svc);
         assert_int_equal(svc, DLT698_SVC_ACTION_RES);
-        assert_int_equal(payload[4], DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        uint8_t want_dar = (method == 5)
+                               ? DLT698_DAR_SUCCESS
+                               : (method == 3 || method == 4) ? DLT698_DAR_TYPE_MISMATCH
+                                                              : DLT698_DAR_OBJECT_CLASS_MISMATCH;
+        assert_int_equal(payload[4], want_dar);
         net_buf_unref(out);
     }
 

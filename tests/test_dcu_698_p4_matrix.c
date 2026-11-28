@@ -120,6 +120,27 @@ static void _exchange(const uint8_t *apdu, size_t apdu_len, uint8_t *backing, si
         0);
 }
 
+static void _assert_get_data(uint32_t oad) {
+    uint8_t apdu[8] = {
+        DLT698_SVC_GET_REQ,
+        0x01,
+        0x01,
+        (uint8_t)(oad >> 24),
+        (uint8_t)(oad >> 16),
+        (uint8_t)(oad >> 8),
+        (uint8_t)oad,
+        0x00,
+    };
+    uint8_t backing[512];
+    uint8_t svc = 0;
+    uint8_t *payload = NULL;
+    size_t plen = 0;
+    _exchange(apdu, sizeof(apdu), backing, sizeof(backing), &svc, &payload, &plen, NULL);
+    assert_int_equal(svc, DLT698_SVC_GET_RES);
+    assert_true(plen >= 6);
+    assert_int_equal(payload[4], 0x01); /* GetResult ::= Data */
+}
+
 static uint8_t _get_dar(uint32_t oad) {
     uint8_t apdu[8] = {
         DLT698_SVC_GET_REQ,
@@ -278,28 +299,46 @@ static void test_p4_class18_file_transfer(void **state) {
 
 static void test_p4_class19_device_mgmt(void **state) {
     (void)state;
-    static const uint16_t ois[] = {0x4300, 0x4307, 0x4308, 0x4309};
-    for (size_t i = 0; i < 4; i++) {
+    for (uint8_t a = 2; a <= 5; a++) {
+        _assert_get_data(MK_OAD(0x4300, a));
+    }
+    assert_int_equal(_get_dar(MK_OAD(0x4300, 1)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    for (uint8_t a = 6; a <= 10; a++) {
+        assert_int_equal(_get_dar(MK_OAD(0x4300, a)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    }
+
+    static const uint16_t sub_ois[] = {0x4307, 0x4308, 0x4309};
+    for (size_t i = 0; i < 3; i++) {
         for (uint8_t a = 1; a <= 10; a++) {
-            assert_int_equal(_get_dar(MK_OAD(ois[i], a)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+            assert_int_equal(_get_dar(MK_OAD(sub_ois[i], a)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
         }
     }
 
     const uint8_t u8_val[] = {DLT698_TAG_UNSIGNED, 0};
-    for (size_t i = 0; i < 4; i++) {
-        assert_int_equal(_set_dar(MK_OAD(ois[i], 2), u8_val, sizeof(u8_val)), DLT698_DAR_DENIED);
+    assert_int_equal(_set_dar(MK_OAD(0x4300, 2), u8_val, sizeof(u8_val)), DLT698_DAR_DENIED);
+    for (size_t i = 0; i < 3; i++) {
+        assert_int_equal(_set_dar(MK_OAD(sub_ois[i], 2), u8_val, sizeof(u8_val)), DLT698_DAR_DENIED);
     }
 
-    for (size_t i = 0; i < 4; i++) {
+    const uint8_t null_arg[] = {DLT698_TAG_NULL};
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 1), null_arg, sizeof(null_arg)),
+                     DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 2), null_arg, sizeof(null_arg)),
+                     DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 4), null_arg, sizeof(null_arg)),
+                     DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 3), null_arg, sizeof(null_arg)), DLT698_DAR_SUCCESS);
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 5), null_arg, sizeof(null_arg)), DLT698_DAR_SUCCESS);
+    assert_int_equal(_action_dar(MK_OMD(0x4300, 6), null_arg, sizeof(null_arg)), DLT698_DAR_SUCCESS);
+
+    for (size_t i = 0; i < 3; i++) {
         for (uint8_t m = 1; m <= 6; m++) {
-            assert_int_equal(_action_dar(MK_OMD(ois[i], m), NULL, 0),
+            assert_int_equal(_action_dar(MK_OMD(sub_ois[i], m), NULL, 0),
                              DLT698_DAR_OBJECT_CLASS_MISMATCH);
         }
-        if (ois[i] != 0x4300) {
-            for (uint8_t m = 127; m <= 129; m++) {
-                assert_int_equal(_action_dar(MK_OMD(ois[i], m), NULL, 0),
-                                 DLT698_DAR_OBJECT_CLASS_MISMATCH);
-            }
+        for (uint8_t m = 127; m <= 129; m++) {
+            assert_int_equal(_action_dar(MK_OMD(sub_ois[i], m), NULL, 0),
+                             DLT698_DAR_OBJECT_CLASS_MISMATCH);
         }
     }
 
@@ -316,9 +355,9 @@ static void test_p4_class20_appconn_and_acl(void **state) {
     assert_true(list_len > 3);
     assert_int_equal(list_buf[0], 0x01);
     assert_int_equal(list_buf[1], 0x81);
-    assert_int_equal(list_buf[2], 0x83);
+    assert_int_equal(list_buf[2], 0x8A);
 
-    /* Full 698 GET 4400 A2 frame -> 6476 B response */
+    /* Full 698 GET 4400 A2 frame -> 7351 B response */
     const uint8_t get_4400[] = {DLT698_SVC_GET_REQ, 0x01, 0x01, 0x44, 0x00, 0x02, 0x00, 0x00};
     static uint8_t backing[8192];
     uint8_t svc = 0;
@@ -328,12 +367,12 @@ static void test_p4_class20_appconn_and_acl(void **state) {
     _exchange(get_4400, sizeof(get_4400), backing, sizeof(backing), &svc, &payload, &plen,
               &frame_len);
     assert_int_equal(svc, DLT698_SVC_GET_RES);
-    assert_int_equal(frame_len, 6476);
+    assert_int_equal(frame_len, 7351);
     assert_true(plen > 8);
     assert_int_equal(payload[4], 0x01); /* GetResult ::= Data */
     assert_int_equal(payload[5], 0x01);
     assert_int_equal(payload[6], 0x81);
-    assert_int_equal(payload[7], 0x83);
+    assert_int_equal(payload[7], 0x8A);
 
     /* ACL enforcement: authorized GET passes ACL vs unauthorized SET -> DAR 3 */
     const uint8_t u8_val[] = {DLT698_TAG_UNSIGNED, 0};
@@ -396,17 +435,23 @@ static void test_p4_class22_peripheral(void **state) {
 static void test_p4_class23_group(void **state) {
     (void)state;
     const uint8_t u8_val[] = {DLT698_TAG_UNSIGNED, 0};
+    const uint8_t null_arg[] = {DLT698_TAG_NULL};
     uint8_t tmp[64];
     size_t tlen = 0;
 
     for (uint16_t oi = 0x2301; oi <= 0x2308; oi++) {
-        for (uint8_t a = 1; a <= 18; a++) {
+        _assert_get_data(MK_OAD(oi, 2));
+        for (uint8_t a = 3; a <= 10; a++) {
+            assert_int_equal(_get_dar(MK_OAD(oi, a)), DLT698_DAR_TEMPORARY_FAILURE);
+        }
+        assert_int_equal(_get_dar(MK_OAD(oi, 1)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        for (uint8_t a = 11; a <= 18; a++) {
             assert_int_equal(_get_dar(MK_OAD(oi, a)), DLT698_DAR_OBJECT_CLASS_MISMATCH);
         }
         assert_int_equal(_set_dar(MK_OAD(oi, 2), u8_val, sizeof(u8_val)), DLT698_DAR_DENIED);
-        for (uint8_t m = 1; m <= 5; m++) {
-            assert_int_equal(_action_dar(MK_OMD(oi, m), NULL, 0), DLT698_DAR_OBJECT_CLASS_MISMATCH);
-        }
+        assert_int_equal(_action_dar(MK_OMD(oi, 1), NULL, 0), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        assert_int_equal(_action_dar(MK_OMD(oi, 2), NULL, 0), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+        assert_int_equal(_action_dar(MK_OMD(oi, 5), null_arg, sizeof(null_arg)), DLT698_DAR_SUCCESS);
         assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 19), tmp, sizeof(tmp), &tlen),
                          EDGE_SLAVE_SRC_UNDEFINED);
         assert_int_equal(dcu_698_call(MK_OMD(oi, 6), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);

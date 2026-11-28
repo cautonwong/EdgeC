@@ -71,7 +71,7 @@ static void init_model(dcu_inventory_t *inv, dcu_poller_t *poller) {
 
 static void test_every_table_oi_is_in_the_catalog(void **state) {
     (void)state;
-    assert_int_equal(dcu_698_object_count(), 136);
+    assert_int_equal(dcu_698_object_count(), 143);
     for (size_t i = 0; i < dcu_698_object_count(); i++) {
         const dcu_698_object_t *obj = dcu_698_object_at(i);
         assert_non_null(obj);
@@ -190,9 +190,9 @@ static void test_appconn_acl_matches_object_model_and_catalog(void **state) {
     size_t off = 0;
     assert_int_equal(read_u8(buf, len, &off), 0x01); /* array */
     size_t obj_count = read_axdr_len(buf, len, &off);
-    assert_int_equal(obj_count, 131);
+    assert_int_equal(obj_count, 138);
 
-    uint16_t seen_ois[131];
+    uint16_t seen_ois[138];
     for (size_t i = 0; i < obj_count; i++) {
         assert_int_equal(read_u8(buf, len, &off), 0x02); /* structure(2) */
         assert_int_equal(read_u8(buf, len, &off), 0x02);

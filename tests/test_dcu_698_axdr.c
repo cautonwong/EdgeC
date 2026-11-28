@@ -409,7 +409,7 @@ static void test_product_class2_and_5_have_no_value_yet(void **state) {
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
 }
 
-static void test_product_class14_15_16_have_no_value_yet(void **state) {
+static void test_product_class14_15_16_stat_contract(void **state) {
     (void)state;
     init_product_model();
 
@@ -420,18 +420,30 @@ static void test_product_class14_15_16_have_no_value_yet(void **state) {
         0x2113, 0x2114, 0x2120, 0x2121, 0x2122, 0x2123, 0x2124,
     };
     for (size_t i = 0; i < sizeof(defined) / sizeof(defined[0]); i++) {
-        for (uint8_t attr = 1; attr <= 3; attr++) {
-            assert_int_equal(
-                dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], attr), buf, sizeof(buf), &len),
-                EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 1), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        len = 0;
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 2), buf, sizeof(buf), &len), 0);
+        assert_int_equal(len, 2);
+        assert_int_equal(buf[0], DLT698_TAG_ARRAY);
+        assert_int_equal(buf[1], 0);
+        assert_int_equal(
+            dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 3), buf, sizeof(buf), &len),
+            EDGE_SLAVE_SRC_CLASS_MISMATCH);
         assert_int_equal(
             dcu_north_resolve_axdr(NULL, MK_OAD(defined[i], 4), buf, sizeof(buf), &len),
             EDGE_SLAVE_SRC_UNDEFINED);
-        for (uint8_t method = 1; method <= 4; method++) {
-            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], method), NULL, 0),
-                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 1), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 2), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 3), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 4), NULL, 0),
+                         EDGE_SLAVE_SRC_TYPE_MISMATCH);
         assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(defined[i], 5), NULL, 0),
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
@@ -519,26 +531,28 @@ static void test_product_class12_pulse_has_no_value_yet(void **state) {
     size_t len = 0;
     /* 表157 类定义 A1..A19；16/17 的归属在表157/158 之间有冲突，按类定义表157
      * 视为已定义，主站侧因 ACL 未广告先回 DAR 3。 */
-    for (uint8_t attr = 1; attr <= 19; attr++) {
-        assert_int_equal(
-            dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, attr), buf, sizeof(buf), &len),
-            EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    }
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, 20), buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_UNDEFINED);
+    for (uint16_t oi = 0x2401; oi <= 0x2408; oi++) {
+        for (uint8_t attr = 1; attr <= 19; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 20), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
 
-    for (uint8_t method = 1; method <= 4; method++) {
-        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, method), NULL, 0),
-                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 5), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
     }
-    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, 5), NULL, 0),
-                     EDGE_SLAVE_SRC_UNDEFINED);
 
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2402, 2), buf, sizeof(buf), &len),
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2409, 2), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
-    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2402, 1), NULL, 0),
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2409, 1), NULL, 0),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 }
 
@@ -625,8 +639,39 @@ static void test_product_class19_devmgr_dar(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
 
-    /* 表178：Class 19 定义 A1..A10、方法 1..6；产品没有设备管理/复位/初始化端口。 */
-    static const uint16_t ois[] = {0x4300, 0x4307, 0x4308, 0x4309};
+    /* 4300 接入 A2..A5 与 M3/M5/M6 软件初始化，M1/M4 诚实回 DAR 5；4307..4309 仍全空回 DAR 5。 */
+    for (uint8_t attr = 2; attr <= 5; attr++) {
+        len = 0;
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4300, attr), buf, sizeof(buf), &len),
+                         0);
+        assert_true(len > 0);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4300, 1), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    for (uint8_t attr = 6; attr <= 10; attr++) {
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4300, attr), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    }
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x4300, 11), buf, sizeof(buf), &len),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    static const uint8_t null_arg[] = {DLT698_TAG_NULL};
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 1), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 2), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 4), NULL, 0),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 3), null_arg, sizeof(null_arg)),
+                     0);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 5), null_arg, sizeof(null_arg)),
+                     0);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 6), null_arg, sizeof(null_arg)),
+                     0);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4300, 7), NULL, 0),
+                     EDGE_SLAVE_SRC_UNDEFINED);
+
+    static const uint16_t ois[] = {0x4307, 0x4308, 0x4309};
     for (size_t i = 0; i < sizeof(ois) / sizeof(ois[0]); i++) {
         for (uint8_t attr = 1; attr <= 10; attr++) {
             assert_int_equal(
@@ -662,9 +707,11 @@ static void test_product_class19_devmgr_dar(void **state) {
     assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x4301, 1), NULL, 0),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 
-    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    /* SET 不伪装：A2 已暴露但只读没有写处理器 → DAR 3 (DENIED)；A6 类定义未暴露 → DAR 5；类未定义 → DAR 4。 */
     static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4300, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_DENIED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4300, 6), data, sizeof(data)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x4300, 11), data, sizeof(data)),
                      EDGE_SLAVE_SRC_UNDEFINED);
@@ -717,30 +764,73 @@ static void test_product_class23_group_dar(void **state) {
     uint8_t buf[EDGE_SLAVE_AXDR_MAX];
     size_t len = 0;
 
-    /* 表190：Class 23 定义 A1..A18、方法 1..5；产品没有总加组配置/总加值来源。 */
+    /* 表190：2301..2308 接入 A2..A10 与 M3/M4/M5。 */
     for (uint16_t oi = 0x2301; oi <= 0x2308; oi++) {
-        for (uint8_t attr = 1; attr <= 18; attr++) {
+        len = 0;
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 2), buf, sizeof(buf), &len), 0);
+        assert_int_equal(len, 2);
+        assert_int_equal(buf[0], DLT698_TAG_ARRAY);
+        assert_int_equal(buf[1], 0);
+        for (uint8_t attr = 3; attr <= 10; attr++) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                             EDGE_SLAVE_SRC_TEMPORARY);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 1), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        for (uint8_t attr = 11; attr <= 18; attr++) {
             assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
                              EDGE_SLAVE_SRC_CLASS_MISMATCH);
         }
         assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 19), buf, sizeof(buf), &len),
                          EDGE_SLAVE_SRC_UNDEFINED);
-        for (uint8_t method = 1; method <= 5; method++) {
-            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, method), NULL, 0),
-                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
-        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 1), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 2), NULL, 0),
+                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
         assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 6), NULL, 0),
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
+
+    /* 端到端 M3 加成员 -> A2 读出 -> M4 删成员 / M5 清空恢复空数组 */
+    static const uint8_t add_m3[] = {
+        DLT698_TAG_STRUCTURE, 3,
+        85, 6, 0x05, 0x00, 0x00, 0x00, 0x00, 0x01,
+        DLT698_TAG_ENUM, 1,
+        DLT698_TAG_ENUM, 0,
+    };
+    static const uint8_t del_m4[] = {85, 6, 0x05, 0x00, 0x00, 0x00, 0x00, 0x01};
+    static const uint8_t clr_m5[] = {DLT698_TAG_NULL};
+
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2301, 3), add_m3, sizeof(add_m3)), 0);
+    len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2301, 2), buf, sizeof(buf), &len), 0);
+    assert_true(len > 2);
+    assert_int_equal(buf[0], DLT698_TAG_ARRAY);
+    assert_int_equal(buf[1], 1);
+
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2301, 4), del_m4, sizeof(del_m4)), 0);
+    len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2301, 2), buf, sizeof(buf), &len), 0);
+    assert_int_equal(len, 2);
+    assert_int_equal(buf[1], 0);
+
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2301, 3), add_m3, sizeof(add_m3)), 0);
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2301, 5), clr_m5, sizeof(clr_m5)), 0);
+    len = 0;
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2301, 2), buf, sizeof(buf), &len), 0);
+    assert_int_equal(len, 2);
+    assert_int_equal(buf[1], 0);
 
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2309, 2), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
     assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2309, 1), NULL, 0),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 
-    /* SET 不伪装：空掩码的类定义属性没有写处理器 → DAR 5；类未定义 → DAR 4。 */
+    /* SET 不伪装：A2 已暴露但只读没有写处理器 → DAR 3 (DENIED)；A11 类定义未暴露 → DAR 5；类未定义 → DAR 4。 */
     static const uint8_t data[] = {DLT698_TAG_OCTET_STRING, 1, 0x00};
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2301, 2), data, sizeof(data)),
+                     EDGE_SLAVE_SRC_DENIED);
+    assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2301, 11), data, sizeof(data)),
                      EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_north_accept_axdr(NULL, MK_OAD(0x2301, 19), data, sizeof(data)),
                      EDGE_SLAVE_SRC_UNDEFINED);
@@ -2450,7 +2540,7 @@ int main(void) {
         cmocka_unit_test(test_product_accept_set_paths),
         cmocka_unit_test(test_product_class8_datetime_round_trip),
         cmocka_unit_test(test_product_class2_and_5_have_no_value_yet),
-        cmocka_unit_test(test_product_class14_15_16_have_no_value_yet),
+        cmocka_unit_test(test_product_class14_15_16_stat_contract),
         cmocka_unit_test(test_product_class17_has_no_value_yet),
         cmocka_unit_test(test_product_class11_collection_sets_have_no_value_yet),
         cmocka_unit_test(test_product_class12_pulse_has_no_value_yet),
