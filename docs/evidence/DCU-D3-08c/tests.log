@@ -1,0 +1,42 @@
+=== DCU-D3-08c targeted tests (ctest) ===
+5/7 Test #102: test_driver_dlt698 ...............   Passed    5.13 sec
+6/7 Test #104: test_dcu_698_appconn .............   Passed    0.01 sec
+7/7 Test #105: test_dcu_698_p4_matrix ...........   Passed    0.04 sec
+100% tests passed, 0 tests failed out of 7
+
+=== Full ctest (381 tests) ===
+100% tests passed, 0 tests failed out of 381
+Total Test time (real) = 411.90 sec
+
+=== check_build_warnings.py (clean rebuild log) ===
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+=== run_guard_selftest.py ===
+  ✅ [LIVE_PASS] check_doc_references.py
+  ✅ [LIVE_PASS] check_guard_path_independence.py
+  ✅ [LIVE_SELFTEST_PASS] check_iems_strategy_classification.py --selftest
+  ✅ [LIVE_SELFTEST_PASS] check_iems_command_egress.py --selftest
+  ✅ [ARCH_LEDGER] fallbacks match the matrix (18 plane pairs, 3 components, 4 file rules)
+  ✅ [DOC_REFS] 30 AGENTS.md script reference(s) resolve
+
+🎉 All architecture guards, refutation tests, and live codebase checks PASSED successfully!
+
+=== run_mutation_guards.py --selftest ===
+  [restore] /tmp/mutation-selftest-v_xnddf3/guarded.c: original bytes and hash verified
+  [restored] build rc=1, test rc=skipped
+  ✅ [SELFTEST] build failure is reported and source restored
+  ✅ [SELFTEST] \n and \t escapes decode
+
+✅ [SELFTEST] mutation runner decision logic verified
+
+=== run_mutation_guards.py --only DCU-D3-08c-300B-row ===
+=== Mutation guards: 1 entries, build /tmp/dcu-D3-08c/build ===
+
+[MUTATION] DCU-D3-08c-300B-row (cmd/dcu/dcu_698_object_model.c)
+  [mutate] cmd/dcu/dcu_698_object_model.c: 1 occurrence replaced
+  [mutated] build rc=0, test rc=8
+  [restore] cmd/dcu/dcu_698_object_model.c: original bytes and hash verified
+  [restored] build rc=0, test rc=0
+✅ [MUTATION] DCU-D3-08c-300B-row: red under mutation (rc=8), green after restore
+
+✅ [MUTATION_GUARDS] 1/1 guards sensitive, build refreshed

@@ -56,6 +56,9 @@ static const acl_attr_t k_attrs_class7_event[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}
  * A8/A9 的 mask 关闭由门面回 DAR 5；ACL 保留可写让该分类可达。 */
 static const acl_attr_t k_attrs_event[] = {{2, 1}, {3, 1},  {4, 1},  {5, 1},  {6, 1}, {8, 3},
                                            {9, 3}, {10, 1}, {11, 3}, {12, 3}, {14, 1}};
+/* 300B（Class 24）标准定义 A5..A9，产品无事件引擎：只读广告 5..9，让 GET 越过 ACL
+ * 到对象表如实回 DAR 5；A15 不广告（resolver 回 DAR 4），SET 先被 ACL 拒为 DAR 3。 */
+static const acl_attr_t k_attrs_300b[] = {{5, 1}, {6, 1}, {7, 1}, {8, 1}, {9, 1}};
 static const acl_attr_t k_attrs_demand[] = {{1, 1}, {2, 1}, {3, 1}};
 static const acl_attr_t k_attrs_harmonic[] = {{1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}};
 static const acl_attr_t k_attrs_stat[] = {{1, 1}, {2, 1}, {3, 1}};
@@ -124,6 +127,7 @@ static const acl_object_t k_objects[] = {
     {0x3005, k_attrs_event, 11, NULL, 0},
     {0x3009, k_attrs_class7_event, 10, NULL, 0},  {0x300C, k_attrs_class7_event, 10, NULL, 0},
     {0x3011, k_attrs_class7_event, 10, NULL, 0},  {0x3013, k_attrs_class7_event, 10, NULL, 0},
+    {0x300B, k_attrs_300b, 5, NULL, 0},
     {0x5000, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5001, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5002, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5003, k_attrs_freeze, 2, k_methods_freeze, 5},
     {0x5004, k_attrs_freeze, 2, k_methods_freeze, 5},           {0x5005, k_attrs_freeze, 2, k_methods_freeze, 5},

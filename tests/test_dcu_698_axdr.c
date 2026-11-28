@@ -2169,8 +2169,8 @@ static void test_archive_config_short_buffer_dar2(void **state) {
 }
 
 /* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。
- * Class 24 未实现的 300B 仍无对象实例：GET 必须回 DAR 6，不能凭空造事件记录。 */
-static void test_event_catalog_ois_without_instance_dar6(void **state) {
+ * 300B 也是空掩码对象行（Class 24，不挂实例）：类定义属性同样回 DAR 5，不能凭空造事件记录。 */
+static void test_event_catalog_ois_without_instance(void **state) {
     (void)state;
     dcu_698_object_model_reset();
     init_product_model();
@@ -2186,7 +2186,7 @@ static void test_event_catalog_ois_without_instance_dar6(void **state) {
                          EDGE_SLAVE_SRC_UNDEFINED);
     }
     assert_int_equal(dcu_north_resolve_axdr(NULL, 0x300B0200u, buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
 }
 
 static void test_class13_readonly_dar(void **state) {
@@ -2490,7 +2490,7 @@ int main(void) {
         cmocka_unit_test(test_action_rejects_other_methods_and_trailing_bytes),
         cmocka_unit_test(test_action_class9_attr3_method_shape_dar7),
         cmocka_unit_test(test_archive_config_short_buffer_dar2),
-        cmocka_unit_test(test_event_catalog_ois_without_instance_dar6),
+        cmocka_unit_test(test_event_catalog_ois_without_instance),
         cmocka_unit_test(test_class13_readonly_dar),
         cmocka_unit_test(test_action_unknown_oi_dar6),
         cmocka_unit_test(test_action_non8000_reaches_handler),
