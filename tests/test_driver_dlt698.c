@@ -874,7 +874,7 @@ static void test_slave_accepts_product_object_list_42(void** state) {
     size_t list_len = 0;
     assert_int_equal(dcu_698_appconn_object_list(list, sizeof(list), &list_len), 0);
     assert_int_equal(list[1], 0x81);
-    assert_int_equal(list[2], 131);
+    assert_int_equal(list[2], 138);
 
     static const dcu_clock_port_t clock = {.now = slave_clock_now, .set = slave_clock_set};
     dcu_698_param_set_clock(&clock);
@@ -1093,11 +1093,13 @@ static void test_slave_class12_pulse_dar(void** state) {
     static const uint8_t get_2401_a16[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x10, 0x00, 0x00};
     static const uint8_t get_2401_a20[] = {0x05, 0x01, 0x05, 0x24, 0x01, 0x14, 0x00, 0x00};
     static const uint8_t get_2402_a2[] = {0x05, 0x01, 0x05, 0x24, 0x02, 0x02, 0x00, 0x00};
+    static const uint8_t get_2409_a2[] = {0x05, 0x01, 0x05, 0x24, 0x09, 0x02, 0x00, 0x00};
     assert_product_get_dar(get_2401_a1, sizeof(get_2401_a1), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2401_a15, sizeof(get_2401_a15), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     assert_product_get_dar(get_2401_a16, sizeof(get_2401_a16), DLT698_DAR_DENIED);
     assert_product_get_dar(get_2401_a20, sizeof(get_2401_a20), DLT698_DAR_DENIED);
-    assert_product_get_dar(get_2402_a2, sizeof(get_2402_a2), DLT698_DAR_DENIED);
+    assert_product_get_dar(get_2402_a2, sizeof(get_2402_a2), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+    assert_product_get_dar(get_2409_a2, sizeof(get_2409_a2), DLT698_DAR_DENIED);
 
     net_buf_pool_t pool;
     assert_int_equal(net_buf_pool_init(&pool, 2, 256, 0, NULL, NULL), 0);
@@ -1380,7 +1382,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     src.resolve_axdr = dcu_north_resolve_axdr;
     assert_int_equal(run_slave_apdu(get_4400, sizeof(get_4400), &src, NULL, out), 0);
 
-    assert_int_equal(out->b.len, 6476);
+    assert_int_equal(out->b.len, 7351);
     assert_true(out->b.len <= out->b.size);
     const uint8_t* end = out->b.__buf + out->b.size;
     for (int i = 0; i < 64; i++) assert_int_equal(end[i], 0);
@@ -1392,7 +1394,7 @@ static void test_slave_object_list_fits_production_slave_pool(void** state) {
     assert_int_equal(payload[4], 0x01); /* A-Result Data */
     assert_int_equal(payload[5], 0x01); /* array */
     assert_int_equal(payload[6], 0x81); /* A-XDR 长格式 1 字节长度 */
-    assert_int_equal(payload[7], 131);  /* 对象列表项数 */
+    assert_int_equal(payload[7], 138);  /* 对象列表项数 */
 
     net_buf_unref(out);
     net_buf_pool_destroy(&pool);

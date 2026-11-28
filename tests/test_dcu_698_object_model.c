@@ -106,7 +106,7 @@ static void test_all_ois_resolvable_with_class_and_mask(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    assert_int_equal(dcu_698_object_count(), 136);
+    assert_int_equal(dcu_698_object_count(), 143);
 
     for (size_t i = 0; i < sizeof(k_expected) / sizeof(k_expected[0]); i++) {
         const dcu_698_object_t *obj = dcu_698_find(k_expected[i].oi);
@@ -690,16 +690,26 @@ static void test_class12_pulse_row_is_empty(void **state) {
     dcu_poller_t poller;
     init_model(&inv, &poller);
 
-    const dcu_698_object_t *obj = dcu_698_find(0x2401);
-    assert_non_null(obj);
-    assert_int_equal(obj->class_id, 12);
-    assert_mask_matches(obj->attr_mask, NULL, 0);
-    assert_mask_matches(obj->method_mask, NULL, 0);
-    for (uint8_t method = 1; method <= 4; method++) {
-        assert_int_equal(dcu_698_call(MK_OMD(0x2401, method), NULL, NULL),
-                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    uint8_t buf[64];
+    size_t len = 0;
+    for (uint16_t oi = 0x2401; oi <= 0x2408; oi++) {
+        const dcu_698_object_t *obj = dcu_698_find(oi);
+        assert_non_null(obj);
+        assert_int_equal(obj->class_id, 12);
+        assert_mask_matches(obj->attr_mask, NULL, 0);
+        assert_mask_matches(obj->method_mask, NULL, 0);
+        for (uint8_t attr = 1; attr <= 19; attr++) {
+            assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 20), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_int_equal(dcu_698_call(MK_OMD(oi, method), NULL, NULL),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_698_call(MK_OMD(oi, 5), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
     }
-    assert_int_equal(dcu_698_call(MK_OMD(0x2401, 5), NULL, NULL), EDGE_SLAVE_SRC_UNDEFINED);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
