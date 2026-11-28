@@ -93,6 +93,10 @@ add_edge_test(test_dcu_698_devmgr test_dcu_698_devmgr.c)
 target_include_directories(test_dcu_698_devmgr PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_devmgr PRIVATE dcu_app_lib edge_infra edge_codec)
 
+add_edge_test(test_dcu_698_file test_dcu_698_file.c)
+target_include_directories(test_dcu_698_file PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_file PRIVATE dcu_app_lib edge_infra edge_codec)
+
 add_edge_test(test_dcu_phase1_delivery test_dcu_phase1_delivery.c)
 target_link_libraries(test_dcu_phase1_delivery PRIVATE dcu_app_lib edge_infra edge_infra_security edge_security_policy)
 
