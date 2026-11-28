@@ -2169,7 +2169,6 @@ static void test_archive_config_short_buffer_dar2(void **state) {
 }
 
 /* 3009/300C/3011/3013 为 Class 7 空掩码骨架：类定义属性回 DAR 5，越界属性回 DAR 4。
- * 300B 也是空掩码对象行（Class 24，不挂实例）：类定义属性同样回 DAR 5，不能凭空造事件记录。 */
 static void test_event_catalog_ois_without_instance(void **state) {
     (void)state;
     dcu_698_object_model_reset();

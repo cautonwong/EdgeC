@@ -978,7 +978,6 @@ static void test_slave_class24_300b_dar(void** state) {
     memset(&bus, 0, sizeof(bus));
     assert_int_equal(dcu_698_object_model_init(&inv, &poller, sink, NULL, NULL, NULL, NULL, bus), 0);
 
-    /* GET 300B A5..A9：ACL 只读放行后，resolver 按 Class 24 定义但未广告回 DAR 5。 */
     static const uint8_t get_a5[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x05, 0x00, 0x00};
     static const uint8_t get_a6[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x06, 0x00, 0x00};
     static const uint8_t get_a7[] = {0x05, 0x01, 0x05, 0x30, 0x0B, 0x07, 0x00, 0x00};
@@ -989,7 +988,6 @@ static void test_slave_class24_300b_dar(void** state) {
     for (size_t i = 0; i < sizeof(gets) / sizeof(gets[0]); i++) {
         assert_product_get_dar(gets[i], sizeof(get_a5), DLT698_DAR_OBJECT_CLASS_MISMATCH);
     }
-    /* A15 未在 ACL 广告，驱动先拒为 DAR 3；resolver 层的 DAR 4 由 object_model 测试守。 */
     assert_product_get_dar(get_a15, sizeof(get_a15), DLT698_DAR_DENIED);
 
     net_buf_pool_t pool;
@@ -1001,7 +999,6 @@ static void test_slave_class24_300b_dar(void** state) {
     src.object_list = product_object_list;
     src.resolve_axdr = dcu_north_resolve_axdr;
     src.accept_axdr = dcu_north_accept_axdr;
-    /* SET 300B A5：ACL 只读，回 DAR 3，永远到不了对象表。 */
     static const uint8_t set_a5[] = {0x06, 0x01, 0x05, 0x30, 0x0B, 0x05,
                                      0x00, 0x09, 0x00, 0x00};
     assert_int_equal(run_slave_apdu(set_a5, sizeof(set_a5), &src, NULL, out), 0);

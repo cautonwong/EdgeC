@@ -493,8 +493,6 @@ static void test_event_class7_attr_numbers_are_not_served(void **state) {
     dcu_inventory_destroy(&inv);
 }
 
-/* 300B：Class 24 空掩码对象行，不挂事件实例。GET 越过 ACL 后由 resolver 按类定义
- * 分类：A5..A9 类定义但未广告 → DAR 5；A15 超出类定义 → DAR 4；不能因实例为空回 DAR 6。 */
 static void test_class24_300b_empty_event_row(void **state) {
     (void)state;
     dcu_inventory_t inv;
@@ -511,7 +509,6 @@ static void test_class24_300b_empty_event_row(void **state) {
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x300B, 15), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_UNDEFINED);
 
-    /* 无处理器、无实例：可读入口不返回任何伪造值。 */
     uint64_t out = 0;
     assert_int_equal(dcu_698_read(MK_OAD(0x300B, 5), &out), -1);
 
