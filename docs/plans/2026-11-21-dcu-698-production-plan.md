@@ -964,6 +964,9 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | 2026-11-27 | D3-08b | 已合并 feat/dcu | `docs/evidence/DCU-D3-08b/` | 合并 `4fe8beba`；注册 4 个真 Class 7 (`IC_EVENT`) 对象（`3009`/`300C`/`3011`/`3013`）空掩码骨架与只读 Class 20 ACL（130 对象触发两字节长格式 `0x81 0x82`、6435 B）；GET 诚实回 DAR 5、SET 回 DAR 3；变异守卫红/绿 |
 | 2026-11-27 | D5-07 | 已合并 feat/dcu | `docs/evidence/DCU-D5-07/` | 合并 `9887fceb`；同步 `cmd/dcu/CONTEXT.md`、`CONTEXT-MAP.md`、`DOMAIN_CONTEXT_MAP.md`、`PUBLIC_STRUCT_AUDIT.md` 至当前代码事实；`check_doc_references.py` 与 `run_guard_selftest.py` 全绿 |
 | 2026-11-27 | FORMAL-02 | 已合并 feat/dcu | `docs/evidence/DCU-FORMAL-02/` | 合并 `797f03a6`；扩展 `formal/manifest/dcu.tsv`，为 `dlt698_decode_get_record_request` 增 CBMC 边界证明（2734 属性 0 失败、`cover` 满足、`selector_reject` 通过）+ 负向变异脚本捕获 `_read_be32` 越界 |
+| 2026-11-28 | D4-11 | 已合并 feat/dcu | `docs/evidence/DCU-D4-11/` | 新增 `tests/test_dcu_698_p4_matrix.c`，覆盖 P4 9 个接口类（13/18/19/20/21/22/23/25/26）各至少 4 项断言；合并树 ctest 381/381、warning 0 |
+| 2026-11-28 | D6-01 | 已合并 feat/dcu | `docs/evidence/DCU-D6-01/` | 扩展 `tests/test_dcu_698_catalog.c` 为 26 类目录与 ACL 一致性矩阵（135 对象 + 130 ACL 对象零悬空 + 类外 DAR 4/未注册 DAR 6）；合并树 ctest 381/381；登记 2 条基线观察 |
+| 2026-11-28 | FORMAL-03 | 已合并 feat/dcu | `docs/evidence/DCU-FORMAL-03/` | 记录 `dlt698_decode_data` 递归 `O(N^N)` 爆炸发现；转向并证明 `dlt698_encode_report_notification`（2728 属性 0 失败、`cover` 满足、`report_reject` 通过 + 负向变异脚本捕获越界写），并修复 `dlt698_codec.c:508-510` `& 0xFFu` 截断检查 |
 
 ### 12.4 并行工作树
 
@@ -1023,6 +1026,8 @@ D2-05a、D2-05a-r、D2-06、D2-06-r 与 D2-07 片 1 已合并 `feat/dcu`。D2-06
 | bus_orchestrator destroy 不释放 engine/session | 已收口（2026-11-27，P3-11，`53a7b96b`）：`bus_orchestrator_destroy` 逐路 detach engine、停关 `audit_timer`、unref `pool`/`slave_pool`，并修 `_slave_detach` 对调用方 `io` 的 UAF | ASAN/LSAN 0 泄漏、`uv_loop_close == 0` | 已完成；证据 `docs/evidence/DCU-P3-11/`；变异守卫 `DCU-P3-11-orch-destroy-teardown` |
 | dcu_698_value_for_oad 的 4510 A5 标量路径 | 标量端口 `dcu_value_t` 无 octet-string，6 字节 MAC 不可承载；主站 GET 走 `resolve_axdr` 正常 | 标量路径旧回 DAR 7（类型不符） | 已收口（2026-11-27，P3-5）：按 DEVIATIONS 无来源口径回 DAR 5；证据 `docs/evidence/DCU-P3-5-VAR-4510/`；已合并 feat/dcu（merge `9c45f835`） |
 | 3006 注释与 OAD 脚本硬编码（follow-up） | 已收口（2026-11-27，P3-13，`22fdfffc`）：`dcu_soe_event_engine.h:24` 注释订正为电能表断流事件；4 脚本 `0x20020200` 订正为电压相角；`OAD_REACTIVE_ENERGY` 偏差记入 `DCU_698_DEVIATIONS.md`；`test_dcu_698_rules.c` `strcpy→snprintf` | 文档/脚本误导与 `strcpy` 已消除，pytest 守卫防回归 | 已完成；证据 `docs/evidence/DCU-P3-13/` |
+| `k_oi_max_attr` 缺 `0x4000`/`0x8001` 与变量类越界 DAR 偏差 | D6-01 发现：`dcu_698_object_model.c` `k_oi_max_attr` 漏列 `0x4000`/`0x8001`；`dcu_698_var.c` `dcu_698_value_for_oad` 对变量类类外属性返回 `-20`（DAR 6）而非 `-23`（DAR 4） | 不影响正常路径；类外越界读变量类回 DAR 6 而非 DAR 4 | 另立缺陷任务修复并补正反测试 |
+| `dlt698_decode_data` 递归池 CBMC 不可解 | FORMAL-03 发现：`dlt698_decode_data` 对 `ARRAY/STRUCTURE` 递归调用并写 64 项 `_Thread_local` 池，CBMC 5.12 即使 `max_len=1` 也出现 `O(N^N)` SSA 爆炸 | 无法直接对 `dlt698_decode_data` 做有界符号证明 | 若需形式化验证，另立重构单将其改为显式栈有界迭代 |
 
 ### 12.6 COM 迁移登记（2026-11-22 解阻塞后）
 
