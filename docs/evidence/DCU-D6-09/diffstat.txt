@@ -1,0 +1,13 @@
+## git diff --stat
+ ci/baseline/coverage_floor.txt | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+## git diff --numstat
+8	0	ci/baseline/coverage_floor.txt
+
+## git status --short
+ M ci/baseline/coverage_floor.txt
+?? docs/evidence/DCU-D6-09/coverage.log
+?? docs/evidence/DCU-D6-09/diffstat.txt
+?? docs/evidence/DCU-D6-09/floor.diff
+?? docs/evidence/DCU-D6-09/summary.md
