@@ -624,9 +624,9 @@ static void test_report_frame_layout(void** state) {
     size_t payload_len = 0;
     assert_int_equal(dlt698_decode_frame_ex(&nb, &sa, &svc, &choice, &piid, &payload, &payload_len),
                      0);
-    static const uint8_t want[] = {DLT698_SVC_REPORT_NOTIFICATION, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
+    static const uint8_t want[] = {0x88, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
                                    0x00, 0x01, 0x12, 0x00, 0x01, 0x00};
-    assert_int_equal(svc, DLT698_SVC_REPORT_NOTIFICATION);
+    assert_int_equal(svc, 0x88); /* 表55：REPORT-Notification [136] */
     assert_int_equal(payload_len + 3, sizeof(want));
     assert_memory_equal(payload - 3, want, sizeof(want));
 
