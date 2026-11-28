@@ -202,6 +202,7 @@ int dlt698_encode_set_response(const dlt698_addr_t *sa, uint8_t piid, uint32_t o
                                net_buf_t *out) {
     if (!sa || !out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 10u, 0u)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -223,6 +224,7 @@ int dlt698_encode_connect_response(const dlt698_addr_t *sa, uint8_t piid,
                                    const dlt698_connect_params_t *params, net_buf_t *out) {
     if (!sa || !out || !params) return -1;
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 75u, 0u)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -259,6 +261,7 @@ int dlt698_encode_connect_response(const dlt698_addr_t *sa, uint8_t piid,
 int dlt698_encode_release_response(const dlt698_addr_t *sa, uint8_t piid, net_buf_t *out) {
     if (!sa || !out) return -1;
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 5u, 0u)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     uint8_t *start = _frame_begin(b, sa, 0xC3, &len_ptr, &hcs_ptr);
@@ -304,6 +307,7 @@ int dlt698_encode_action_response(const dlt698_addr_t *sa, uint8_t piid, uint16_
     if (method == 0) return -1;
 
     struct net_buf_simple *b = &out->b;
+    if (!_fits(b, sa, 11u, dlen)) return -1;
     uint8_t *len_ptr = NULL;
     uint8_t *hcs_ptr = NULL;
     /* Ctrl=0xC3：DIR=1（响应方向）、PRM=1（服务器对客户机请求的响应） */
