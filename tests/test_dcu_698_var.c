@@ -247,15 +247,35 @@ static void test_wrong_slot_and_attr(void **state) {
     size_t len = 0;
     assert_int_equal(dcu_698_var_encode_axdr(0x200002FAU, buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
+    /* 变量类按类定义分类：A1 类定义但未实现 -> DAR 5，A4 类表外 -> DAR 4。 */
     assert_int_equal(dcu_698_var_encode_axdr(MK_OAD(0x2000, 1), buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
     assert_int_equal(dcu_698_var_encode_axdr(MK_OAD(0x2000, 4), buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_NOT_FOUND);
+                     EDGE_SLAVE_SRC_UNDEFINED);
 
     dcu_value_t v;
     assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x2000, 3), &v),
                      EDGE_SLAVE_SRC_TYPE_MISMATCH);
     assert_int_equal(dcu_698_value_for_oad(OAD_VOLTAGE, &v), EDGE_SLAVE_SRC_TYPE_MISMATCH);
+
+    dcu_poller_destroy(&poller);
+    dcu_inventory_destroy(&inv);
+}
+
+static void test_variable_attr_dar_classification(void **state) {
+    (void)state;
+    dcu_inventory_t inv;
+    dcu_poller_t poller;
+    init_model(&inv, &poller, mock_read_shadow);
+
+    dcu_value_t v;
+    /* 0010 A1：Class 1 定义 A1..A5，产品未实现 A1 -> 已定义未实现 DAR 5。 */
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x0010, 1), &v),
+                     EDGE_SLAVE_SRC_CLASS_MISMATCH);
+    /* 0010 A6：Class 1 类表只到 A5 -> 未定义 DAR 4。 */
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x0010, 6), &v), EDGE_SLAVE_SRC_UNDEFINED);
+    /* 未知 OI 不在对象表 -> DAR 6，不当成类外属性。 */
+    assert_int_equal(dcu_698_value_for_oad(MK_OAD(0x9999, 2), &v), EDGE_SLAVE_SRC_NOT_FOUND);
 
     dcu_poller_destroy(&poller);
     dcu_inventory_destroy(&inv);
@@ -361,6 +381,7 @@ int main(void) {
                                         teardown),
         cmocka_unit_test_setup_teardown(test_class1_energy_arrays, setup, teardown),
         cmocka_unit_test_setup_teardown(test_wrong_slot_and_attr, setup, teardown),
+        cmocka_unit_test_setup_teardown(test_variable_attr_dar_classification, setup, teardown),
         cmocka_unit_test_setup_teardown(test_shadow_missing_is_not_found, setup, teardown),
         cmocka_unit_test_setup_teardown(test_class_ids_and_masks, setup, teardown),
         cmocka_unit_test_setup_teardown(test_4510_a5_scalar_path_refuses_octet_string, setup,
