@@ -1,0 +1,99 @@
+### command: cmake --build . -j$(nproc)   (Release, -DCOVERAGE=ON)
+exit=0
+build> [1311/1313] Linking C executable tests/test_iems_modbus_rtu_uart_pty
+build> [1312/1313] Linking C executable tests/test_iems_dlt645_uart_pty
+build> [1313/1313] Linking C executable tests/test_iems_ydt1363_uart_pty
+
+### command: ctest --output-on-failure -E '^app_platform_e2e$'
+100% tests passed, 0 tests failed out of 380
+Total Test time (real) = 472.88 sec
+
+### command: lcov --capture --directory . --output-file coverage.info --ignore-errors gcov,source
+Summary coverage rate (raw capture, before remove):
+  lines......: 79.6% (29455 of 36988 lines)
+
+### command: lcov --remove coverage.info '/usr/*' '*/tests/*' '*/third-party/*' --output-file coverage_clean.info --ignore-errors gcov,source
+Finished .info-file creation
+
+### command: lcov --list coverage_clean.info | grep -E 'cmd/dcu|foundation/src/protocol'
+cmd/dcu/dcu_698_appconn.c                      |85.2%    27| 100%   3|    -    0
+cmd/dcu/dcu_698_axdr.c                         |77.6%   704|93.5%  31|    -    0
+cmd/dcu/dcu_698_axdr_internal.h                | 100%    29| 100%   2|    -    0
+cmd/dcu/dcu_698_class_acq.c                    |93.9%   230| 100%  16|    -    0
+cmd/dcu/dcu_698_class_control.c                |84.6%    26| 100%   2|    -    0
+cmd/dcu/dcu_698_class_event.c                  | 100%   111| 100%   8|    -    0
+cmd/dcu/dcu_698_freeze.c                       | 100%   161| 100%  17|    -    0
+cmd/dcu/dcu_698_freeze_cfg.c                   |97.2%   214| 100%  22|    -    0
+cmd/dcu/dcu_698_object_model.c                 | 100%   107| 100%  19|    -    0
+cmd/dcu/dcu_698_object_model.h                 | 100%     2|    -   0|    -    0
+cmd/dcu/dcu_698_param.c                        |94.3%   209| 100%  14|    -    0
+cmd/dcu/dcu_698_record.c                       |98.3%   120| 100%   6|    -    0
+cmd/dcu/dcu_698_report.c                       |93.5%    46| 100%   5|    -    0
+cmd/dcu/dcu_698_rules.c                        | 100%    57| 100%  10|    -    0
+cmd/dcu/dcu_698_scheme_axdr.c                  |91.4%   534| 100%  38|    -    0
+cmd/dcu/dcu_698_var.c                          |83.0%   218| 100%  14|    -    0
+cmd/dcu/dcu_app_daemon.c                       |94.8%    58| 100%   6|    -    0
+cmd/dcu/dcu_bus_source.c                       |80.6%   124| 100%   6|    -    0
+cmd/dcu/dcu_clock_port.c                       |46.2%    13|66.7%   3|    -    0
+cmd/dcu/dcu_comm_info.c                        |98.7%    78| 100%   9|    -    0
+cmd/dcu/dcu_data_fusion_engine.c               |83.3%    42| 100%   3|    -    0
+cmd/dcu/dcu_discovery.c                        | 100%    19| 100%   4|    -    0
+cmd/dcu/dcu_dlt698_mgmt_engine.c               |96.5%    57| 100%   6|    -    0
+cmd/dcu/dcu_driver_adapter.c                   |63.0%    46|83.3%   6|    -    0
+cmd/dcu/dcu_event_monitor.c                    |83.1%   201| 100%  10|    -    0
+cmd/dcu/dcu_heartbeat.c                        |93.5%    92|75.0%   8|    -    0
+cmd/dcu/dcu_horizontal_tasks.c                 |88.0%    50| 100%   4|    -    0
+cmd/dcu/dcu_inventory.c                        |98.7%   239| 100%  21|    -    0
+cmd/dcu/dcu_load_control.c                     |97.0%    33| 100%   2|    -    0
+cmd/dcu/dcu_node.c                             |60.9%   345|57.1%  42|    -    0
+cmd/dcu/dcu_north_adapter.c                    |27.2%    92|25.0%   8|    -    0
+cmd/dcu/dcu_north_source.c                     |50.0%    16|80.0%   5|    -    0
+cmd/dcu/dcu_outage_detector.c                  |87.1%    31| 100%   2|    -    0
+cmd/dcu/dcu_peripheral_telecontrol.c           | 100%    41| 100%   5|    -    0
+cmd/dcu/dcu_poller.c                           |92.9%   676|96.7%  61|    -    0
+cmd/dcu/dcu_power_quality.c                    |97.7%    86| 100%   5|    -    0
+cmd/dcu/dcu_relay_map.c                        | 100%    19| 100%   4|    -    0
+cmd/dcu/dcu_report_scheme_store.c              |90.6%   128| 100%  11|    -    0
+cmd/dcu/dcu_router.c                           |91.7%    24|88.9%   9|    -    0
+cmd/dcu/dcu_rule_store.c                       |84.9%   272| 100%  19|    -    0
+cmd/dcu/dcu_runtime_self_exit.c                |61.5%    13|50.0%   2|    -    0
+cmd/dcu/dcu_scheme_store.c                     |86.0%   752| 100%  46|    -    0
+cmd/dcu/dcu_scheme_store_internal.h            | 100%     4|    -   0|    -    0
+cmd/dcu/dcu_security.c                         |96.0%    25| 100%   3|    -    0
+cmd/dcu/dcu_soe_event_engine.c                 |92.9%    28| 100%   3|    -    0
+cmd/dcu/dcu_storage.c                          |84.3%   242|93.8%  16|    -    0
+cmd/dcu/dcu_task_store.c                       |82.8%   215|92.9%  14|    -    0
+cmd/dcu/dcu_topology_lineloss.c                |80.3%    76| 100%   3|    -    0
+cmd/dcu/dcu_topology_phase_id.c                |87.5%    40| 100%   2|    -    0
+cmd/dcu/dcu_vertical_tasks.c                   |95.5%    67| 100%   6|    -    0
+
+### exact fraction (same DA/scope rules as check_coverage.py)
+cmd/dcu: 6112/7039 = 86.8305%  (tool reports 86.8, floor 86.8)
+foundation/src/protocol: 0/0 lines (no .gcno; edge_codec does not link edge_common_interface)
+
+### command: python3 ci/scripts/check_coverage.py --info build/coverage_clean.info --root /tmp/dcu-D6-09  (OLD floors, before edit)
+scope                         lines   floor  result
+ALL                           79.6%   74.5%    PASS
+adapters                      76.6%   66.5%    PASS
+cmd                           82.8%   76.5%    PASS
+foundation                    96.5%   87.0%    PASS
+modules/edge_core             75.9%   75.0%    PASS
+modules/edge_io               67.5%   60.0%    PASS
+modules/edge_mgmt             87.2%   87.0%    PASS
+modules/edge_stream           66.2%   65.0%    PASS
+✅ [COVERAGE_GATE] all scopes meet their floors
+exit=0
+
+### command: python3 ci/scripts/check_coverage.py --info build/coverage_clean.info --root /tmp/dcu-D6-09  (NEW floors, after edit)
+scope                         lines   floor  result
+ALL                           79.6%   74.5%    PASS
+adapters                      76.6%   66.5%    PASS
+cmd                           78.2%   76.5%    PASS
+cmd/dcu                       86.8%   86.8%    PASS
+foundation                    96.5%   87.0%    PASS
+modules/edge_core             75.9%   75.0%    PASS
+modules/edge_io               67.5%   60.0%    PASS
+modules/edge_mgmt             87.2%   87.0%    PASS
+modules/edge_stream           66.2%   65.0%    PASS
+✅ [COVERAGE_GATE] all scopes meet their floors
+exit=0
