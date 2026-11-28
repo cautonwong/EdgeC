@@ -1,2 +1,4 @@
 reports/
 edgec_target/edgec_modbus_target
+*.gcda
+*.gcno
