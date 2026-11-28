@@ -333,6 +333,10 @@ target_include_directories(test_dlt698_appconn PRIVATE ${CMAKE_SOURCE_DIR}/modul
 add_edge_test(test_dcu_698_appconn test_dcu_698_appconn.c)
 target_include_directories(test_dcu_698_appconn PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_appconn PRIVATE dcu_app_lib)
+
+add_edge_test(test_dcu_698_p4_matrix test_dcu_698_p4_matrix.c)
+target_include_directories(test_dcu_698_p4_matrix PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_p4_matrix PRIVATE dcu_app_lib)
 add_edge_test(test_driver_iec104 test_driver_iec104.c)
 add_edge_test(test_driver_v3 test_driver_v3.c)
 add_edge_test(test_modbus_v3 test_modbus_v3.c)
