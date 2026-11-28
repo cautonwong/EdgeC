@@ -519,26 +519,28 @@ static void test_product_class12_pulse_has_no_value_yet(void **state) {
     size_t len = 0;
     /* 表157 类定义 A1..A19；16/17 的归属在表157/158 之间有冲突，按类定义表157
      * 视为已定义，主站侧因 ACL 未广告先回 DAR 3。 */
-    for (uint8_t attr = 1; attr <= 19; attr++) {
-        assert_int_equal(
-            dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, attr), buf, sizeof(buf), &len),
-            EDGE_SLAVE_SRC_CLASS_MISMATCH);
-    }
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2401, 20), buf, sizeof(buf), &len),
-                     EDGE_SLAVE_SRC_UNDEFINED);
+    for (uint16_t oi = 0x2401; oi <= 0x2408; oi++) {
+        for (uint8_t attr = 1; attr <= 19; attr++) {
+            assert_int_equal(
+                dcu_north_resolve_axdr(NULL, MK_OAD(oi, attr), buf, sizeof(buf), &len),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(oi, 20), buf, sizeof(buf), &len),
+                         EDGE_SLAVE_SRC_UNDEFINED);
 
-    for (uint8_t method = 1; method <= 4; method++) {
-        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, method), NULL, 0),
-                         EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, method), NULL, 0),
+                             EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(oi, 5), NULL, 0),
+                         EDGE_SLAVE_SRC_UNDEFINED);
     }
-    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2401, 5), NULL, 0),
-                     EDGE_SLAVE_SRC_UNDEFINED);
 
-    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2402, 2), buf, sizeof(buf), &len),
+    assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x2409, 2), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
     assert_int_equal(dcu_north_resolve_axdr(NULL, MK_OAD(0x9999, 2), buf, sizeof(buf), &len),
                      EDGE_SLAVE_SRC_NOT_FOUND);
-    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2402, 1), NULL, 0),
+    assert_int_equal(dcu_north_accept_action(NULL, MK_OMD(0x2409, 1), NULL, 0),
                      EDGE_SLAVE_SRC_NOT_FOUND);
 }
 

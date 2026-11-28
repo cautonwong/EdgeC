@@ -316,9 +316,9 @@ static void test_p4_class20_appconn_and_acl(void **state) {
     assert_true(list_len > 3);
     assert_int_equal(list_buf[0], 0x01);
     assert_int_equal(list_buf[1], 0x81);
-    assert_int_equal(list_buf[2], 0x83);
+    assert_int_equal(list_buf[2], 0x8A);
 
-    /* Full 698 GET 4400 A2 frame -> 6476 B response */
+    /* Full 698 GET 4400 A2 frame -> 7351 B response */
     const uint8_t get_4400[] = {DLT698_SVC_GET_REQ, 0x01, 0x01, 0x44, 0x00, 0x02, 0x00, 0x00};
     static uint8_t backing[8192];
     uint8_t svc = 0;
@@ -328,12 +328,12 @@ static void test_p4_class20_appconn_and_acl(void **state) {
     _exchange(get_4400, sizeof(get_4400), backing, sizeof(backing), &svc, &payload, &plen,
               &frame_len);
     assert_int_equal(svc, DLT698_SVC_GET_RES);
-    assert_int_equal(frame_len, 6476);
+    assert_int_equal(frame_len, 7351);
     assert_true(plen > 8);
     assert_int_equal(payload[4], 0x01); /* GetResult ::= Data */
     assert_int_equal(payload[5], 0x01);
     assert_int_equal(payload[6], 0x81);
-    assert_int_equal(payload[7], 0x83);
+    assert_int_equal(payload[7], 0x8A);
 
     /* ACL enforcement: authorized GET passes ACL vs unauthorized SET -> DAR 3 */
     const uint8_t u8_val[] = {DLT698_TAG_UNSIGNED, 0};

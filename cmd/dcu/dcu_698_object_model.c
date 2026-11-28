@@ -202,9 +202,16 @@ static dcu_698_object_t g_objects[] = {
     {.oi = 0x2123, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
     {.oi = 0x2124, .class_id = IC_EXTREMUM, .scope = DCU_OBJ_SHARED},
 
-    /* 2401：Class 12 脉冲计量没有脉冲量来源，空掩码让 resolver 按类定义
+    /* 2401–2408：Class 12 脉冲计量没有脉冲量来源，空掩码让 resolver 按类定义
      * 如实回 DAR 5，不返回空数组或伪造脉冲量。 */
     {.oi = OI_PULSE_METER, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2402, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2403, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2404, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2405, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2406, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2407, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
+    {.oi = 0x2408, .class_id = IC_PULSE, .scope = DCU_OBJ_SINGLETON},
 
     /* 2301–2308：Class 23 总加组。产品没有总加配置/总加值/滑差/功控来源，空掩码
      * 让 resolver 按类定义如实回 DAR 5；总加与功控方法没有处理器，绝不执行。 */

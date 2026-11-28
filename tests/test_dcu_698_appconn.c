@@ -10,6 +10,7 @@
 #include "dcu_698_appconn.h"
 #include "dcu_698_axdr.h"
 #include "dcu_698_object_model.h"
+#include "dcu_north_adapter.h"
 #include "dcu_router.h"
 #include "dcu_inventory.h"
 #include "dcu_poller.h"
@@ -35,7 +36,7 @@ static void test_object_list_shape_and_capacity(void **state) {
     assert_true(len > 0 && len <= EDGE_SLAVE_AXDR_MAX);
     assert_int_equal(buf[0], 0x01); /* array */
     assert_int_equal(buf[1], 0x81); /* A-XDR 长格式 1 字节长度 */
-    assert_int_equal(buf[2], 131);
+    assert_int_equal(buf[2], 138);
     assert_int_equal(buf[3], 0x02); /* structure */
     assert_int_equal(buf[4], 0x02);
 
@@ -347,20 +348,22 @@ static void test_class11_acl_is_read_only(void **state) {
 static void test_class12_pulse_acl_is_read_only(void **state) {
     (void)state;
     acl_rights_t acl;
-    assert_int_equal(_acl_rights_for(0x2401, &acl), 0);
-    assert_false(acl.seen[0]);
     /* 表157 类定义 A1..A19；16/17 的归属在表157/表158 间冲突、18/19 未裁决，
      * ACL 只广告 1..15。 */
-    for (uint8_t attr = 1; attr <= 15; attr++) {
-        assert_true(acl.seen[attr]);
-        assert_int_equal(acl.rights[attr], 1);
+    for (uint16_t oi = 0x2401; oi <= 0x2408; oi++) {
+        assert_int_equal(_acl_rights_for(oi, &acl), 0);
+        assert_false(acl.seen[0]);
+        for (uint8_t attr = 1; attr <= 15; attr++) {
+            assert_true(acl.seen[attr]);
+            assert_int_equal(acl.rights[attr], 1);
+        }
+        for (int attr = 16; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_true(acl.method_seen[method]);
+            assert_int_equal(acl.method_rights[method], 1);
+        }
+        assert_false(acl.method_seen[5]);
     }
-    for (int attr = 16; attr < ACL_MAX_RIGHTS; attr++) assert_false(acl.seen[attr]);
-    for (uint8_t method = 1; method <= 4; method++) {
-        assert_true(acl.method_seen[method]);
-        assert_int_equal(acl.method_rights[method], 1);
-    }
-    assert_false(acl.method_seen[5]);
 }
 
 static void test_class25_26_comm_acl_is_read_only(void **state) {
@@ -612,6 +615,30 @@ static void test_class7_event_get_dar5_and_set_denied(void **state) {
     }
 }
 
+static void test_class12_pulse_get_dar5_and_set_denied(void **state) {
+    (void)state;
+    const uint8_t null_val[] = {0x00};
+    for (uint16_t oi = 0x2402; oi <= 0x2408; oi++) {
+        for (uint8_t attr = 1; attr <= 15; attr++) {
+            assert_int_equal(_get_dar_oi(oi, attr), DLT698_DAR_OBJECT_CLASS_MISMATCH);
+            assert_int_equal(_set_dar_oi(oi, attr, null_val, sizeof(null_val)), DLT698_DAR_DENIED);
+        }
+        for (uint8_t attr = 16; attr <= 20; attr++) {
+            assert_int_equal(_get_dar_oi(oi, attr), DLT698_DAR_DENIED);
+        }
+        for (uint8_t method = 1; method <= 4; method++) {
+            assert_int_equal(
+                dcu_north_accept_action(NULL, ((uint32_t)oi << 16) | ((uint32_t)method << 8),
+                                        null_val, sizeof(null_val)),
+                EDGE_SLAVE_SRC_CLASS_MISMATCH);
+        }
+        assert_int_equal(
+            dcu_north_accept_action(NULL, ((uint32_t)oi << 16) | (5u << 8), null_val,
+                                    sizeof(null_val)),
+            EDGE_SLAVE_SRC_UNDEFINED);
+    }
+}
+
 int main(void) {
     const struct CMUnitTest tests[] = {
         cmocka_unit_test(test_object_list_shape_and_capacity),
@@ -620,6 +647,8 @@ int main(void) {
         cmocka_unit_test(test_class17_acl_is_read_only),
         cmocka_unit_test(test_class11_acl_is_read_only),
         cmocka_unit_test(test_class12_pulse_acl_is_read_only),
+        cmocka_unit_test_setup_teardown(test_class12_pulse_get_dar5_and_set_denied, setup_model,
+                                        teardown_model),
         cmocka_unit_test(test_class25_26_comm_acl_is_read_only),
         cmocka_unit_test(test_class19_devmgr_acl_is_read_only),
         cmocka_unit_test(test_class21_esam_acl_is_read_only),
