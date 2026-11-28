@@ -1,15 +1,3 @@
-/**
- * @file test_dcu_698_wire_vectors.c
- * @brief DCU-D6-02：DL/T 698.45 真帧向量（GET/SET/ACTION/GetRecord/REPORT/RSD/DAR）
- *
- * 每条向量的请求 APDU 与期望应答都取自 `docs/698_parsed.md` 的标准原文（行号见
- * 每个用例的注释），不先跑实现再抄回期望值。帧头/帧尾（68 | L | C | SA | CA |
- * HCS | APDU | FCS | 16）由驱动生成；这里只断言 APDU 内容与 DAR。
- *
- * 入口是真实产品路径：`dlt698_driver.req_slave_exchange` + 对象模型回调
- * （`dcu_north_resolve_axdr` / `dcu_north_accept_axdr` / `dcu_north_accept_action`），
- * 不复制帧解析逻辑。
- */
 
 #include <cmocka.h>
 #include <setjmp.h>
@@ -44,7 +32,6 @@ extern const edge_driver_t dlt698_driver;
 #define APDU_OFF 9
 #define MK_OAD(oi, attr) (((uint32_t)(oi) << 16) | ((uint32_t)(attr) << 8))
 
-/* ---- 对象模型装配：真实产品回调 + 可控时钟/参数存储 ---- */
 
 static dcu_inventory_t g_inv;
 static dcu_poller_t g_poller;
@@ -137,7 +124,6 @@ static const edge_slave_source_ops_t k_product_src = {
     .accept_action = dcu_north_accept_action,
 };
 
-/* ---- 帧构造 / 交换 ---- */
 
 static size_t build_frame(uint8_t *out, const uint8_t *apdu, size_t apdu_len) {
     size_t n = 0;
@@ -190,7 +176,6 @@ static void assert_response(const uint8_t *backing, size_t out_len, const uint8_
     assert_memory_equal(backing + APDU_OFF, want, want_len);
 }
 
-/* ---- 1. GET Normal 单项：H.4.2 设置通信地址 → H.3.1 读取通信地址 ---- */
 
 static void test_get_normal_single(void **state) {
     (void)state;
@@ -198,8 +183,8 @@ static void test_get_normal_single(void **state) {
     size_t out_len = 0;
     static uint8_t session[4096];
 
-    /* H.4.2（docs/698_parsed.md:10545）SET 4001 A2 = octet-string 123456789012。
-     * 表79（:2824）SetRequestNormal = PIID | OAD | Data | 时间标签。 */
+    /* 表79（docs/698_parsed.md:2824）SetRequestNormal = PIID | OAD | Data | 时间标签；
+     * 值 123456789012 取自 H.3.1 示例（:10210）。 */
     static const uint8_t set_addr[] = {0x06, 0x01, 0x02, 0x40, 0x01, 0x02, 0x00, 0x09,
                                        0x06, 0x12, 0x34, 0x56, 0x78, 0x90, 0x12, 0x00};
     memset(session, 0, sizeof(session));
@@ -234,12 +219,11 @@ static void test_get_normal_truncated_is_dropped(void **state) {
     assert_int_equal(out_len, 0);
 }
 
-/* ---- 2. GET NormalList：逐项 DAR（表73 :2700） ---- */
 
 static void test_get_normal_list_per_item_dar(void **state) {
     (void)state;
     /* 以太网口 MAC（4510 A5）回数据；F200 A3 按类定义存在而未实现 → DAR 5。
-     * 表73：A-ResultNormal = OAD | Get-Result（[1] Data 或 [0] DAR）。
+     * 表72（:2684）：A-ResultNormal = OAD | Get-Result（[1] Data 或 [0] DAR）。
      * DAR 5 = 对象接口类不符合，表34（:1935）。 */
     dcu_comm_info_t info = {.mac_present = true, .mac = {0x02, 0x11, 0x22, 0x33, 0x44, 0x55}};
     dcu_comm_info_install(&info);
@@ -274,7 +258,6 @@ static void test_get_normal_list_count_mismatch_is_dropped(void **state) {
     assert_int_equal(out_len, 0);
 }
 
-/* ---- 3. SET：成功（H.4.1 :10525）与类型错误 ---- */
 
 static void test_set_success_and_type_error(void **state) {
     (void)state;
@@ -304,7 +287,6 @@ static void test_set_success_and_type_error(void **state) {
     assert_response(backing, out_len, wrong_resp, sizeof(wrong_resp));
 }
 
-/* ---- 3b. DAR 类别：未定义属性 4 / 类不符合 5 / 对象不存在 6（表34 :1934-1936） ---- */
 
 /* 只广告下面三条 OAD，让请求越过 ACL 到达真实 resolver，分别产生 DAR 4/5/6。
  * 产品默认对象列表不会广告“未定义属性/未知 OI”，所以这里用测试 ACL。 */
@@ -432,9 +414,7 @@ static void test_dar_unadvertised_attr_denied(void **state) {
     assert_response(backing, out_len, want, sizeof(want));
 }
 
-/* ---- 4. ACTION：6012 方法 127 与 8000 方法 129 ---- */
 
-/* 6012 方法 127 的 A2 单元（形状同 tests/test_dcu_698_tasks.c）。 */
 static const uint8_t k_add_task_7_60s[] = {
     0x01, 0x01,             /* array[1] */
     0x02, 0x0C,             /* structure[12] */
@@ -535,15 +515,13 @@ static void test_action_6012_truncated_dar7(void **state) {
     assert_int_equal(g_task_apply_calls, before);
 }
 
-/* ---- 5. GetRecord：Selector1 / Selector2（表67 :2588、表74、表30 :1792） ---- */
 
-/* 假记录源：只返回一行，行字节是标准 Data 编码的 double-long-unsigned 1。 */
 static int fake_record_begin(void *ctx, uint32_t oad, const uint8_t *sel, size_t sel_len,
                              size_t *total) {
     (void)ctx;
     (void)oad;
     assert_true(sel_len > 0);
-    /* 选择方法必须是 RSD [1] 或 [2]（表30 :1795）。 */
+    /* 本夹具只实现 Selector1/2（表30 :1809/:1817）。 */
     assert_true(sel[0] == DLT698_RSD_SELECTOR1 || sel[0] == DLT698_RSD_SELECTOR2);
     *total = 1;
     return 0;
@@ -641,7 +619,6 @@ static void test_get_record_truncated_is_dropped(void **state) {
     assert_int_equal(out_len, 0);
 }
 
-/* ---- 6. REPORT：帧布局（表94/95）与确认匹配（表98/99） ---- */
 
 static uint8_t g_report_body[64];
 static size_t g_report_body_len;
@@ -752,7 +729,7 @@ static void report_confirm_case(uint8_t response_piid, bool expect_resent) {
 static void test_report_frame_layout(void **state) {
     (void)state;
     /* 表95 :3124 ReportNotificationList = PIID-ACD | SEQUENCE OF A-ResultNormal；
-     * 帧格式见 5.1（68 | L | C3 | SA | CA | HCS | 08 | body | 00 | FCS | 16）。 */
+     * 帧格式见 5.1（68 | L | 83 | SA | CA | HCS | 88 | body | 00 | FCS | 16）。 */
     static const uint8_t body[] = {
         DLT698_REPORT_LIST, 0x07, 0x01, 0x30, 0x00, 0x04, 0x00, 0x01, 0x12, 0x00, 0x01};
     uint8_t raw_body[64];
@@ -777,8 +754,8 @@ static void test_report_frame_layout(void **state) {
     sa.addr[0] = 0x01;
     assert_int_equal(dlt698_encode_report_frame(&sa, raw_body, blen, &out), 0);
 
-    /* APDU = 08 | body | 00（时间标签）。 */
-    static const uint8_t want[] = {0x08, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
+    /* APDU = 88 | body | 00（时间标签）。 */
+    static const uint8_t want[] = {0x88, 0x01, 0x07, 0x01, 0x30, 0x00, 0x04,
                                    0x00, 0x01, 0x12, 0x00, 0x01, 0x00};
     assert_int_equal(out.b.len, (size_t)APDU_OFF + sizeof(want) + 3);
     assert_memory_equal(out.b.data + APDU_OFF, want, sizeof(want));
