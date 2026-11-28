@@ -1,0 +1,33 @@
+# DCU-D6-02 test log (2026-11-28T03:37:11Z)
+
+## Release configure/build
+$ cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DENABLE_WEB_BUILD=OFF
+rc=0
+$ cmake --build build -j8
+rc=0; warnings: 0
+
+## check_build_warnings.py
+✅ [BUILD_WARNING_GUARD] No new violations. 0 tracked debt item(s) remain pinned.
+
+## Release targeted test
+$ ctest --test-dir build -R test_dcu_698_wire_vectors --output-on-failure
+  1/382 Test  #31: test_dcu_698_wire_vectors ............   Passed    0.02 sec
+
+## Release full ctest
+$ ctest --test-dir build --output-on-failure -j8
+100% tests passed, 0 tests failed out of 382
+
+Total Test time (real) = 105.15 sec
+
+## ASAN build/run
+$ cmake -S . -B build-asan -G Ninja -DCMAKE_BUILD_TYPE=Debug -DENABLE_WEB_BUILD=OFF -DENABLE_ASAN=ON
+rc=0
+$ cmake --build build-asan --target test_dcu_698_wire_vectors -j8
+rc=0
+$ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1 ./build-asan/tests/test_dcu_698_wire_vectors
+[       OK ] test_report_confirm_matching
+[==========] tests: 13 test(s) run.
+[  PASSED  ] 13 test(s).
+
+## git diff --check
+rc=0

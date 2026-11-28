@@ -151,6 +151,10 @@ add_edge_test(test_dcu_698_axdr test_dcu_698_axdr.c)
 target_include_directories(test_dcu_698_axdr PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_axdr PRIVATE dcu_app_lib)
 
+add_edge_test(test_dcu_698_wire_vectors test_dcu_698_wire_vectors.c)
+target_include_directories(test_dcu_698_wire_vectors PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
+target_link_libraries(test_dcu_698_wire_vectors PRIVATE dcu_app_lib)
+
 add_edge_test(test_dcu_698_param test_dcu_698_param.c)
 target_include_directories(test_dcu_698_param PRIVATE "${CMAKE_SOURCE_DIR}/cmd/dcu")
 target_link_libraries(test_dcu_698_param PRIVATE dcu_app_lib)

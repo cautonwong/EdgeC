@@ -1,0 +1,20 @@
+test	case	vector	standard_source	expected
+test_get_normal_single	SET	SET 4001 A2 = octet-string 123456789012	docs/698_parsed.md:10545,H.4.2; :2892,table83	86 01 02 40 01 02 00 00 00 00
+test_get_normal_single	GET	GET 4001 A2	docs/698_parsed.md:10204/10210,H.3.1; :2560,table65; :2676,table72	85 01 01 40 01 02 00 01 09 06 12 34 56 78 90 12 00 00
+test_get_normal_truncated_is_dropped	GET	GET 4001 truncated	docs/698_parsed.md:2560,table65	dropped (no response)
+test_get_normal_list_per_item_dar	GET-NormalList	[4510 A5, F200 A3]	docs/698_parsed.md:2700,table73; :1935,table34	data + DAR 5
+test_get_normal_list_count_mismatch_is_dropped	GET-NormalList	count=2 but 1 OAD	docs/698_parsed.md:2575,table66	dropped (no response)
+test_set_success_and_type_error	SET	SET 4000 A2 = date_time_s 2016-01-20 16:27:11	docs/698_parsed.md:10525/10533,H.4.1; :2892,table83; :1930,table34	DAR 0
+test_set_success_and_type_error	SET	SET 4000 A2 with long-unsigned	docs/698_parsed.md:1937,table34	DAR 7
+test_dar_classes_undefined_class_notfound	GET	GET 0010 A6	docs/698_parsed.md:1934,table34	DAR 4
+test_dar_classes_undefined_class_notfound	GET	GET F200 A3	docs/698_parsed.md:1935,table34	DAR 5
+test_dar_classes_undefined_class_notfound	GET	GET 1234 A2	docs/698_parsed.md:1936,table34	DAR 6
+test_dar_unadvertised_attr_denied	GET	GET 0010 A5 (not advertised)	docs/698_parsed.md:1933,table34	DAR 3
+test_action_6012_and_8000	ACTION	6012 method 127 add task	docs/698_parsed.md:2970,table87; :3047,table91; :10598,H.5.1; :1930,table34	DAR 0
+test_action_6012_and_8000	ACTION	8000 method 129 trip, empty relay map	docs/698_parsed.md:8737,tableA.9; :1932,table34	DAR 2
+test_action_6012_truncated_dar7	ACTION	6012 method 127 truncated param	docs/698_parsed.md:1937,table34	DAR 7
+test_get_record_selector1_and_2	GetRecord	OAD 5004 A2, RSD Selector1	docs/698_parsed.md:2588,table67; :1809,table30; :2716,table74	1 row 06 00 00 00 01
+test_get_record_selector1_and_2	GetRecord	OAD 5004 A2, RSD Selector2	docs/698_parsed.md:1817,table30; :2716,table74	1 row 06 00 00 00 01
+test_get_record_truncated_is_dropped	GetRecord	Selector1 missing value/RCSD	docs/698_parsed.md:2588,table67	dropped (no response)
+test_report_frame_layout	REPORT	REPORT-Notification body + frame	docs/698_parsed.md:403,5.1.1; :583,5.1.5; :3109,table94; :3124,table95	08 01 07 01 30 00 04 00 01 12 00 01 00
+test_report_confirm_matching	REPORT	REPORT-Response PIID mismatch/match	docs/698_parsed.md:3172,table98; :3183,table99	mismatch ignored; match clears pending
