@@ -1,0 +1,5 @@
+# DCU-D3-08c 规格：300B 无功需量超限事件对象（空掩码）
+
+| 业务规则 | 不变量 | 可观测输出 | 验收判据 | 非目标 |
+| --- | --- | --- | --- | --- |
+| 1. 标准 `docs/698_parsed.md:6940` 定义 300B 为 Class 24（`IC_SUB_EVENT`），属性 5 配置参数、6..9 四张事件记录表。<br>2. 对象表登记 300B 共享行，属性/方法掩码为空，不挂事件实例（产品没有该事件引擎）。<br>3. Class 20 ACL 以只读权限广告 5..9，让请求到达对象表而不是被 ACL 先回 DAR 3。<br>4. 事件处理器先看掩码再看实例：定义但未广告 → DAR 5；类外属性 → DAR 4；不能因实例为空回 DAR 6。 | 1. 300B 不产生任何伪造事件记录或计数。<br>2. 3000/3005/3009/300C/3011/3013 的现有掩码与行为不变。<br>3. 对象数 +1、ACL 对象数 +1，均在 `EDGE_SLAVE_ACL_MAX_OBJECTS` 与会话预算内。<br>4. 目录 `DCU_698_OI_CATALOG` 不改：300B 已是 Class 24。 | 1. GET `300B A5/A6/A7/A8/A9` → DAR 5（`EDGE_SLAVE_SRC_CLASS_MISMATCH`）。<br>2. GET `300B A15` → DAR 4（`EDGE_SLAVE_SRC_UNDEFINED`）。<br>3. SET `300B A5` → DAR 3（ACL 只读）。<br>4. `4400 A2` 对象列表包含 300B 与 5..9 只读属性；对象数/ACL 数断言更新。 | 1. `tests/test_dcu_698_object_model.c`：300B 行为与 DAR 分类。<br>2. `tests/test_dcu_698_appconn.c`：ACL 行与对象列表字节。<br>3. `tests/test_driver_dlt698.c`：驱动 GET/SET 的 DAR。<br>4. 变异守卫 `DCU-D3-08c-300B-row`：删除 300B 行时测试变红、恢复变绿。<br>5. 合并树全量 ctest、warning gate、`run_guard_selftest.py` 绿。 | 1. 不实现 300B 的事件引擎、记录表或上送。<br>2. 不广告 5..9 之外的标准属性（A15 保持未定义）。<br>3. 不改 `k_class_max_attr` 或其他 OI 行。 |
